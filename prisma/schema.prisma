@@ -13,6 +13,19 @@ enum UserRole {
   OPERATOR
 }
 
+enum BookingLocationType {
+  PICKUP
+  DESTINATION
+}
+
+enum WebhookProcessingStatus {
+  RECEIVED
+  PROCESSING
+  PROCESSED
+  FAILED
+  IGNORED
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -22,4 +35,154 @@ model User {
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+}
+
+model Booking {
+  id                String  @id @default(cuid())
+  provider          String  @default("AUTOCAB")
+  externalId        String
+  originalBookingId String?
+  bookingType       String?
+  typeOfBooking     String?
+  status            String  @default("ACTIVE")
+
+  pickupDueTime  DateTime?
+  dropOffDueTime DateTime?
+  bookedAtTime   DateTime?
+
+  customerName    String?
+  telephoneNumber String?
+  customerEmail   String?
+
+  paymentType String?
+  accountType String?
+  accountId   String?
+  accountName String?
+
+  companyId           String?
+  companyName         String?
+  companyRegisteredNo String?
+  companyCode         String?
+
+  priority   Int @default(0)
+  passengers Int @default(1)
+  luggage    Int @default(0)
+
+  driverNote           String?
+  officeNote           String?
+  ourReference         String?
+  flightDetails        String?
+  bookedBy             String?
+  bookingSource        String?
+  cabExchangeReference String?
+  loyaltyCardId        String?
+  loyaltyCardCostValue Decimal @default(0) @db.Decimal(12, 2)
+  isStreetPickup       Boolean @default(false)
+
+  fare                  Decimal? @db.Decimal(12, 2)
+  cost                  Decimal? @db.Decimal(12, 2)
+  price                 Decimal? @db.Decimal(12, 2)
+  extraCost             Decimal? @db.Decimal(12, 2)
+  fixedCost             Decimal? @db.Decimal(12, 2)
+  fixedPrice            Decimal? @db.Decimal(12, 2)
+  chargingAreaCost      Decimal? @db.Decimal(12, 2)
+  chargingAreaPrice     Decimal? @db.Decimal(12, 2)
+  waitingTime           Decimal? @db.Decimal(12, 2)
+  waitingTimeChargeable Decimal? @db.Decimal(12, 2)
+  gratuityAmount        Decimal? @db.Decimal(12, 2)
+  costSource            String?
+  pricingTariff         String?
+  pricingSource         String?
+
+  distance            Decimal? @db.Decimal(12, 3)
+  systemDistance      Decimal? @db.Decimal(12, 3)
+  meterDistance       Decimal? @db.Decimal(12, 3)
+  meterDistanceMetres Int?
+
+  gpsMeterDistance     Decimal? @db.Decimal(12, 3)
+  gpsMeterPrice        Decimal? @db.Decimal(12, 2)
+  gpsMeterPriceSource  String?
+  estimatedDistance    Decimal? @db.Decimal(12, 3)
+  estimatedPrice       Decimal? @db.Decimal(12, 2)
+  estimatedPriceSource String?
+  estimatedTime        String?
+
+  capabilities          Json?
+  yourReferences        Json?
+  promotionCodeDiscount Json?
+  rawPayload            Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  locations     BookingLocation[]
+  vias          BookingVia[]
+  webhookEvents WebhookEvent[]
+
+  @@unique([provider, externalId])
+  @@index([pickupDueTime])
+  @@index([telephoneNumber])
+  @@index([customerEmail])
+  @@index([status])
+}
+
+model BookingLocation {
+  id             String              @id @default(cuid())
+  bookingId      String
+  type           BookingLocationType
+  address        String
+  zoneId         String?
+  zoneDescriptor String?
+  zoneName       String?
+  longitude      Decimal?            @db.Decimal(11, 8)
+  latitude       Decimal?            @db.Decimal(10, 8)
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, type])
+  @@index([zoneId])
+}
+
+model BookingVia {
+  id             String   @id @default(cuid())
+  bookingId      String
+  position       Int
+  address        String
+  zoneId         String?
+  zoneDescriptor String?
+  zoneName       String?
+  longitude      Decimal? @db.Decimal(11, 8)
+  latitude       Decimal? @db.Decimal(10, 8)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
+  @@unique([bookingId, position])
+}
+
+model WebhookEvent {
+  id                String                  @id @default(cuid())
+  provider          String                  @default("AUTOCAB")
+  eventType         String
+  externalBookingId String?
+  idempotencyKey    String                  @unique
+  status            WebhookProcessingStatus @default(RECEIVED)
+  payload           Json
+  headers           Json?
+  processingError   String?
+  attemptCount      Int                     @default(0)
+  receivedAt        DateTime                @default(now())
+  processedAt       DateTime?
+  updatedAt         DateTime                @updatedAt
+
+  bookingId String?
+  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([provider, eventType])
+  @@index([externalBookingId])
+  @@index([status])
+  @@index([receivedAt])
 }
