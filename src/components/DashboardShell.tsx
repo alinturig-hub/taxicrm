@@ -36,7 +36,7 @@ const mainNavigation = [
 ];
 
 const administrationNavigation = [
-  { label: "Autocab", href: "/dashboard/integrations/autocab" },
+  { label: "Autocab Integration", href: "/dashboard/integrations/autocab" },
   { label: "Settings", href: "/dashboard/settings" },
 ];
 
@@ -126,6 +126,7 @@ export default function DashboardShell({
               aria-expanded={bookingsOpen}
             >
               <span>Bookings</span>
+
               <span
                 className={[
                   "text-xs transition-transform duration-200",
@@ -201,6 +202,7 @@ export default function DashboardShell({
           <p className="text-xs font-semibold text-emerald-400">
             System online
           </p>
+
           <p className="mt-1 text-xs text-slate-500">
             Live booking intelligence
           </p>
@@ -232,33 +234,61 @@ export default function DashboardShell({
 
       <div className="min-w-0 lg:pl-72">
         <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur">
-          <div className="flex h-16 items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-lg text-white transition hover:bg-slate-700 lg:hidden"
+                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-lg text-white transition hover:bg-slate-700 lg:hidden"
                 aria-label="Open menu"
               >
                 ☰
               </button>
 
               <div className="min-w-0">
-                <p className="truncate text-sm font-semibold text-white sm:text-base">
-                  TaxiCRM Control Center
+                <p className="truncate text-base font-bold text-white sm:text-lg">
+                  TaxiCRM
                 </p>
+
                 <p className="hidden truncate text-xs text-slate-400 sm:block">
-                  Autocab integration and booking intelligence
+                  Control Center
                 </p>
               </div>
             </div>
 
-            <Link
-              href="/dashboard/integrations/autocab"
-              className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 sm:px-4 sm:text-sm"
-            >
-              Autocab
-            </Link>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                className="hidden rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white md:block"
+              >
+                Search
+              </button>
+
+              <Link
+                href="/dashboard/ai-intelligence"
+                className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 hover:text-blue-200"
+                aria-label="AI Intelligence"
+              >
+                AI
+              </Link>
+
+              <button
+                type="button"
+                className="relative rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                aria-label="Notifications"
+              >
+                🔔
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+              </button>
+
+              <button
+                type="button"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-bold text-white transition hover:bg-slate-700"
+                aria-label="User profile"
+              >
+                {userEmail?.charAt(0).toUpperCase() || "A"}
+              </button>
+            </div>
           </div>
         </header>
 
