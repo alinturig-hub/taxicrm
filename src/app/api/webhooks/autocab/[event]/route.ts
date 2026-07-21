@@ -1,7 +1,6 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
-import { processBookingCreatedWebhook } from "@/lib/autocab/process-booking-created";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -23,10 +22,6 @@ function normaliseEventSlug(value: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-function normaliseEventName(value: string): string {
-  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
-}
-
 function getPayloadString(
   payload: AutocabPayload,
   keys: string[],
@@ -46,13 +41,21 @@ function getPayloadString(
   return null;
 }
 
-function createIdempotencyKey(eventSlug: string, rawBody: string): string {
-  const payloadHash = createHash("sha256").update(rawBody).digest("hex");
+function createIdempotencyKey(
+  eventSlug: string,
+  rawBody: string,
+): string {
+  const payloadHash = createHash("sha256")
+    .update(rawBody)
+    .digest("hex");
 
   return `AUTOCAB:${eventSlug}:${payloadHash}`;
 }
 
-function secureCompare(provided: string, expected: string): boolean {
+function secureCompare(
+  provided: string,
+  expected: string,
+): boolean {
   const providedBuffer = Buffer.from(provided);
   const expectedBuffer = Buffer.from(expected);
 
@@ -63,18 +66,25 @@ function secureCompare(provided: string, expected: string): boolean {
   return timingSafeEqual(providedBuffer, expectedBuffer);
 }
 
+function getApiKeyHeaderName(): string {
+  return (
+    process.env.AUTOCAB_WEBHOOK_API_KEY_HEADER
+      ?.trim()
+      .toLowerCase() || "x-autocab-api-key"
+  );
+}
+
 function validateApiKey(request: NextRequest): boolean {
-  const expectedApiKey = process.env.AUTOCAB_WEBHOOK_API_KEY;
+  const expectedApiKey =
+    process.env.AUTOCAB_WEBHOOK_API_KEY;
 
   if (!expectedApiKey) {
     return true;
   }
 
-  const headerName =
-    process.env.AUTOCAB_WEBHOOK_API_KEY_HEADER?.trim().toLowerCase() ||
-    "x-autocab-api-key";
-
-  const providedApiKey = request.headers.get(headerName);
+  const providedApiKey = request.headers.get(
+    getApiKeyHeaderName(),
+  );
 
   if (!providedApiKey) {
     return false;
@@ -83,38 +93,36 @@ function validateApiKey(request: NextRequest): boolean {
   return secureCompare(providedApiKey, expectedApiKey);
 }
 
-function headersToJson(request: NextRequest): Prisma.InputJsonObject {
+function headersToJson(
+  request: NextRequest,
+): Prisma.InputJsonObject {
   const headers: Record<string, string> = {};
+  const apiKeyHeaderName = getApiKeyHeaderName();
 
   request.headers.forEach((value, key) => {
     const normalisedKey = key.toLowerCase();
 
-    if (normalisedKey !== "authorization" && normalisedKey !== "cookie") {
-      headers[key] = value;
+    if (
+      normalisedKey === "authorization" ||
+      normalisedKey === "cookie" ||
+      normalisedKey === apiKeyHeaderName
+    ) {
+      return;
     }
+
+    headers[normalisedKey] = value;
   });
 
   return headers;
 }
 
-async function processStoredWebhook(
-  webhookEventId: string,
-  eventType: string,
-): Promise<void> {
-  const normalisedEventType = normaliseEventName(eventType);
-
-  switch (normalisedEventType) {
-    case "bookingcreated":
-      await processBookingCreatedWebhook(webhookEventId);
-      return;
-
-    default:
-      return;
-  }
-}
-
-export async function POST(request: NextRequest, context: RouteContext) {
-  const eventSlug = normaliseEventSlug(context.params.event);
+export async function POST(
+  request: NextRequest,
+  context: RouteContext,
+) {
+  const eventSlug = normaliseEventSlug(
+    context.params.event,
+  );
 
   if (!eventSlug) {
     return NextResponse.json(
@@ -167,7 +175,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
       parsedPayload === null ||
       Array.isArray(parsedPayload)
     ) {
-      throw new Error("The payload must be a JSON object.");
+      throw new Error(
+        "The webhook payload must be a JSON object.",
+      );
     }
 
     payload = parsedPayload as AutocabPayload;
@@ -176,7 +186,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "INVALID_JSON",
-        message: "The received payload is not valid JSON.",
+        message:
+          "The received payload is not a valid JSON object.",
       },
       {
         status: 400,
@@ -184,70 +195,60 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  const payloadEventType =
-    getPayloadString(payload, ["EventType", "eventType"]) ?? eventSlug;
+  const eventType =
+    getPayloadString(payload, [
+      "EventType",
+      "eventType",
+      "EventName",
+      "eventName",
+      "Type",
+      "type",
+    ]) ?? eventSlug;
 
   const externalBookingId = getPayloadString(payload, [
     "Id",
     "BookingId",
     "OriginalBookingId",
     "bookingId",
+    "originalBookingId",
     "id",
   ]);
 
-  const idempotencyKey = createIdempotencyKey(eventSlug, rawBody);
+  const idempotencyKey = createIdempotencyKey(
+    eventSlug,
+    rawBody,
+  );
 
   try {
-    const webhookEvent = await prisma.webhookEvent.create({
-      data: {
-        provider: "AUTOCAB",
-        eventType: payloadEventType,
-        externalBookingId,
-        idempotencyKey,
-        status: "RECEIVED",
-        payload: payload as Prisma.InputJsonObject,
-        headers: headersToJson(request),
-      },
-      select: {
-        id: true,
-        eventType: true,
-        externalBookingId: true,
-        status: true,
-        receivedAt: true,
-      },
-    });
-
-    try {
-      await processStoredWebhook(webhookEvent.id, payloadEventType);
-    } catch (processingError) {
-      console.error(
-        `Autocab webhook processing failed for ${webhookEvent.id}:`,
-        processingError,
-      );
-    }
-
-    const processedWebhook = await prisma.webhookEvent.findUnique({
-      where: {
-        id: webhookEvent.id,
-      },
-      select: {
-        id: true,
-        eventType: true,
-        externalBookingId: true,
-        status: true,
-        processingError: true,
-        receivedAt: true,
-        processedAt: true,
-        bookingId: true,
-      },
-    });
+    const webhookEvent =
+      await prisma.webhookEvent.create({
+        data: {
+          provider: "AUTOCAB",
+          eventType,
+          externalBookingId,
+          idempotencyKey,
+          status: "RECEIVED",
+          payload: payload as Prisma.InputJsonObject,
+          headers: headersToJson(request),
+        },
+        select: {
+          id: true,
+          provider: true,
+          eventType: true,
+          externalBookingId: true,
+          status: true,
+          receivedAt: true,
+        },
+      });
 
     return NextResponse.json(
       {
         success: true,
         duplicate: false,
         event: eventSlug,
-        webhook: processedWebhook ?? webhookEvent,
+        message:
+          "The raw Autocab event has been stored successfully.",
+        webhook: webhookEvent,
       },
       {
         status: 202,
@@ -255,31 +256,32 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   } catch (error) {
     if (
-      error instanceof Prisma.PrismaClientKnownRequestError &&
+      error instanceof
+        Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
-      const existingWebhook = await prisma.webhookEvent.findUnique({
-        where: {
-          idempotencyKey,
-        },
-        select: {
-          id: true,
-          eventType: true,
-          externalBookingId: true,
-          status: true,
-          processingError: true,
-          receivedAt: true,
-          processedAt: true,
-          bookingId: true,
-        },
-      });
+      const existingWebhook =
+        await prisma.webhookEvent.findUnique({
+          where: {
+            idempotencyKey,
+          },
+          select: {
+            id: true,
+            provider: true,
+            eventType: true,
+            externalBookingId: true,
+            status: true,
+            receivedAt: true,
+          },
+        });
 
       return NextResponse.json(
         {
           success: true,
           duplicate: true,
           event: eventSlug,
-          message: "The event has already been received.",
+          message:
+            "This exact Autocab event has already been stored.",
           webhook: existingWebhook,
         },
         {
@@ -288,13 +290,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
       );
     }
 
-    console.error("Autocab webhook reception failed:", error);
+    console.error(
+      "Autocab raw webhook storage failed:",
+      error,
+    );
 
     return NextResponse.json(
       {
         success: false,
         error: "WEBHOOK_STORAGE_FAILED",
-        message: "The event could not be stored.",
+        message:
+          "The raw Autocab event could not be stored.",
       },
       {
         status: 500,
@@ -307,7 +313,9 @@ export async function GET(
   _request: NextRequest,
   context: RouteContext,
 ) {
-  const eventSlug = normaliseEventSlug(context.params.event);
+  const eventSlug = normaliseEventSlug(
+    context.params.event,
+  );
 
   return NextResponse.json({
     success: true,
@@ -315,5 +323,6 @@ export async function GET(
     event: eventSlug,
     endpoint: `/api/webhooks/autocab/${eventSlug}`,
     method: "POST",
+    storageMode: "RAW_EVENT_ONLY",
   });
 }
