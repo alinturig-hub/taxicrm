@@ -33,6 +33,31 @@ enum BookingTimelineSource {
   AI
 }
 
+enum WebhookProcessingMode {
+  ALWAYS
+  WHEN_CONDITIONS_MATCH
+}
+
+enum WebhookConditionMode {
+  ALL
+  ANY
+}
+
+enum WebhookConditionOperator {
+  EQUALS
+  NOT_EQUALS
+  CONTAINS
+  NOT_CONTAINS
+  EXISTS
+  NOT_EXISTS
+  GREATER_THAN
+  GREATER_THAN_OR_EQUALS
+  LESS_THAN
+  LESS_THAN_OR_EQUALS
+  IN
+  NOT_IN
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -171,23 +196,62 @@ model BookingVia {
   @@unique([bookingId, position])
 }
 
-model WebhookEvent {
-  id                String                  @id @default(cuid())
-  provider          String                  @default("AUTOCAB")
-  eventType         String
-  externalBookingId String?
-  idempotencyKey    String                  @unique
-  status            WebhookProcessingStatus @default(RECEIVED)
-  payload           Json
-  headers           Json?
-  processingError   String?
-  attemptCount      Int                     @default(0)
-  receivedAt        DateTime                @default(now())
-  processedAt       DateTime?
-  updatedAt         DateTime                @updatedAt
+model AutocabWebhookConfiguration {
+  id             String                @id @default(cuid())
+  displayName    String
+  eventType      String                @unique
+  endpointSlug   String                @unique
+  description    String?
+  isEnabled      Boolean               @default(true)
+  processingMode WebhookProcessingMode @default(ALWAYS)
+  conditionMode  WebhookConditionMode  @default(ALL)
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
 
-  bookingId String?
-  booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+  conditions    WebhookCondition[]
+  webhookEvents WebhookEvent[]
+
+  @@index([isEnabled])
+  @@index([endpointSlug])
+}
+
+model WebhookCondition {
+  id              String                   @id @default(cuid())
+  configurationId String
+  fieldPath       String
+  operator        WebhookConditionOperator
+  expectedValue   Json?
+  position        Int                      @default(0)
+  isEnabled       Boolean                  @default(true)
+  createdAt       DateTime                 @default(now())
+  updatedAt       DateTime                 @updatedAt
+
+  configuration AutocabWebhookConfiguration @relation(fields: [configurationId], references: [id], onDelete: Cascade)
+
+  @@index([configurationId, position])
+  @@index([fieldPath])
+}
+
+model WebhookEvent {
+  id                     String                  @id @default(cuid())
+  provider               String                  @default("AUTOCAB")
+  eventType              String
+  externalBookingId      String?
+  idempotencyKey         String                  @unique
+  status                 WebhookProcessingStatus @default(RECEIVED)
+  payload                Json
+  headers                Json?
+  processingError        String?
+  attemptCount           Int                     @default(0)
+  receivedAt             DateTime                @default(now())
+  processedAt            DateTime?
+  updatedAt              DateTime                @updatedAt
+  bookingId              String?
+  webhookConfigurationId String?
+
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  webhookConfiguration AutocabWebhookConfiguration? @relation(fields: [webhookConfigurationId], references: [id], onDelete: SetNull)
 
   timelineEvents BookingTimelineEvent[]
 
@@ -195,6 +259,7 @@ model WebhookEvent {
   @@index([externalBookingId])
   @@index([status])
   @@index([receivedAt])
+  @@index([webhookConfigurationId])
 }
 
 model BookingTimelineEvent {
@@ -211,7 +276,8 @@ model BookingTimelineEvent {
   createdAt      DateTime              @default(now())
   updatedAt      DateTime              @updatedAt
 
-  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+
   webhookEvent WebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
 
   @@index([bookingId, occurredAt])
