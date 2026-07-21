@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import AutocabEventsTable from "@/components/webhooks/AutocabEventsTable";
 
 export const dynamic = "force-dynamic";
 
@@ -13,20 +14,6 @@ function formatDate(value: Date | null) {
   }).format(value);
 }
 
-function getStatusClass(status: string) {
-  switch (status) {
-    case "PROCESSED":
-      return "bg-emerald-500/10 text-emerald-400";
-    case "FAILED":
-      return "bg-red-500/10 text-red-400";
-    case "PROCESSING":
-      return "bg-amber-500/10 text-amber-400";
-    case "IGNORED":
-      return "bg-slate-700 text-slate-300";
-    default:
-      return "bg-blue-500/10 text-blue-400";
-  }
-}
 
 export default async function AutocabIntegrationPage() {
   const [events, totalEvents, failedEvents, lastEvent] = await Promise.all([
@@ -118,80 +105,7 @@ export default async function AutocabIntegrationPage() {
         </div>
       </div>
 
-      <div className="rounded-xl border border-slate-800 bg-slate-900">
-        <div className="border-b border-slate-800 px-6 py-4">
-          <h2 className="text-xl font-semibold text-white">
-            Live Webhook Events
-          </h2>
-        </div>
-
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-slate-800">
-            <thead className="bg-slate-950/60">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Received
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Event
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Booking ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-semibold uppercase tracking-wider text-slate-400">
-                  Processed
-                </th>
-              </tr>
-            </thead>
-
-            <tbody className="divide-y divide-slate-800">
-              {events.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-6 py-12 text-center text-sm text-slate-500"
-                  >
-                    Nu există încă webhook-uri primite.
-                  </td>
-                </tr>
-              ) : (
-                events.map((event) => (
-                  <tr key={event.id} className="hover:bg-slate-800/50">
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-300">
-                      {formatDate(event.receivedAt)}
-                    </td>
-
-                    <td className="whitespace-nowrap px-6 py-4 text-sm font-medium text-white">
-                      {event.eventType}
-                    </td>
-
-                    <td className="whitespace-nowrap px-6 py-4 font-mono text-sm text-slate-300">
-                      {event.externalBookingId ?? "—"}
-                    </td>
-
-                    <td className="whitespace-nowrap px-6 py-4">
-                      <span
-                        className={`rounded-full px-3 py-1 text-xs font-semibold ${getStatusClass(
-                          event.status,
-                        )}`}
-                      >
-                        {event.status}
-                      </span>
-                    </td>
-
-                    <td className="whitespace-nowrap px-6 py-4 text-sm text-slate-400">
-                      {formatDate(event.processedAt)}
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <AutocabEventsTable events={events} />
 
       <div className="rounded-xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 px-6 py-4">
