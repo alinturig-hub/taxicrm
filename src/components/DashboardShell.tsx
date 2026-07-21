@@ -9,7 +9,12 @@ type DashboardShellProps = {
   userEmail?: string | null;
 };
 
-const bookingNavigation = [
+type NavigationItem = {
+  label: string;
+  href: string;
+};
+
+const bookingNavigation: NavigationItem[] = [
   { label: "All Bookings", href: "/dashboard/bookings" },
   { label: "Created", href: "/dashboard/bookings/created" },
   { label: "On Hold", href: "/dashboard/bookings/on-hold" },
@@ -26,17 +31,27 @@ const bookingNavigation = [
   { label: "No Show", href: "/dashboard/bookings/no-show" },
 ];
 
-const mainNavigation = [
-  { label: "Dashboard", href: "/dashboard" },
+const operationsNavigation: NavigationItem[] = [
   { label: "Customers", href: "/dashboard/customers" },
   { label: "Drivers", href: "/dashboard/drivers" },
   { label: "Vehicles", href: "/dashboard/vehicles" },
-  { label: "AI Intelligence", href: "/dashboard/ai-intelligence" },
+  { label: "Dispatch", href: "/dashboard/dispatch" },
+  { label: "Corporate", href: "/dashboard/corporate" },
+];
+
+const intelligenceNavigation: NavigationItem[] = [
+  { label: "AI Dashboard", href: "/dashboard/ai-intelligence" },
+  { label: "KPIs", href: "/dashboard/kpis" },
+  { label: "Goals & Targets", href: "/dashboard/goals" },
+  { label: "AI Finance", href: "/dashboard/ai-finance" },
+  { label: "Predictions", href: "/dashboard/predictions" },
   { label: "Reports", href: "/dashboard/reports" },
 ];
 
-const administrationNavigation = [
-  { label: "Autocab Integration", href: "/dashboard/integrations/autocab" },
+const administrationNavigation: NavigationItem[] = [
+  { label: "Integrations", href: "/dashboard/integrations" },
+  { label: "Users", href: "/dashboard/users" },
+  { label: "Roles", href: "/dashboard/roles" },
   { label: "Settings", href: "/dashboard/settings" },
 ];
 
@@ -67,27 +82,42 @@ export default function DashboardShell({
     const active = isRouteActive(pathname, href);
 
     return [
-      "flex items-center rounded-xl px-4 py-3 text-sm font-medium transition",
+      "flex items-center rounded-xl px-3 py-2.5 text-sm font-medium transition",
       active
-        ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+        ? "bg-blue-600 text-white shadow-sm shadow-blue-950/40"
         : "text-slate-300 hover:bg-slate-800 hover:text-white",
     ].join(" ");
   };
 
+  const sectionTitleClass =
+    "mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500";
+
+  const renderNavigationItems = (items: NavigationItem[]) =>
+    items.map((item) => (
+      <Link
+        key={item.href}
+        href={item.href}
+        onClick={closeMobileMenu}
+        className={navigationLinkClass(item.href)}
+      >
+        {item.label}
+      </Link>
+    ));
+
   const sidebar = (
-    <div className="flex h-full flex-col bg-slate-900">
+    <div className="flex h-full flex-col bg-slate-950">
       <div className="border-b border-slate-800 px-5 py-5">
-        <div className="flex items-start justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div className="min-w-0">
-            <p className="text-xs font-semibold uppercase tracking-[0.25em] text-blue-400">
+            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-blue-400">
               Need A Cab
             </p>
 
-            <h1 className="mt-2 text-2xl font-bold text-white">
+            <h1 className="mt-2 text-2xl font-bold tracking-tight text-white">
               TaxiCRM
             </h1>
 
-            <p className="mt-2 truncate text-sm text-slate-400">
+            <p className="mt-2 truncate text-sm text-slate-500">
               {userEmail || "Administrator"}
             </p>
           </div>
@@ -104,106 +134,108 @@ export default function DashboardShell({
       </div>
 
       <nav className="flex-1 overflow-y-auto px-4 py-5">
-        <div className="space-y-2">
-          <Link
-            href="/dashboard"
-            onClick={closeMobileMenu}
-            className={navigationLinkClass("/dashboard")}
-          >
-            Dashboard
-          </Link>
+        <section>
+          <p className={sectionTitleClass}>Dashboard</p>
 
-          <div>
-            <button
-              type="button"
-              onClick={() => setBookingsOpen((current) => !current)}
-              className={[
-                "flex w-full items-center justify-between rounded-xl px-4 py-3 text-left text-sm font-medium transition",
-                pathname.startsWith("/dashboard/bookings")
-                  ? "bg-slate-800 text-white"
-                  : "text-slate-300 hover:bg-slate-800 hover:text-white",
-              ].join(" ")}
-              aria-expanded={bookingsOpen}
+          <div className="space-y-1">
+            <Link
+              href="/dashboard"
+              onClick={closeMobileMenu}
+              className={navigationLinkClass("/dashboard")}
             >
-              <span>Bookings</span>
-
-              <span
-                className={[
-                  "text-xs transition-transform duration-200",
-                  bookingsOpen ? "rotate-180" : "",
-                ].join(" ")}
-              >
-                ▼
-              </span>
-            </button>
-
-            {bookingsOpen && (
-              <div className="mt-2 space-y-1 border-l border-slate-700 pl-3">
-                {bookingNavigation.map((item) => {
-                  const active =
-                    item.href === "/dashboard/bookings"
-                      ? pathname === item.href
-                      : isRouteActive(pathname, item.href);
-
-                  return (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={closeMobileMenu}
-                      className={[
-                        "block rounded-lg px-4 py-2.5 text-sm transition",
-                        active
-                          ? "bg-blue-600/15 font-semibold text-blue-300"
-                          : "text-slate-400 hover:bg-slate-800 hover:text-white",
-                      ].join(" ")}
-                    >
-                      {item.label}
-                    </Link>
-                  );
-                })}
-              </div>
-            )}
+              Overview
+            </Link>
           </div>
+        </section>
 
-          {mainNavigation.slice(1).map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={closeMobileMenu}
-              className={navigationLinkClass(item.href)}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
+        <section className="mt-6">
+          <p className={sectionTitleClass}>Operations</p>
 
-        <div className="my-5 border-t border-slate-800" />
+          <div className="space-y-1">
+            <div>
+              <button
+                type="button"
+                onClick={() => setBookingsOpen((current) => !current)}
+                className={[
+                  "flex w-full items-center justify-between rounded-xl px-3 py-2.5 text-left text-sm font-medium transition",
+                  pathname.startsWith("/dashboard/bookings")
+                    ? "bg-slate-800 text-white"
+                    : "text-slate-300 hover:bg-slate-800 hover:text-white",
+                ].join(" ")}
+                aria-expanded={bookingsOpen}
+              >
+                <span>Bookings</span>
 
-        <p className="mb-2 px-4 text-xs font-semibold uppercase tracking-wider text-slate-500">
-          Administration
-        </p>
+                <span
+                  className={[
+                    "text-[10px] transition-transform duration-200",
+                    bookingsOpen ? "rotate-180" : "",
+                  ].join(" ")}
+                >
+                  ▼
+                </span>
+              </button>
 
-        <div className="space-y-2">
-          {administrationNavigation.map((item) => (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={closeMobileMenu}
-              className={navigationLinkClass(item.href)}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </div>
+              {bookingsOpen && (
+                <div className="ml-3 mt-2 space-y-1 border-l border-slate-800 pl-3">
+                  {bookingNavigation.map((item) => {
+                    const active =
+                      item.href === "/dashboard/bookings"
+                        ? pathname === item.href
+                        : isRouteActive(pathname, item.href);
+
+                    return (
+                      <Link
+                        key={item.href}
+                        href={item.href}
+                        onClick={closeMobileMenu}
+                        className={[
+                          "block rounded-lg px-3 py-2 text-sm transition",
+                          active
+                            ? "bg-blue-500/10 font-semibold text-blue-300"
+                            : "text-slate-500 hover:bg-slate-800 hover:text-white",
+                        ].join(" ")}
+                      >
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {renderNavigationItems(operationsNavigation)}
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <p className={sectionTitleClass}>Intelligence</p>
+
+          <div className="space-y-1">
+            {renderNavigationItems(intelligenceNavigation)}
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <p className={sectionTitleClass}>Administration</p>
+
+          <div className="space-y-1">
+            {renderNavigationItems(administrationNavigation)}
+          </div>
+        </section>
       </nav>
 
       <div className="border-t border-slate-800 p-4">
-        <div className="rounded-xl bg-slate-950 px-4 py-3">
-          <p className="text-xs font-semibold text-emerald-400">
-            System online
-          </p>
+        <div className="rounded-xl border border-slate-800 bg-slate-900 px-4 py-3">
+          <div className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-400" />
 
-          <p className="mt-1 text-xs text-slate-500">
+            <p className="text-xs font-semibold text-emerald-400">
+              System online
+            </p>
+          </div>
+
+          <p className="mt-1.5 text-xs text-slate-500">
             Live booking intelligence
           </p>
         </div>
@@ -233,25 +265,25 @@ export default function DashboardShell({
       )}
 
       <div className="min-w-0 lg:pl-72">
-        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-900/95 backdrop-blur">
+        <header className="sticky top-0 z-30 border-b border-slate-800 bg-slate-950/90 backdrop-blur-xl">
           <div className="flex h-16 items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
             <div className="flex min-w-0 items-center gap-3">
               <button
                 type="button"
                 onClick={() => setMobileMenuOpen(true)}
-                className="rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-lg text-white transition hover:bg-slate-700 lg:hidden"
+                className="rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-lg text-white transition hover:bg-slate-800 lg:hidden"
                 aria-label="Open menu"
               >
                 ☰
               </button>
 
               <div className="min-w-0">
-                <p className="truncate text-base font-bold text-white sm:text-lg">
+                <p className="truncate text-base font-semibold tracking-tight text-white sm:text-lg">
                   TaxiCRM
                 </p>
 
-                <p className="hidden truncate text-xs text-slate-400 sm:block">
-                  Control Center
+                <p className="hidden truncate text-xs text-slate-500 sm:block">
+                  Operations Control Center
                 </p>
               </div>
             </div>
@@ -259,14 +291,15 @@ export default function DashboardShell({
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                className="hidden rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white md:block"
+                className="hidden min-w-44 rounded-xl border border-slate-800 bg-slate-900 px-4 py-2 text-left text-sm text-slate-500 transition hover:border-slate-700 hover:text-slate-300 md:block"
+                aria-label="Global search"
               >
-                Search
+                Search bookings, drivers...
               </button>
 
               <Link
                 href="/dashboard/ai-intelligence"
-                className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 hover:text-blue-200"
+                className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
                 aria-label="AI Intelligence"
               >
                 AI
@@ -274,16 +307,16 @@ export default function DashboardShell({
 
               <button
                 type="button"
-                className="relative rounded-xl border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                className="relative rounded-xl border border-slate-800 bg-slate-900 px-3 py-2 text-sm text-slate-300 transition hover:bg-slate-800 hover:text-white"
                 aria-label="Notifications"
               >
                 🔔
-                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-red-500" />
+                <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-red-500" />
               </button>
 
               <button
                 type="button"
-                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-sm font-bold text-white transition hover:bg-slate-700"
+                className="flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-sm font-bold text-white transition hover:bg-slate-800"
                 aria-label="User profile"
               >
                 {userEmail?.charAt(0).toUpperCase() || "A"}
