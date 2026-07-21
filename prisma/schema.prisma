@@ -26,6 +26,13 @@ enum WebhookProcessingStatus {
   IGNORED
 }
 
+enum BookingTimelineSource {
+  AUTOCAB
+  SYSTEM
+  USER
+  AI
+}
+
 model User {
   id           String   @id @default(cuid())
   name         String
@@ -115,9 +122,10 @@ model Booking {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  locations     BookingLocation[]
-  vias          BookingVia[]
-  webhookEvents WebhookEvent[]
+  locations      BookingLocation[]
+  vias           BookingVia[]
+  webhookEvents  WebhookEvent[]
+  timelineEvents BookingTimelineEvent[]
 
   @@unique([provider, externalId])
   @@index([pickupDueTime])
@@ -181,8 +189,33 @@ model WebhookEvent {
   bookingId String?
   booking   Booking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
 
+  timelineEvents BookingTimelineEvent[]
+
   @@index([provider, eventType])
   @@index([externalBookingId])
   @@index([status])
   @@index([receivedAt])
+}
+
+model BookingTimelineEvent {
+  id             String                @id @default(cuid())
+  bookingId      String
+  webhookEventId String?
+  eventType      String
+  title          String
+  description    String?
+  source         BookingTimelineSource @default(AUTOCAB)
+  createdBy      String?
+  metadata       Json?
+  occurredAt     DateTime
+  createdAt      DateTime              @default(now())
+  updatedAt      DateTime              @updatedAt
+
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  webhookEvent WebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+
+  @@index([bookingId, occurredAt])
+  @@index([eventType])
+  @@index([source])
+  @@index([webhookEventId])
 }
