@@ -1,6 +1,7 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
+import { processBookingCreatedWebhook } from "@/lib/autocab/process-booking-created";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -20,6 +21,10 @@ function normaliseEventSlug(value: string): string {
     .toLowerCase()
     .replace(/[^a-z0-9-]+/g, "-")
     .replace(/^-+|-+$/g, "");
+}
+
+function normaliseEventName(value: string): string {
+  return value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
 }
 
 function getPayloadString(
@@ -92,6 +97,22 @@ function headersToJson(request: NextRequest): Prisma.InputJsonObject {
   return headers;
 }
 
+async function processStoredWebhook(
+  webhookEventId: string,
+  eventType: string,
+): Promise<void> {
+  const normalisedEventType = normaliseEventName(eventType);
+
+  switch (normalisedEventType) {
+    case "bookingcreated":
+      await processBookingCreatedWebhook(webhookEventId);
+      return;
+
+    default:
+      return;
+  }
+}
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const eventSlug = normaliseEventSlug(context.params.event);
 
@@ -100,7 +121,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "INVALID_EVENT",
-        message: "Suffix-ul evenimentului este invalid.",
+        message: "The event suffix is invalid.",
       },
       {
         status: 400,
@@ -113,7 +134,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "UNAUTHORIZED",
-        message: "Cheia API pentru webhook este invalidă.",
+        message: "The webhook API key is invalid.",
       },
       {
         status: 401,
@@ -128,7 +149,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "EMPTY_PAYLOAD",
-        message: "Webhook-ul nu conține un payload.",
+        message: "The webhook does not contain a payload.",
       },
       {
         status: 400,
@@ -146,7 +167,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       parsedPayload === null ||
       Array.isArray(parsedPayload)
     ) {
-      throw new Error("Payload-ul trebuie să fie un obiect JSON.");
+      throw new Error("The payload must be a JSON object.");
     }
 
     payload = parsedPayload as AutocabPayload;
@@ -155,7 +176,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "INVALID_JSON",
-        message: "Payload-ul primit nu este JSON valid.",
+        message: "The received payload is not valid JSON.",
       },
       {
         status: 400,
@@ -196,12 +217,37 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
+    try {
+      await processStoredWebhook(webhookEvent.id, payloadEventType);
+    } catch (processingError) {
+      console.error(
+        `Autocab webhook processing failed for ${webhookEvent.id}:`,
+        processingError,
+      );
+    }
+
+    const processedWebhook = await prisma.webhookEvent.findUnique({
+      where: {
+        id: webhookEvent.id,
+      },
+      select: {
+        id: true,
+        eventType: true,
+        externalBookingId: true,
+        status: true,
+        processingError: true,
+        receivedAt: true,
+        processedAt: true,
+        bookingId: true,
+      },
+    });
+
     return NextResponse.json(
       {
         success: true,
         duplicate: false,
         event: eventSlug,
-        webhook: webhookEvent,
+        webhook: processedWebhook ?? webhookEvent,
       },
       {
         status: 202,
@@ -212,12 +258,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
       error instanceof Prisma.PrismaClientKnownRequestError &&
       error.code === "P2002"
     ) {
+      const existingWebhook = await prisma.webhookEvent.findUnique({
+        where: {
+          idempotencyKey,
+        },
+        select: {
+          id: true,
+          eventType: true,
+          externalBookingId: true,
+          status: true,
+          processingError: true,
+          receivedAt: true,
+          processedAt: true,
+          bookingId: true,
+        },
+      });
+
       return NextResponse.json(
         {
           success: true,
           duplicate: true,
           event: eventSlug,
-          message: "Evenimentul a fost deja primit.",
+          message: "The event has already been received.",
+          webhook: existingWebhook,
         },
         {
           status: 200,
@@ -231,7 +294,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       {
         success: false,
         error: "WEBHOOK_STORAGE_FAILED",
-        message: "Evenimentul nu a putut fi salvat.",
+        message: "The event could not be stored.",
       },
       {
         status: 500,
