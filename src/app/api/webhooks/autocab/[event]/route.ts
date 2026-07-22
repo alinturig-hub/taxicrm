@@ -2,6 +2,7 @@ import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { processWebhookEvent } from "@/lib/autocab/process-webhook-event";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -125,6 +126,7 @@ export async function POST(
   );
 
   if (!eventSlug) {
+
     return NextResponse.json(
       {
         success: false,
@@ -240,6 +242,14 @@ export async function POST(
           receivedAt: true,
         },
       });
+
+    void processWebhookEvent(webhookEvent.id).catch((error) => {
+      console.error(
+        `Background processing failed for webhook ${webhookEvent.id}:`,
+        error,
+      );
+    });
+
 
     return NextResponse.json(
       {
