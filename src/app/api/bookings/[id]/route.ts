@@ -10,6 +10,35 @@ type RouteContext = {
   };
 };
 
+const COMPLETED_STATUSES = new Set([
+  "completed",
+  "complete",
+  "done",
+]);
+
+const CANCELLED_STATUSES = new Set([
+  "cancelled",
+  "canceled",
+  "rejected",
+  "no-show",
+  "no_show",
+  "noshow",
+]);
+
+function normalizeStatus(status: string) {
+  return status.trim().toLowerCase().replace(/\s+/g, "-");
+}
+
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
 export async function GET(
   _request: Request,
   { params }: RouteContext,
@@ -51,6 +80,93 @@ export async function GET(
       );
     }
 
+    const customerWhere = booking.telephoneNumber
+      ? {
+          telephoneNumber: booking.telephoneNumber,
+        }
+      : booking.customerEmail
+        ? {
+            customerEmail: {
+              equals: booking.customerEmail,
+              mode: "insensitive" as const,
+            },
+          }
+        : {
+            id: booking.id,
+          };
+
+    const customerBookings = await prisma.booking.findMany({
+      where: customerWhere,
+      orderBy: [
+        {
+          bookedAtTime: "desc",
+        },
+        {
+          createdAt: "desc",
+        },
+      ],
+      select: {
+        id: true,
+        externalId: true,
+        status: true,
+        bookedAtTime: true,
+        pickupDueTime: true,
+        price: true,
+        fare: true,
+        paymentType: true,
+        bookingSource: true,
+        locations: {
+          select: {
+            type: true,
+            address: true,
+          },
+        },
+      },
+    });
+
+    const completedBookings = customerBookings.filter((item) =>
+      COMPLETED_STATUSES.has(normalizeStatus(item.status)),
+    );
+
+    const cancelledBookings = customerBookings.filter((item) =>
+      CANCELLED_STATUSES.has(normalizeStatus(item.status)),
+    );
+
+    const totalValue = completedBookings.reduce((sum, item) => {
+      const value = toNumber(item.price) ?? toNumber(item.fare) ?? 0;
+
+      return sum + value;
+    }, 0);
+
+    const averageBookingValue =
+      completedBookings.length > 0
+        ? totalValue / completedBookings.length
+        : 0;
+
+    const recentBookings = customerBookings.slice(0, 5).map((item) => {
+      const pickup = item.locations.find(
+        (location) => location.type === "PICKUP",
+      );
+
+      const destination = item.locations.find(
+        (location) => location.type === "DESTINATION",
+      );
+
+      return {
+        id: item.id,
+        externalId: item.externalId,
+        status: item.status,
+        bookedAtTime: item.bookedAtTime,
+        pickupDueTime: item.pickupDueTime,
+        pickupAddress: pickup?.address ?? null,
+        destinationAddress: destination?.address ?? null,
+        price: toNumber(item.price),
+        fare: toNumber(item.fare),
+        paymentType: item.paymentType,
+        bookingSource: item.bookingSource,
+      };
+    });
+
     const pickup = booking.locations.find(
       (location) => location.type === "PICKUP",
     );
@@ -71,6 +187,22 @@ export async function GET(
         telephoneNumber: booking.telephoneNumber,
         customerEmail: booking.customerEmail,
 
+        customer: {
+          name: booking.customerName,
+          telephoneNumber: booking.telephoneNumber,
+          email: booking.customerEmail,
+          totalBookings: customerBookings.length,
+          completedBookings: completedBookings.length,
+          cancelledBookings: cancelledBookings.length,
+          totalValue,
+          averageBookingValue,
+          lastBookingAt:
+            customerBookings[0]?.bookedAtTime ??
+            customerBookings[0]?.pickupDueTime ??
+            null,
+          recentBookings,
+        },
+
         pickupDueTime: booking.pickupDueTime,
         dropOffDueTime: booking.dropOffDueTime,
         bookedAtTime: booking.bookedAtTime,
@@ -78,8 +210,8 @@ export async function GET(
         pickup: pickup
           ? {
               address: pickup.address,
-              latitude: pickup.latitude,
-              longitude: pickup.longitude,
+              latitude: toNumber(pickup.latitude),
+              longitude: toNumber(pickup.longitude),
               zoneId: pickup.zoneId,
               zoneName: pickup.zoneName,
             }
@@ -88,19 +220,26 @@ export async function GET(
         destination: destination
           ? {
               address: destination.address,
-              latitude: destination.latitude,
-              longitude: destination.longitude,
+              latitude: toNumber(destination.latitude),
+              longitude: toNumber(destination.longitude),
               zoneId: destination.zoneId,
               zoneName: destination.zoneName,
             }
           : null,
 
-        locations: booking.locations,
-        vias: booking.vias,
+        vias: booking.vias.map((via) => ({
+          id: via.id,
+          position: via.position,
+          address: via.address,
+          latitude: toNumber(via.latitude),
+          longitude: toNumber(via.longitude),
+          zoneId: via.zoneId,
+          zoneName: via.zoneName,
+        })),
 
-        fare: booking.fare,
-        cost: booking.cost,
-        price: booking.price,
+        fare: toNumber(booking.fare),
+        cost: toNumber(booking.cost),
+        price: toNumber(booking.price),
 
         paymentType: booking.paymentType,
         accountName: booking.accountName,
@@ -109,9 +248,9 @@ export async function GET(
         passengers: booking.passengers,
         luggage: booking.luggage,
 
-        distance: booking.distance,
-        estimatedDistance: booking.estimatedDistance,
-        estimatedPrice: booking.estimatedPrice,
+        distance: toNumber(booking.distance),
+        estimatedDistance: toNumber(booking.estimatedDistance),
+        estimatedPrice: toNumber(booking.estimatedPrice),
 
         driverNote: booking.driverNote,
         officeNote: booking.officeNote,
