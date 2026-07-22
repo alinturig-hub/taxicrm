@@ -17,35 +17,6 @@ import WorkspacePanel, {
   type WorkspaceTab,
 } from "@/components/workspace/WorkspacePanel";
 
-type BookingStatus =
-  | "created"
-  | "on-hold"
-  | "dispatched"
-  | "accepted"
-  | "arrived"
-  | "on-board"
-  | "completed"
-  | "cancelled"
-  | "rejected"
-  | "no-show";
-
-type Booking = {
-  id: string;
-  customer: string;
-  phone: string;
-  status: BookingStatus;
-  source: string;
-  payment: string;
-  price: number;
-  bookedAt: string;
-  pickup: string;
-  destination: string;
-  driver: string | null;
-  vehicle: string | null;
-  passengers: number;
-  notes: string;
-};
-
 
 type BookingsApiResponse = {
   success: boolean;
@@ -77,7 +48,7 @@ export default function BookingsPage() {
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [selectedBooking, setSelectedBooking] =
-    useState<Booking | null>(null);
+    useState<BookingWorkspaceData | null>(null);
   const [activeWorkspaceTab, setActiveWorkspaceTab] =
     useState("overview");
   const [page, setPage] = useState(1);
@@ -126,12 +97,12 @@ export default function BookingsPage() {
     void loadBookings();
   }, [loadBookings]);
 
-  const openBookingWorkspace = (booking: Booking) => {
+  const openBookingWorkspace = (booking: BookingWorkspaceData) => {
     setSelectedBooking(booking);
     setActiveWorkspaceTab("overview");
   };
 
-  const columns = useMemo<DataTableColumn<Booking>[]>(
+  const columns = useMemo<DataTableColumn<BookingWorkspaceData>[]>(
     () => [
       {
         id: "id",
@@ -158,17 +129,17 @@ export default function BookingsPage() {
             onClick={() => openBookingWorkspace(booking)}
             className="text-left font-medium text-slate-200 transition hover:text-white"
           >
-            {booking.customer}
+            {booking.customerName ?? '—'}
           </button>
         ),
-        sortValue: (booking) => booking.customer,
+        sortValue: (booking) => booking.customerName ?? '—',
         sortable: true,
       },
       {
         id: "phone",
         header: "Phone",
-        accessor: (booking) => booking.phone,
-        sortValue: (booking) => booking.phone,
+        accessor: (booking) => booking.telephoneNumber ?? '—',
+        sortValue: (booking) => booking.telephoneNumber ?? '—',
         sortable: true,
       },
       {
@@ -197,16 +168,16 @@ export default function BookingsPage() {
       {
         id: "price",
         header: "Price",
-        accessor: (booking) => `£${booking.price.toFixed(2)}`,
-        sortValue: (booking) => booking.price,
+        accessor: (booking) => `£${((booking.price ?? 0) ?? 0).toFixed(2)}`,
+        sortValue: (booking) => (booking.price ?? 0),
         sortable: true,
         align: "right",
       },
       {
         id: "bookedAt",
         header: "Booked At",
-        accessor: (booking) => booking.bookedAt,
-        sortValue: (booking) => booking.bookedAt,
+        accessor: (booking) => (booking.bookedAtTime ?? '—'),
+        sortValue: (booking) => (booking.bookedAtTime ?? '—'),
         sortable: true,
       },
     ],
@@ -450,7 +421,7 @@ export default function BookingsPage() {
         }
         subtitle={
           selectedBooking
-            ? `${selectedBooking.customer} · ${selectedBooking.bookedAt}`
+            ? `${selectedBooking.customerName ?? 'Unknown Customer'} · ${selectedBooking.bookedAtTime ?? 'Unknown Date'}`
             : undefined
         }
         status={
@@ -495,31 +466,15 @@ export default function BookingsPage() {
                 </p>
 
                 <p className="mt-1 text-sm text-slate-400">
-                  Created through {selectedBooking.source}
+                  Created through {(selectedBooking.bookingSource ?? 'Unknown Source')}
                 </p>
 
                 <p className="mt-2 text-xs text-slate-600">
-                  {selectedBooking.bookedAt}
+                  {(selectedBooking.bookedAtTime ?? '—')}
                 </p>
               </div>
 
-              {selectedBooking.driver ? (
-                <div className="relative pb-8">
-                  <span className="absolute -left-8 top-1 h-4 w-4 rounded-full border-4 border-slate-950 bg-amber-500" />
-
-                  <p className="text-sm font-semibold text-white">
-                    Driver allocated
-                  </p>
-
-                  <p className="mt-1 text-sm text-slate-400">
-                    {selectedBooking.driver}
-                  </p>
-
-                  <p className="mt-2 text-xs text-slate-600">
-                    Awaiting live Autocab event
-                  </p>
-                </div>
-              ) : null}
+              
 
               <div className="relative">
                 <span className="absolute -left-8 top-1 h-4 w-4 rounded-full border-4 border-slate-950 bg-slate-600" />
@@ -540,7 +495,7 @@ export default function BookingsPage() {
           <div className="space-y-4">
             <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-5">
               <p className="text-sm leading-6 text-slate-300">
-                {selectedBooking.notes || "No notes added to this booking."}
+                {selectedBooking.officeNote || "No notes added to this booking."}
               </p>
             </div>
 

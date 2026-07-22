@@ -1,27 +1,4 @@
-type StatusType =
-  | "created"
-  | "on-hold"
-  | "dispatched"
-  | "accepted"
-  | "arrived"
-  | "on-board"
-  | "completed"
-  | "cancelled"
-  | "rejected"
-  | "no-show"
-  | "active"
-  | "inactive"
-  | "success"
-  | "warning"
-  | "error"
-  | "info";
-
-type StatusBadgeProps = {
-  status: StatusType;
-  label?: string;
-};
-
-const styles: Record<StatusType, string> = {
+const styles = {
   created: "bg-sky-500/10 text-sky-400 border-sky-500/20",
   "on-hold": "bg-amber-500/10 text-amber-400 border-amber-500/20",
   dispatched: "bg-violet-500/10 text-violet-400 border-violet-500/20",
@@ -38,9 +15,9 @@ const styles: Record<StatusType, string> = {
   warning: "bg-yellow-500/10 text-yellow-400 border-yellow-500/20",
   error: "bg-red-500/10 text-red-400 border-red-500/20",
   info: "bg-blue-500/10 text-blue-400 border-blue-500/20",
-};
+} as const;
 
-const labels: Record<StatusType, string> = {
+const labels = {
   created: "Created",
   "on-hold": "On Hold",
   dispatched: "Dispatched",
@@ -57,20 +34,30 @@ const labels: Record<StatusType, string> = {
   warning: "Warning",
   error: "Error",
   info: "Info",
+} as const;
+
+type KnownStatus = keyof typeof styles;
+
+type StatusBadgeProps = {
+  status: string;
+  label?: string;
 };
 
 export default function StatusBadge({
   status,
   label,
 }: StatusBadgeProps) {
+  const normalizedStatus: KnownStatus =
+    status in styles ? (status as KnownStatus) : "info";
+
   return (
     <span
       className={[
         "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold",
-        styles[status],
+        styles[normalizedStatus],
       ].join(" ")}
     >
-      {label ?? labels[status]}
+      {label ?? labels[normalizedStatus]}
     </span>
   );
 }
