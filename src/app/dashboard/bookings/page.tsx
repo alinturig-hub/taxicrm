@@ -11,6 +11,7 @@ import PageHeader from "@/components/ui/PageHeader";
 import StatusBadge from "@/components/ui/StatusBadge";
 import TablePagination from "@/components/ui/TablePagination";
 import TableToolbar from "@/components/ui/TableToolbar";
+import BookingWorkspace from "@/components/bookings/BookingWorkspace";
 import WorkspacePanel, {
   type WorkspaceTab,
 } from "@/components/workspace/WorkspacePanel";
@@ -253,26 +254,6 @@ const workspaceTabs: WorkspaceTab[] = [
     label: "Notes",
   },
 ];
-
-function DetailItem({
-  label,
-  value,
-}: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-        {label}
-      </p>
-
-      <p className="mt-2 text-sm font-medium text-slate-200">
-        {value}
-      </p>
-    </div>
-  );
-}
 
 export default function BookingsPage() {
   const [searchValue, setSearchValue] = useState("");
@@ -623,106 +604,9 @@ export default function BookingsPage() {
         }
       >
         {selectedBooking && activeWorkspaceTab === "overview" ? (
-          <div className="space-y-6">
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
-                Journey
-              </h3>
-
-              <div className="mt-3 space-y-3">
-                <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4">
-                  <div className="flex gap-3">
-                    <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-emerald-400" />
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Pickup
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium text-slate-200">
-                        {selectedBooking.pickup}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="ml-[5px] my-2 h-8 w-px bg-slate-700" />
-
-                  <div className="flex gap-3">
-                    <span className="mt-1 h-3 w-3 shrink-0 rounded-full bg-blue-400" />
-
-                    <div>
-                      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                        Destination
-                      </p>
-
-                      <p className="mt-1 text-sm font-medium text-slate-200">
-                        {selectedBooking.destination}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            </section>
-
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
-                Booking Details
-              </h3>
-
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <DetailItem
-                  label="Customer"
-                  value={selectedBooking.customer}
-                />
-
-                <DetailItem
-                  label="Phone"
-                  value={selectedBooking.phone}
-                />
-
-                <DetailItem
-                  label="Payment"
-                  value={selectedBooking.payment}
-                />
-
-                <DetailItem
-                  label="Price"
-                  value={`£${selectedBooking.price.toFixed(2)}`}
-                />
-
-                <DetailItem
-                  label="Source"
-                  value={selectedBooking.source}
-                />
-
-                <DetailItem
-                  label="Passengers"
-                  value={String(selectedBooking.passengers)}
-                />
-              </div>
-            </section>
-
-            <section>
-              <h3 className="text-sm font-bold uppercase tracking-wide text-slate-400">
-                Allocation
-              </h3>
-
-              <div className="mt-3 grid gap-3">
-                <DetailItem
-                  label="Driver"
-                  value={selectedBooking.driver ?? "Not allocated"}
-                />
-
-                <DetailItem
-                  label="Vehicle"
-                  value={selectedBooking.vehicle ?? "Not allocated"}
-                />
-              </div>
-            </section>
-          </div>
+          <BookingWorkspace booking={selectedBooking} />
         ) : null}
-
-        {selectedBooking && activeWorkspaceTab === "timeline" ? (
+{selectedBooking && activeWorkspaceTab === "timeline" ? (
           <div className="space-y-6">
             <div className="relative pl-8">
               <div className="absolute bottom-0 left-[7px] top-2 w-px bg-slate-800" />
