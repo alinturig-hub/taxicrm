@@ -628,39 +628,52 @@ export default function BookingsPage() {
         selectedBooking &&
         activeWorkspaceTab === "timeline" ? (
           <div className="space-y-6">
-            <div className="relative pl-8">
-              <div className="absolute bottom-0 left-[7px] top-2 w-px bg-slate-800" />
-
-              <div className="relative pb-8">
-                <span className="absolute -left-8 top-1 h-4 w-4 rounded-full border-4 border-slate-950 bg-blue-500" />
-
-                <p className="text-sm font-semibold text-white">
-                  Booking created
-                </p>
-
-                <p className="mt-1 text-sm text-slate-400">
-                  Created through {(selectedBooking.bookingSource ?? 'Unknown Source')}
-                </p>
-
-                <p className="mt-2 text-xs text-slate-600">
-                  {(selectedBooking.bookedAtTime ?? '—')}
-                </p>
+            {selectedBooking.timeline.length === 0 ? (
+              <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-6 text-center text-sm text-slate-400">
+                No timeline events available.
               </div>
+            ) : (
+              <div className="relative pl-8">
+                <div className="absolute bottom-0 left-[7px] top-2 w-px bg-slate-800" />
 
-              
+                {selectedBooking.timeline.map((event, index) => (
+                  <div
+                    key={event.id}
+                    className={
+                      index === selectedBooking.timeline.length - 1
+                        ? "relative"
+                        : "relative pb-8"
+                    }
+                  >
+                    <span className="absolute -left-8 top-1 h-4 w-4 rounded-full border-4 border-slate-950 bg-blue-500" />
 
-              <div className="relative">
-                <span className="absolute -left-8 top-1 h-4 w-4 rounded-full border-4 border-slate-950 bg-slate-600" />
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <p className="text-sm font-semibold text-white">
+                          {event.title}
+                        </p>
 
-                <p className="text-sm font-semibold text-white">
-                  Current status
-                </p>
+                        {event.description ? (
+                          <p className="mt-1 text-sm text-slate-400">
+                            {event.description}
+                          </p>
+                        ) : null}
 
-                <div className="mt-2">
-                  <StatusBadge status={selectedBooking.status} />
-                </div>
+                        <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
+                          <span>{event.source}</span>
+                          <span>•</span>
+                          <span>{event.eventType}</span>
+                        </div>
+                      </div>
+
+                      <div className="text-right text-xs text-slate-500 whitespace-nowrap">
+                        {new Date(event.occurredAt).toLocaleString("en-GB")}
+                      </div>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
+            )}
           </div>
         ) : null}
 
