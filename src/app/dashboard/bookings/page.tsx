@@ -187,33 +187,76 @@ export default function BookingsPage() {
   const activeBookings = bookingsData;
 
   const bookingStats = useMemo(() => {
-    const live = activeBookings.length;
+    const now = new Date();
 
-    const waitingDispatch = activeBookings.filter(
-      (b) => b.status === "created" || b.status === "on-hold",
+    const terminalStatuses = new Set([
+      "completed",
+      "cancelled",
+      "rejected",
+      "no-show",
+    ]);
+
+    const isToday = (value: string | null) => {
+      if (!value) {
+        return false;
+      }
+
+      const date = new Date(value);
+
+      return (
+        date.getFullYear() === now.getFullYear() &&
+        date.getMonth() === now.getMonth() &&
+        date.getDate() === now.getDate()
+      );
+    };
+
+    const live = activeBookings.filter(
+      (booking) => !terminalStatuses.has(booking.status),
     ).length;
 
-    const completed = activeBookings.filter(
-      (b) => b.status === "completed",
+    const waitingDispatch = activeBookings.filter(
+      (booking) =>
+        booking.status === "created" ||
+        booking.status === "on-hold",
+    ).length;
+
+    const completedToday = activeBookings.filter(
+      (booking) =>
+        booking.status === "completed" &&
+        isToday(booking.updatedAt),
     );
 
-    const revenueToday = completed.reduce(
-      (sum, b) => sum + (b.price ?? 0),
+    const revenueToday = completedToday.reduce(
+      (sum, booking) =>
+        sum + (booking.price ?? booking.fare ?? 0),
       0,
     );
 
-    const delayed = activeBookings.filter(
-      (b) => b.status === "warning",
-    ).length;
+    const averageJobValue =
+      completedToday.length > 0
+        ? revenueToday / completedToday.length
+        : 0;
+
+    const delayed = activeBookings.filter((booking) => {
+      if (
+        terminalStatuses.has(booking.status) ||
+        !booking.pickupDueTime
+      ) {
+        return false;
+      }
+
+      return new Date(booking.pickupDueTime).getTime() < now.getTime();
+    }).length;
 
     return {
       live,
       waitingDispatch,
+      completedToday: completedToday.length,
       revenueToday,
+      averageJobValue,
       delayed,
     };
   }, [activeBookings]);
-
 
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
@@ -258,8 +301,12 @@ export default function BookingsPage() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise((resolve) => setTimeout(resolve, 700));
-    setRefreshing(false);
+
+    try {
+      await loadBookings();
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const handlePageSizeChange = (newPageSize: number) => {
@@ -307,43 +354,37 @@ export default function BookingsPage() {
           <KpiCard
             title="Live Bookings"
             value={bookingStats.live.toString()}
-            description="Current operational bookings"
-            trend={{ value: "12 today", direction: "up" }}
+            description="Active operational bookings"
           />
 
           <KpiCard
             title="Waiting Dispatch"
             value={bookingStats.waitingDispatch.toString()}
-            description="Bookings waiting for allocation"
-            trend={{ value: "3 urgent", direction: "down" }}
+            description="Created or on-hold bookings"
           />
 
           <KpiCard
-            title="Drivers Online"
-            value="64"
-            description="Available and working"
-            trend={{ value: "6 more", direction: "up" }}
+            title="Completed Today"
+            value={bookingStats.completedToday.toString()}
+            description="Bookings completed today"
           />
 
           <KpiCard
             title="Revenue Today"
             value={`£${bookingStats.revenueToday.toFixed(2)}`}
-            description="Completed booking revenue"
-            trend={{ value: "8.4%", direction: "up" }}
+            description="Revenue from completed bookings"
           />
 
           <KpiCard
-            title="Average Wait"
-            value="6m 42s"
-            description="Current passenger waiting time"
-            trend={{ value: "38s", direction: "down" }}
+            title="Average Job Value"
+            value={`£${bookingStats.averageJobValue.toFixed(2)}`}
+            description="Average completed booking value"
           />
 
           <KpiCard
             title="Jobs Delayed"
             value={bookingStats.delayed.toString()}
-            description="Bookings outside target"
-            trend={{ value: "2 fewer", direction: "up" }}
+            description="Active bookings past pickup time"
           />
         </div>
 
