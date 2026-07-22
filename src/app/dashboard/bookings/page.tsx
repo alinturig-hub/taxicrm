@@ -258,6 +258,34 @@ export default function BookingsPage() {
     };
   }, [activeBookings]);
 
+
+  const sourceOptions = useMemo(() => {
+    return [
+      "all",
+      ...Array.from(
+        new Set(
+          activeBookings
+            .map((booking) => booking.bookingSource)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+    ];
+  }, [activeBookings]);
+
+  const paymentOptions = useMemo(() => {
+    return [
+      "all",
+      ...Array.from(
+        new Set(
+          activeBookings
+            .map((booking) => booking.paymentType)
+            .filter((value): value is string => Boolean(value)),
+        ),
+      ).sort(),
+    ];
+  }, [activeBookings]);
+
+
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
 
@@ -430,9 +458,11 @@ export default function BookingsPage() {
                 }}
                 className="h-11 rounded-xl border border-slate-800 bg-slate-950 px-4 text-sm text-slate-300 outline-none transition focus:border-blue-500"
               >
-                <option value="all">All Sources</option>
-                <option value="Operator Web">Operator Web</option>
-                <option value="Mobile App">Mobile App</option>
+                {sourceOptions.map((source) => (
+                  <option key={source} value={source}>
+                    {source === "all" ? "All Sources" : source}
+                  </option>
+                ))}
               </select>
 
               <select
@@ -443,9 +473,11 @@ export default function BookingsPage() {
                 }}
                 className="h-11 rounded-xl border border-slate-800 bg-slate-950 px-4 text-sm text-slate-300 outline-none transition focus:border-blue-500"
               >
-                <option value="all">All Payments</option>
-                <option value="Cash">Cash</option>
-                <option value="Account">Account</option>
+                {paymentOptions.map((payment) => (
+                  <option key={payment} value={payment}>
+                    {payment === "all" ? "All Payments" : payment}
+                  </option>
+                ))}
               </select>
             </>
           }
