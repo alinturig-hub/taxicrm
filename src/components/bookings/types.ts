@@ -25,6 +25,33 @@ export interface BookingTimelineEvent {
   occurredAt: string;
 }
 
+export interface CustomerRecentBooking {
+  id: string;
+  externalId: string;
+  status: string;
+  bookedAtTime: string | null;
+  pickupDueTime: string | null;
+  pickupAddress: string | null;
+  destinationAddress: string | null;
+  price: number | null;
+  fare: number | null;
+  paymentType: string | null;
+  bookingSource: string | null;
+}
+
+export interface CustomerIntelligence {
+  name: string | null;
+  telephoneNumber: string | null;
+  email: string | null;
+  totalBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalValue: number;
+  averageBookingValue: number;
+  lastBookingAt: string | null;
+  recentBookings: CustomerRecentBooking[];
+}
+
 export interface BookingWorkspaceData {
   id: string;
   provider: string;
@@ -34,6 +61,8 @@ export interface BookingWorkspaceData {
   customerName: string | null;
   telephoneNumber: string | null;
   customerEmail: string | null;
+
+  customer?: CustomerIntelligence;
 
   pickupDueTime: string | null;
   dropOffDueTime: string | null;
