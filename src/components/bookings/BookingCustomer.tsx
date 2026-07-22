@@ -4,6 +4,7 @@ import { BookingWorkspaceData } from "./types";
 
 type Props = {
   booking: BookingWorkspaceData;
+  onOpenBooking?: (bookingId: string) => void;
 };
 
 function formatCurrency(value: number | null | undefined) {
@@ -25,7 +26,10 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleString("en-GB");
 }
 
-export default function BookingCustomer({ booking }: Props) {
+export default function BookingCustomer({
+  booking,
+  onOpenBooking,
+}: Props) {
   const customer = booking.customer;
 
   return (
@@ -152,43 +156,65 @@ export default function BookingCustomer({ booking }: Props) {
                       No previous bookings.
                     </div>
                   ) : (
-                    customer.recentBookings.map((item) => (
-                      <div
-                        key={item.id}
-                        className="rounded-lg border border-slate-200 p-3"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="font-medium">
-                            {item.status}
-                          </span>
+                    customer.recentBookings.map((item) => {
+                      const isCurrentBooking = item.id === booking.id;
 
-                          <span className="text-xs text-slate-500">
-                            {formatDate(
-                              item.bookedAtTime ??
-                                item.pickupDueTime,
-                            )}
-                          </span>
-                        </div>
+                      return (
+                        <button
+                          key={item.id}
+                          type="button"
+                          disabled={isCurrentBooking || !onOpenBooking}
+                          onClick={() => onOpenBooking?.(item.id)}
+                          className="w-full rounded-lg border border-slate-200 p-3 text-left transition hover:border-blue-300 hover:bg-blue-50 disabled:cursor-default disabled:hover:border-slate-200 disabled:hover:bg-transparent"
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="font-medium text-slate-900">
+                                Booking #{item.externalId}
+                              </div>
 
-                        <div className="mt-2 text-sm text-slate-600">
-                          {item.pickupAddress ?? "-"}
-                        </div>
+                              <div className="mt-1 text-xs text-slate-500">
+                                {item.status}
+                                {isCurrentBooking ? " · Current booking" : ""}
+                              </div>
+                            </div>
 
-                        <div className="text-sm text-slate-400">
-                          →
-                        </div>
+                            <span className="shrink-0 text-xs text-slate-500">
+                              {formatDate(
+                                item.bookedAtTime ??
+                                  item.pickupDueTime,
+                              )}
+                            </span>
+                          </div>
 
-                        <div className="text-sm text-slate-600">
-                          {item.destinationAddress ?? "-"}
-                        </div>
+                          <div className="mt-3 text-sm text-slate-600">
+                            {item.pickupAddress ?? "-"}
+                          </div>
 
-                        <div className="mt-2 text-sm font-semibold">
-                          {formatCurrency(
-                            item.price ?? item.fare,
-                          )}
-                        </div>
-                      </div>
-                    ))
+                          <div className="text-sm text-slate-400">
+                            →
+                          </div>
+
+                          <div className="text-sm text-slate-600">
+                            {item.destinationAddress ?? "-"}
+                          </div>
+
+                          <div className="mt-3 flex items-center justify-between">
+                            <span className="text-sm font-semibold text-slate-900">
+                              {formatCurrency(
+                                item.price ?? item.fare,
+                              )}
+                            </span>
+
+                            {!isCurrentBooking ? (
+                              <span className="text-xs font-semibold text-blue-600">
+                                Open booking →
+                              </span>
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
               </div>

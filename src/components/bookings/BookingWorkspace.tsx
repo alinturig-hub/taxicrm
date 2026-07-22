@@ -13,9 +13,13 @@ import { BookingWorkspaceData } from "./types";
 
 type Props = {
   booking: BookingWorkspaceData | null;
+  onOpenBooking?: (bookingId: string) => void;
 };
 
-export default function BookingWorkspace({ booking }: Props) {
+export default function BookingWorkspace({
+  booking,
+  onOpenBooking,
+}: Props) {
   if (!booking) {
     return (
       <aside className="flex h-full items-center justify-center border-l bg-slate-50">
@@ -36,7 +40,10 @@ export default function BookingWorkspace({ booking }: Props) {
     <aside className="h-full overflow-y-auto border-l bg-slate-50">
       <BookingWorkspaceHeader booking={booking} />
       <BookingJourney booking={booking} />
-      <BookingCustomer booking={booking} />
+      <BookingCustomer
+        booking={booking}
+        onOpenBooking={onOpenBooking}
+      />
       <BookingCompany booking={booking} />
       <BookingPricing booking={booking} />
       <BookingNotes booking={booking} />

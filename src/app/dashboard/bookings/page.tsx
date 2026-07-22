@@ -105,16 +105,22 @@ export default function BookingsPage() {
   }, [loadBookings]);
 
   const openBookingWorkspace = async (
-    booking: BookingWorkspaceData,
+    booking: BookingWorkspaceData | string,
   ) => {
-    setSelectedBooking(booking);
+    const bookingId =
+      typeof booking === "string" ? booking : booking.id;
+
+    if (typeof booking !== "string") {
+      setSelectedBooking(booking);
+    }
+
     setActiveWorkspaceTab("overview");
     setWorkspaceLoading(true);
     setWorkspaceError(null);
 
     try {
       const response = await fetch(
-        `/api/bookings/${encodeURIComponent(booking.id)}`,
+        `/api/bookings/${encodeURIComponent(bookingId)}`,
         {
           cache: "no-store",
         },
@@ -621,7 +627,10 @@ export default function BookingsPage() {
         !workspaceError &&
         selectedBooking &&
         activeWorkspaceTab === "overview" ? (
-          <BookingWorkspace booking={selectedBooking} />
+          <BookingWorkspace
+            booking={selectedBooking}
+            onOpenBooking={openBookingWorkspace}
+          />
         ) : null}
 {!workspaceLoading &&
         !workspaceError &&
