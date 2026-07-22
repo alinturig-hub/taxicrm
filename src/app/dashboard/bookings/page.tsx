@@ -26,6 +26,13 @@ type BookingsApiResponse = {
   message?: string;
 };
 
+type BookingDetailsApiResponse = {
+  success: boolean;
+  booking?: BookingWorkspaceData;
+  error?: string;
+  message?: string;
+};
+
 const workspaceTabs: WorkspaceTab[] = [
   {
     id: "overview",
@@ -57,8 +64,8 @@ export default function BookingsPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [bookingsData, setBookingsData] = useState<BookingWorkspaceData[]>([]);
-
-
+  const [workspaceLoading, setWorkspaceLoading] = useState(false);
+  const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
   const loadBookings = useCallback(async () => {
     setLoading(true);
@@ -97,9 +104,43 @@ export default function BookingsPage() {
     void loadBookings();
   }, [loadBookings]);
 
-  const openBookingWorkspace = (booking: BookingWorkspaceData) => {
+  const openBookingWorkspace = async (
+    booking: BookingWorkspaceData,
+  ) => {
     setSelectedBooking(booking);
     setActiveWorkspaceTab("overview");
+    setWorkspaceLoading(true);
+    setWorkspaceError(null);
+
+    try {
+      const response = await fetch(
+        `/api/bookings/${encodeURIComponent(booking.id)}`,
+        {
+          cache: "no-store",
+        },
+      );
+
+      const payload =
+        (await response.json()) as BookingDetailsApiResponse;
+
+      if (!response.ok || !payload.success || !payload.booking) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "Failed to load booking details.",
+        );
+      }
+
+      setSelectedBooking(payload.booking);
+    } catch (err) {
+      setWorkspaceError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load booking details.",
+      );
+    } finally {
+      setWorkspaceLoading(false);
+    }
   };
 
   const columns = useMemo<DataTableColumn<BookingWorkspaceData>[]>(
@@ -534,13 +575,21 @@ export default function BookingsPage() {
         tabs={workspaceTabs}
         activeTab={activeWorkspaceTab}
         onTabChange={setActiveWorkspaceTab}
-        onClose={() => setSelectedBooking(null)}
+        onClose={() => {
+          setSelectedBooking(null);
+          setWorkspaceError(null);
+          setWorkspaceLoading(false);
+        }}
         footer={
           selectedBooking ? (
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <ActionButton
                 variant="ghost"
-                onClick={() => setSelectedBooking(null)}
+                onClick={() => {
+                  setSelectedBooking(null);
+                  setWorkspaceError(null);
+                  setWorkspaceLoading(false);
+                }}
               >
                 Close
               </ActionButton>
@@ -552,10 +601,32 @@ export default function BookingsPage() {
           ) : null
         }
       >
-        {selectedBooking && activeWorkspaceTab === "overview" ? (
+        {workspaceLoading ? (
+          <div className="flex min-h-48 items-center justify-center">
+            <p className="text-sm text-slate-400">
+              Loading booking details...
+            </p>
+          </div>
+        ) : null}
+
+        {!workspaceLoading && workspaceError ? (
+          <div className="rounded-lg border border-red-900/60 bg-red-950/30 p-4">
+            <p className="text-sm font-medium text-red-300">
+              {workspaceError}
+            </p>
+          </div>
+        ) : null}
+
+        {!workspaceLoading &&
+        !workspaceError &&
+        selectedBooking &&
+        activeWorkspaceTab === "overview" ? (
           <BookingWorkspace booking={selectedBooking} />
         ) : null}
-{selectedBooking && activeWorkspaceTab === "timeline" ? (
+{!workspaceLoading &&
+        !workspaceError &&
+        selectedBooking &&
+        activeWorkspaceTab === "timeline" ? (
           <div className="space-y-6">
             <div className="relative pl-8">
               <div className="absolute bottom-0 left-[7px] top-2 w-px bg-slate-800" />
