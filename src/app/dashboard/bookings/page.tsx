@@ -186,6 +186,35 @@ export default function BookingsPage() {
 
   const activeBookings = bookingsData;
 
+  const bookingStats = useMemo(() => {
+    const live = activeBookings.length;
+
+    const waitingDispatch = activeBookings.filter(
+      (b) => b.status === "created" || b.status === "on-hold",
+    ).length;
+
+    const completed = activeBookings.filter(
+      (b) => b.status === "completed",
+    );
+
+    const revenueToday = completed.reduce(
+      (sum, b) => sum + (b.price ?? 0),
+      0,
+    );
+
+    const delayed = activeBookings.filter(
+      (b) => b.status === "warning",
+    ).length;
+
+    return {
+      live,
+      waitingDispatch,
+      revenueToday,
+      delayed,
+    };
+  }, [activeBookings]);
+
+
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
 
@@ -277,14 +306,14 @@ export default function BookingsPage() {
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
             title="Live Bookings"
-            value="248"
+            value={bookingStats.live.toString()}
             description="Current operational bookings"
             trend={{ value: "12 today", direction: "up" }}
           />
 
           <KpiCard
             title="Waiting Dispatch"
-            value="18"
+            value={bookingStats.waitingDispatch.toString()}
             description="Bookings waiting for allocation"
             trend={{ value: "3 urgent", direction: "down" }}
           />
@@ -298,7 +327,7 @@ export default function BookingsPage() {
 
           <KpiCard
             title="Revenue Today"
-            value="£8,420"
+            value={`£${bookingStats.revenueToday.toFixed(2)}`}
             description="Completed booking revenue"
             trend={{ value: "8.4%", direction: "up" }}
           />
@@ -312,7 +341,7 @@ export default function BookingsPage() {
 
           <KpiCard
             title="Jobs Delayed"
-            value="7"
+            value={bookingStats.delayed.toString()}
             description="Bookings outside target"
             trend={{ value: "2 fewer", direction: "up" }}
           />
