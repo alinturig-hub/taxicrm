@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import ActionButton from "@/components/ui/ActionButton";
 import DataTable, {
@@ -12,6 +12,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import TablePagination from "@/components/ui/TablePagination";
 import TableToolbar from "@/components/ui/TableToolbar";
 import BookingWorkspace from "@/components/bookings/BookingWorkspace";
+import type { BookingWorkspaceData } from "@/components/bookings/types";
 import WorkspacePanel, {
   type WorkspaceTab,
 } from "@/components/workspace/WorkspacePanel";
@@ -45,200 +46,14 @@ type Booking = {
   notes: string;
 };
 
-const bookings: Booking[] = [
-  {
-    id: "13082246",
-    customer: "David",
-    phone: "+447840403660",
-    status: "dispatched",
-    source: "Operator Web",
-    payment: "Cash",
-    price: 13.2,
-    bookedAt: "21 Jul 2026, 10:01",
-    pickup: "Plymouth Railway Station",
-    destination: "Crownhill, Plymouth",
-    driver: "Michael Turner",
-    vehicle: "Toyota Prius · WR59 HGF",
-    passengers: 2,
-    notes: "Customer requested a call when the driver arrives.",
-  },
-  {
-    id: "13082245",
-    customer: "Lane Peter",
-    phone: "+447984867655",
-    status: "dispatched",
-    source: "Operator Web",
-    payment: "Account",
-    price: 10.2,
-    bookedAt: "21 Jul 2026, 10:00",
-    pickup: "Derriford Hospital",
-    destination: "Plymouth City Centre",
-    driver: "James Wilson",
-    vehicle: "Mercedes V-Class · SE13 TEA",
-    passengers: 1,
-    notes: "Corporate account booking.",
-  },
-  {
-    id: "13082243",
-    customer: "Shirley",
-    phone: "+447749685431",
-    status: "dispatched",
-    source: "Operator Web",
-    payment: "Cash",
-    price: 6.8,
-    bookedAt: "21 Jul 2026, 09:59",
-    pickup: "Mutley Plain",
-    destination: "Drake Circus",
-    driver: "Robert Evans",
-    vehicle: "Ford Galaxy · LK72 ABC",
-    passengers: 1,
-    notes: "",
-  },
-  {
-    id: "13082242",
-    customer: "Iola Nelson",
-    phone: "+447977533621",
-    status: "created",
-    source: "Operator Web",
-    payment: "Account",
-    price: 7.2,
-    bookedAt: "21 Jul 2026, 09:58",
-    pickup: "Plymstock",
-    destination: "Plymouth Hoe",
-    driver: null,
-    vehicle: null,
-    passengers: 2,
-    notes: "Waiting for driver allocation.",
-  },
-  {
-    id: "13082241",
-    customer: "Iola Nelson",
-    phone: "+447977533621",
-    status: "created",
-    source: "Operator Web",
-    payment: "Account",
-    price: 6.5,
-    bookedAt: "21 Jul 2026, 09:58",
-    pickup: "Plymouth Hoe",
-    destination: "Royal William Yard",
-    driver: null,
-    vehicle: null,
-    passengers: 2,
-    notes: "Return journey.",
-  },
-  {
-    id: "13082240",
-    customer: "Mrs Elliot",
-    phone: "+447864274259",
-    status: "created",
-    source: "Mobile App",
-    payment: "Cash",
-    price: 13.5,
-    bookedAt: "21 Jul 2026, 09:57",
-    pickup: "Plymouth Airport",
-    destination: "Barbican, Plymouth",
-    driver: null,
-    vehicle: null,
-    passengers: 3,
-    notes: "Customer has two large suitcases.",
-  },
-  {
-    id: "13082239",
-    customer: "Liam",
-    phone: "+447885605338",
-    status: "created",
-    source: "Operator Web",
-    payment: "Cash",
-    price: 7.9,
-    bookedAt: "21 Jul 2026, 09:57",
-    pickup: "North Hill",
-    destination: "Plymouth Railway Station",
-    driver: null,
-    vehicle: null,
-    passengers: 1,
-    notes: "",
-  },
-  {
-    id: "13082238",
-    customer: "Georgina Midwinter",
-    phone: "+447540855379",
-    status: "created",
-    source: "Operator Web",
-    payment: "Account",
-    price: 9.57,
-    bookedAt: "21 Jul 2026, 09:57",
-    pickup: "Devonport",
-    destination: "Derriford Hospital",
-    driver: null,
-    vehicle: null,
-    passengers: 1,
-    notes: "Hospital appointment.",
-  },
-  {
-    id: "13082237",
-    customer: "Grace Levine",
-    phone: "+447858826402",
-    status: "dispatched",
-    source: "Mobile App",
-    payment: "Cash",
-    price: 12.9,
-    bookedAt: "21 Jul 2026, 09:56",
-    pickup: "Royal William Yard",
-    destination: "Derriford Hospital",
-    driver: "Daniel Brown",
-    vehicle: "Toyota Prius · PL21 TAX",
-    passengers: 2,
-    notes: "",
-  },
-  {
-    id: "13082236",
-    customer: "Georgina",
-    phone: "+447493240470",
-    status: "created",
-    source: "Operator Web",
-    payment: "Cash",
-    price: 6,
-    bookedAt: "21 Jul 2026, 09:56",
-    pickup: "Stonehouse",
-    destination: "Barbican",
-    driver: null,
-    vehicle: null,
-    passengers: 1,
-    notes: "",
-  },
-  {
-    id: "13082235",
-    customer: "Chelsea Batt",
-    phone: "+447513643663",
-    status: "cancelled",
-    source: "Mobile App",
-    payment: "Cash",
-    price: 11,
-    bookedAt: "21 Jul 2026, 09:55",
-    pickup: "Plympton",
-    destination: "Plymouth City Centre",
-    driver: null,
-    vehicle: null,
-    passengers: 2,
-    notes: "Cancelled by customer.",
-  },
-  {
-    id: "13082234",
-    customer: "Richard Babcock",
-    phone: "+44752305782",
-    status: "created",
-    source: "Operator Web",
-    payment: "Account",
-    price: 10.8,
-    bookedAt: "21 Jul 2026, 09:55",
-    pickup: "Saltash",
-    destination: "Plymouth Railway Station",
-    driver: null,
-    vehicle: null,
-    passengers: 1,
-    notes: "Priority corporate customer.",
-  },
-];
+
+type BookingsApiResponse = {
+  success: boolean;
+  total: number;
+  bookings: BookingWorkspaceData[];
+  error?: string;
+  message?: string;
+};
 
 const workspaceTabs: WorkspaceTab[] = [
   {
@@ -267,7 +82,49 @@ export default function BookingsPage() {
     useState("overview");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [bookingsData, setBookingsData] = useState<BookingWorkspaceData[]>([]);
+
+
+
+  const loadBookings = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+
+    try {
+      const response = await fetch("/api/bookings", {
+        cache: "no-store",
+      });
+
+      const payload =
+        (await response.json()) as BookingsApiResponse;
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "Failed to load bookings.",
+        );
+      }
+
+      setBookingsData(payload.bookings);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : "Failed to load bookings.",
+      );
+      setBookingsData([]);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadBookings();
+  }, [loadBookings]);
 
   const openBookingWorkspace = (booking: Booking) => {
     setSelectedBooking(booking);
@@ -326,15 +183,15 @@ export default function BookingsPage() {
       {
         id: "source",
         header: "Source",
-        accessor: (booking) => booking.source,
-        sortValue: (booking) => booking.source,
+        accessor: (booking) => booking.bookingSource,
+        sortValue: (booking) => booking.bookingSource,
         sortable: true,
       },
       {
         id: "payment",
         header: "Payment",
-        accessor: (booking) => booking.payment,
-        sortValue: (booking) => booking.payment,
+        accessor: (booking) => booking.paymentType,
+        sortValue: (booking) => booking.paymentType,
         sortable: true,
       },
       {
@@ -356,33 +213,36 @@ export default function BookingsPage() {
     [],
   );
 
+  const activeBookings = bookingsData;
+
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
 
-    return bookings.filter((booking) => {
+    return activeBookings.filter((booking) => {
       const matchesSearch =
         !normalizedSearch ||
         booking.id.toLowerCase().includes(normalizedSearch) ||
-        booking.customer.toLowerCase().includes(normalizedSearch) ||
-        booking.phone.toLowerCase().includes(normalizedSearch);
+        (booking.customerName ?? '').toLowerCase().includes(normalizedSearch) ||
+        (booking.telephoneNumber ?? '').toLowerCase().includes(normalizedSearch);
 
       const matchesStatus =
         statusFilter === "all" || booking.status === statusFilter;
 
       const matchesSource =
-        sourceFilter === "all" || booking.source === sourceFilter;
+        sourceFilter === "all" || booking.bookingSource === sourceFilter;
 
       const matchesPayment =
-        paymentFilter === "all" || booking.payment === paymentFilter;
+        paymentFilter === "all" || booking.paymentType === paymentFilter;
 
-      return (
+
+  return (
         matchesSearch &&
         matchesStatus &&
         matchesSource &&
         matchesPayment
       );
     });
-  }, [paymentFilter, searchValue, sourceFilter, statusFilter]);
+  }, [activeBookings, paymentFilter, searchValue, sourceFilter, statusFilter]);
 
   const totalPages = Math.max(
     1,
@@ -406,6 +266,22 @@ export default function BookingsPage() {
     setPageSize(newPageSize);
     setPage(1);
   };
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        Loading bookings...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="flex h-full items-center justify-center text-red-500">
+        {error}
+      </div>
+    );
+  }
 
   return (
     <>
