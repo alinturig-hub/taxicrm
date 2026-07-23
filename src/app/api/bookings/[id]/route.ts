@@ -97,6 +97,100 @@ function calculateCustomerScore(
   };
 }
 
+function calculateCustomerSummary({
+  totalBookings,
+  completedBookings,
+  cancelledBookings,
+  totalValue,
+  averageBookingValue,
+  scoreLabel,
+  paymentType,
+  bookingSource,
+  frequentRoute,
+}: {
+  totalBookings: number;
+  completedBookings: number;
+  cancelledBookings: number;
+  totalValue: number;
+  averageBookingValue: number;
+  scoreLabel: string;
+  paymentType: string | null;
+  bookingSource: string | null;
+  frequentRoute: string | null;
+}) {
+  const completionRate =
+    totalBookings > 0
+      ? Math.round((completedBookings / totalBookings) * 100)
+      : 0;
+
+  const cancellationRate =
+    totalBookings > 0
+      ? Math.round((cancelledBookings / totalBookings) * 100)
+      : 0;
+
+  const insights: string[] = [];
+
+  if (totalBookings === 1) {
+    insights.push("This is the customer’s first recorded booking.");
+  } else {
+    insights.push(
+      `${totalBookings} bookings recorded with a ${completionRate}% completion rate.`,
+    );
+  }
+
+  if (totalValue > 0) {
+    insights.push(
+      `Lifetime value is £${totalValue.toFixed(
+        2,
+      )}, with an average completed booking value of £${averageBookingValue.toFixed(
+        2,
+      )}.`,
+    );
+  }
+
+  if (cancelledBookings === 0 && totalBookings > 1) {
+    insights.push("No cancellations are recorded for this customer.");
+  } else if (cancelledBookings > 0) {
+    insights.push(
+      `${cancelledBookings} cancellation${
+        cancelledBookings === 1 ? "" : "s"
+      } recorded, representing ${cancellationRate}% of bookings.`,
+    );
+  }
+
+  if (paymentType) {
+    insights.push(`Most frequently used payment method: ${paymentType}.`);
+  }
+
+  if (bookingSource) {
+    insights.push(`Most bookings originate from ${bookingSource}.`);
+  }
+
+  if (frequentRoute) {
+    insights.push(`Frequently booked route: ${frequentRoute}.`);
+  }
+
+  const headline =
+    scoreLabel === "High Cancellation Risk"
+      ? "Customer requires booking-risk attention"
+      : scoreLabel === "VIP Customer"
+        ? "High-value and established customer"
+        : scoreLabel === "Regular Customer"
+          ? "Established repeat customer"
+          : "New customer relationship";
+
+  const overview =
+    totalBookings === 1
+      ? "A new customer with limited booking history. More activity is required before reliable behavioural patterns can be established."
+      : `${scoreLabel} with ${totalBookings} total bookings, ${completedBookings} completed journeys and ${cancelledBookings} cancellations.`;
+
+  return {
+    headline,
+    overview,
+    insights,
+  };
+}
+
 export async function GET(
   _request: Request,
   { params }: RouteContext,
@@ -207,6 +301,73 @@ export async function GET(
       totalValue,
     );
 
+
+    const paymentTypeCounts = new Map<string, number>();
+    const bookingSourceCounts = new Map<string, number>();
+    const routeCounts = new Map<string, number>();
+
+    for (const item of customerBookings) {
+      if (item.paymentType) {
+        paymentTypeCounts.set(
+          item.paymentType,
+          (paymentTypeCounts.get(item.paymentType) ?? 0) + 1,
+        );
+      }
+
+      if (item.bookingSource) {
+        bookingSourceCounts.set(
+          item.bookingSource,
+          (bookingSourceCounts.get(item.bookingSource) ?? 0) + 1,
+        );
+      }
+
+      const routePickup = item.locations.find(
+        (location) => location.type === "PICKUP",
+      );
+
+      const routeDestination = item.locations.find(
+        (location) => location.type === "DESTINATION",
+      );
+
+      if (routePickup?.address && routeDestination?.address) {
+        const route =
+          `${routePickup.address} → ${routeDestination.address}`;
+
+        routeCounts.set(
+          route,
+          (routeCounts.get(route) ?? 0) + 1,
+        );
+      }
+    }
+
+    const getMostFrequentValue = (
+      values: Map<string, number>,
+    ): string | null => {
+      let selectedValue: string | null = null;
+      let selectedCount = 0;
+
+      values.forEach((count, value) => {
+        if (count > selectedCount) {
+          selectedCount = count;
+          selectedValue = value;
+        }
+      });
+
+      return selectedValue;
+    };
+
+    const customerSummary = calculateCustomerSummary({
+      totalBookings: customerBookings.length,
+      completedBookings: completedBookings.length,
+      cancelledBookings: cancelledBookings.length,
+      totalValue,
+      averageBookingValue,
+      scoreLabel: customerScore.label,
+      paymentType: getMostFrequentValue(paymentTypeCounts),
+      bookingSource: getMostFrequentValue(bookingSourceCounts),
+      frequentRoute: getMostFrequentValue(routeCounts),
+    });
+
     const recentBookings = customerBookings.slice(0, 5).map((item) => {
       const pickup = item.locations.find(
         (location) => location.type === "PICKUP",
@@ -265,6 +426,7 @@ export async function GET(
             customerBookings[0]?.pickupDueTime ??
             null,
           score: customerScore,
+          summary: customerSummary,
           recentBookings,
         },
 

@@ -104,6 +104,45 @@ export default function BookingCustomer({
                 Customer Intelligence
               </h4>
 
+              <div className="mb-4 rounded-xl border border-indigo-200 bg-gradient-to-br from-indigo-50 to-violet-50 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-indigo-600">
+                      AI Customer Summary
+                    </div>
+
+                    <div className="mt-2 text-base font-bold text-slate-900">
+                      {customer.summary.headline}
+                    </div>
+                  </div>
+
+                  <div className="shrink-0 rounded-full border border-indigo-200 bg-white px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-indigo-600">
+                    Live Insight
+                  </div>
+                </div>
+
+                <p className="mt-3 text-sm leading-6 text-slate-700">
+                  {customer.summary.overview}
+                </p>
+
+                {customer.summary.insights.length > 0 ? (
+                  <div className="mt-4 space-y-2">
+                    {customer.summary.insights.map(
+                      (insight, index) => (
+                        <div
+                          key={`${insight}-${index}`}
+                          className="flex items-start gap-2 text-sm text-slate-700"
+                        >
+                          <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-indigo-500" />
+
+                          <span>{insight}</span>
+                        </div>
+                      ),
+                    )}
+                  </div>
+                ) : null}
+              </div>
+
               <div
                 className={`mb-4 rounded-lg border p-4 ${getScoreClasses(
                   customer.score.color,

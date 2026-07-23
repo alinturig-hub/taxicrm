@@ -46,6 +46,12 @@ export interface CustomerScore {
   reason: string;
 }
 
+export interface CustomerSummary {
+  headline: string;
+  overview: string;
+  insights: string[];
+}
+
 export interface CustomerIntelligence {
   name: string | null;
   telephoneNumber: string | null;
@@ -57,6 +63,7 @@ export interface CustomerIntelligence {
   averageBookingValue: number;
   lastBookingAt: string | null;
   score: CustomerScore;
+  summary: CustomerSummary;
   recentBookings: CustomerRecentBooking[];
 }
 
