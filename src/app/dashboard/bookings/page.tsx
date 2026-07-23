@@ -215,7 +215,7 @@ export default function BookingsPage() {
       {
         id: "price",
         header: "Price",
-        accessor: (booking) => `£${((booking.price ?? 0) ?? 0).toFixed(2)}`,
+        accessor: (booking) => `£${Number(booking.price ?? 0).toFixed(2)}`,
         sortValue: (booking) => (booking.price ?? 0),
         sortable: true,
         align: "right",
