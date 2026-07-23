@@ -1,5 +1,6 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 
 type JsonObject = Record<string, unknown>;
 
@@ -849,7 +850,7 @@ export async function processBookingCreatedWebhook(
   });
 
   try {
-    await prisma.$transaction(async (tx) => {
+    const bookingId = await prisma.$transaction(async (tx) => {
       const booking = await tx.booking.upsert({
         where: {
           provider_externalId: {
@@ -894,6 +895,13 @@ export async function processBookingCreatedWebhook(
           processedAt: new Date(),
         },
       });
+
+      return booking.id;
+    });
+
+    await createBookingSnapshot({
+      bookingId,
+      webhookEventId: webhookEvent.id,
     });
   } catch (error) {
     const message =
