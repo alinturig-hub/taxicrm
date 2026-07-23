@@ -26,6 +26,23 @@ function formatDate(value: string | null | undefined) {
   return new Date(value).toLocaleString("en-GB");
 }
 
+function getScoreClasses(
+  color: "green" | "blue" | "purple" | "red",
+) {
+  const classes = {
+    green:
+      "border-emerald-200 bg-emerald-50 text-emerald-700",
+    blue:
+      "border-blue-200 bg-blue-50 text-blue-700",
+    purple:
+      "border-purple-200 bg-purple-50 text-purple-700",
+    red:
+      "border-red-200 bg-red-50 text-red-700",
+  };
+
+  return classes[color];
+}
+
 export default function BookingCustomer({
   booking,
   onOpenBooking,
@@ -86,6 +103,31 @@ export default function BookingCustomer({
               <h4 className="mb-4 text-xs font-semibold uppercase tracking-wide text-slate-500">
                 Customer Intelligence
               </h4>
+
+              <div
+                className={`mb-4 rounded-lg border p-4 ${getScoreClasses(
+                  customer.score.color,
+                )}`}
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-bold">
+                      {customer.score.label}
+                    </div>
+
+                    <div className="mt-1 text-xs opacity-80">
+                      {customer.score.reason}
+                    </div>
+                  </div>
+
+                  <div className="rounded-full bg-white/70 px-3 py-1 text-xs font-bold">
+                    {customer.score.level ===
+                    "HIGH_CANCELLATION_RISK"
+                      ? "RISK"
+                      : customer.score.level}
+                  </div>
+                </div>
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
 

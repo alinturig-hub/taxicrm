@@ -39,6 +39,13 @@ export interface CustomerRecentBooking {
   bookingSource: string | null;
 }
 
+export interface CustomerScore {
+  level: "NEW" | "REGULAR" | "VIP" | "HIGH_CANCELLATION_RISK";
+  label: string;
+  color: "green" | "blue" | "purple" | "red";
+  reason: string;
+}
+
 export interface CustomerIntelligence {
   name: string | null;
   telephoneNumber: string | null;
@@ -49,6 +56,7 @@ export interface CustomerIntelligence {
   totalValue: number;
   averageBookingValue: number;
   lastBookingAt: string | null;
+  score: CustomerScore;
   recentBookings: CustomerRecentBooking[];
 }
 
