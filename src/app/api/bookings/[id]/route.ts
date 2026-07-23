@@ -39,6 +39,64 @@ function toNumber(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
+function calculateCustomerScore(
+  totalBookings: number,
+  cancelledBookings: number,
+  totalValue: number,
+) {
+  const cancellationRate =
+    totalBookings > 0
+      ? cancelledBookings / totalBookings
+      : 0;
+
+  if (
+    totalBookings >= 5 &&
+    cancellationRate >= 0.4
+  ) {
+    return {
+      level: "HIGH_CANCELLATION_RISK",
+      label: "High Cancellation Risk",
+      color: "red",
+      reason: `${Math.round(
+        cancellationRate * 100,
+      )}% cancellations`,
+    };
+  }
+
+  if (
+    totalBookings >= 25 ||
+    totalValue >= 2000
+  ) {
+    return {
+      level: "VIP",
+      label: "VIP Customer",
+      color: "purple",
+      reason: `${totalBookings} bookings • £${totalValue.toFixed(
+        0,
+      )} lifetime value`,
+    };
+  }
+
+  if (totalBookings >= 5) {
+    return {
+      level: "REGULAR",
+      label: "Regular Customer",
+      color: "blue",
+      reason: `${totalBookings} bookings`,
+    };
+  }
+
+  return {
+    level: "NEW",
+    label: "New Customer",
+    color: "green",
+    reason:
+      totalBookings === 1
+        ? "First booking"
+        : `${totalBookings} bookings`,
+  };
+}
+
 export async function GET(
   _request: Request,
   { params }: RouteContext,
@@ -143,6 +201,12 @@ export async function GET(
         ? totalValue / completedBookings.length
         : 0;
 
+    const customerScore = calculateCustomerScore(
+      customerBookings.length,
+      cancelledBookings.length,
+      totalValue,
+    );
+
     const recentBookings = customerBookings.slice(0, 5).map((item) => {
       const pickup = item.locations.find(
         (location) => location.type === "PICKUP",
@@ -200,6 +264,7 @@ export async function GET(
             customerBookings[0]?.bookedAtTime ??
             customerBookings[0]?.pickupDueTime ??
             null,
+          score: customerScore,
           recentBookings,
         },
 
