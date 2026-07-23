@@ -151,6 +151,7 @@ model Booking {
   vias           BookingVia[]
   webhookEvents  WebhookEvent[]
   timelineEvents BookingTimelineEvent[]
+  snapshots      BookingSnapshot[]
 
   @@unique([provider, externalId])
   @@index([pickupDueTime])
@@ -254,6 +255,7 @@ model WebhookEvent {
   webhookConfiguration AutocabWebhookConfiguration? @relation(fields: [webhookConfigurationId], references: [id], onDelete: SetNull)
 
   timelineEvents BookingTimelineEvent[]
+  snapshots      BookingSnapshot[]
 
   @@index([provider, eventType])
   @@index([externalBookingId])
@@ -284,4 +286,22 @@ model BookingTimelineEvent {
   @@index([eventType])
   @@index([source])
   @@index([webhookEventId])
+}
+
+model BookingSnapshot {
+  id             String   @id @default(cuid())
+  bookingId      String
+  webhookEventId String?
+  version        Int
+  eventType      String
+  snapshot       Json
+  createdAt      DateTime @default(now())
+
+  booking      Booking       @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  webhookEvent WebhookEvent? @relation(fields: [webhookEventId], references: [id], onDelete: SetNull)
+
+  @@unique([bookingId, version])
+  @@unique([webhookEventId])
+  @@index([bookingId, createdAt])
+  @@index([eventType])
 }
