@@ -52,6 +52,16 @@ export interface CustomerSummary {
   insights: string[];
 }
 
+export interface CustomerIntelligence360 {
+  favoritePickupAddress: string | null;
+  favoriteDestination: string | null;
+  preferredPaymentMethod: string | null;
+  preferredBookingChannel: string | null;
+  totalDistanceTravelled: number;
+  averageBookingDistance: number;
+  bookingsWithDistance: number;
+}
+
 export interface CustomerIntelligence {
   name: string | null;
   telephoneNumber: string | null;
@@ -64,6 +74,7 @@ export interface CustomerIntelligence {
   lastBookingAt: string | null;
   score: CustomerScore;
   summary: CustomerSummary;
+  intelligence360: CustomerIntelligence360;
   recentBookings: CustomerRecentBooking[];
 }
 

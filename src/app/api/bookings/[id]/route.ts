@@ -267,6 +267,10 @@ export async function GET(
         fare: true,
         paymentType: true,
         bookingSource: true,
+        distance: true,
+        systemDistance: true,
+        meterDistance: true,
+        estimatedDistance: true,
         locations: {
           select: {
             type: true,
@@ -305,6 +309,11 @@ export async function GET(
     const paymentTypeCounts = new Map<string, number>();
     const bookingSourceCounts = new Map<string, number>();
     const routeCounts = new Map<string, number>();
+    const pickupAddressCounts = new Map<string, number>();
+    const destinationAddressCounts = new Map<string, number>();
+
+    let totalDistanceTravelled = 0;
+    let bookingsWithDistance = 0;
 
     for (const item of customerBookings) {
       if (item.paymentType) {
@@ -329,6 +338,20 @@ export async function GET(
         (location) => location.type === "DESTINATION",
       );
 
+      if (routePickup?.address) {
+        pickupAddressCounts.set(
+          routePickup.address,
+          (pickupAddressCounts.get(routePickup.address) ?? 0) + 1,
+        );
+      }
+
+      if (routeDestination?.address) {
+        destinationAddressCounts.set(
+          routeDestination.address,
+          (destinationAddressCounts.get(routeDestination.address) ?? 0) + 1,
+        );
+      }
+
       if (routePickup?.address && routeDestination?.address) {
         const route =
           `${routePickup.address} → ${routeDestination.address}`;
@@ -337,6 +360,17 @@ export async function GET(
           route,
           (routeCounts.get(route) ?? 0) + 1,
         );
+      }
+
+      const bookingDistance =
+        toNumber(item.meterDistance) ??
+        toNumber(item.systemDistance) ??
+        toNumber(item.distance) ??
+        toNumber(item.estimatedDistance);
+
+      if (bookingDistance !== null && bookingDistance > 0) {
+        totalDistanceTravelled += bookingDistance;
+        bookingsWithDistance += 1;
       }
     }
 
@@ -356,6 +390,12 @@ export async function GET(
       return selectedValue;
     };
 
+    const preferredPaymentMethod =
+      getMostFrequentValue(paymentTypeCounts);
+
+    const preferredBookingChannel =
+      getMostFrequentValue(bookingSourceCounts);
+
     const customerSummary = calculateCustomerSummary({
       totalBookings: customerBookings.length,
       completedBookings: completedBookings.length,
@@ -363,10 +403,32 @@ export async function GET(
       totalValue,
       averageBookingValue,
       scoreLabel: customerScore.label,
-      paymentType: getMostFrequentValue(paymentTypeCounts),
-      bookingSource: getMostFrequentValue(bookingSourceCounts),
+      paymentType: preferredPaymentMethod,
+      bookingSource: preferredBookingChannel,
       frequentRoute: getMostFrequentValue(routeCounts),
     });
+
+    const customerIntelligence360 = {
+      favoritePickupAddress:
+        getMostFrequentValue(pickupAddressCounts),
+      favoriteDestination:
+        getMostFrequentValue(destinationAddressCounts),
+      preferredPaymentMethod,
+      preferredBookingChannel,
+      totalDistanceTravelled: Number(
+        totalDistanceTravelled.toFixed(1),
+      ),
+      averageBookingDistance:
+        bookingsWithDistance > 0
+          ? Number(
+              (
+                totalDistanceTravelled /
+                bookingsWithDistance
+              ).toFixed(1),
+            )
+          : 0,
+      bookingsWithDistance,
+    };
 
     const recentBookings = customerBookings.slice(0, 5).map((item) => {
       const pickup = item.locations.find(
@@ -427,6 +489,7 @@ export async function GET(
             null,
           score: customerScore,
           summary: customerSummary,
+          intelligence360: customerIntelligence360,
           recentBookings,
         },
 

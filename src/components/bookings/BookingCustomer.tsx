@@ -168,6 +168,117 @@ export default function BookingCustomer({
                 </div>
               </div>
 
+              <div className="mb-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-4 flex items-center justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Customer 360° Intelligence
+                    </div>
+
+                    <div className="mt-1 text-sm text-slate-600">
+                      Customer preferences and travel behaviour
+                    </div>
+                  </div>
+
+                  <div className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wide text-slate-600">
+                    360° View
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Favorite Pickup
+                    </div>
+
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {customer.intelligence360
+                        .favoritePickupAddress ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Favorite Destination
+                    </div>
+
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {customer.intelligence360
+                        .favoriteDestination ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Preferred Payment
+                    </div>
+
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {customer.intelligence360
+                        .preferredPaymentMethod ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Preferred Channel
+                    </div>
+
+                    <div className="mt-1 text-sm font-semibold text-slate-900">
+                      {customer.intelligence360
+                        .preferredBookingChannel ?? "-"}
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Total Distance
+                    </div>
+
+                    <div className="mt-1 text-lg font-bold text-slate-900">
+                      {customer.intelligence360
+                        .totalDistanceTravelled.toLocaleString(
+                          "en-GB",
+                          {
+                            maximumFractionDigits: 1,
+                          },
+                        )}{" "}
+                      mi
+                    </div>
+                  </div>
+
+                  <div className="rounded-lg bg-slate-50 p-3">
+                    <div className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                      Average Booking Distance
+                    </div>
+
+                    <div className="mt-1 text-lg font-bold text-slate-900">
+                      {customer.intelligence360
+                        .averageBookingDistance.toLocaleString(
+                          "en-GB",
+                          {
+                            maximumFractionDigits: 1,
+                          },
+                        )}{" "}
+                      mi
+                    </div>
+
+                    <div className="mt-1 text-xs text-slate-500">
+                      Based on{" "}
+                      {
+                        customer.intelligence360
+                          .bookingsWithDistance
+                      }{" "}
+                      booking
+                      {customer.intelligence360
+                        .bookingsWithDistance === 1
+                        ? ""
+                        : "s"}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
               <div className="grid grid-cols-2 gap-3">
 
                 <div className="rounded-lg border border-slate-200 p-3">
