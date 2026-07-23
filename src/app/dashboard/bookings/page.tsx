@@ -233,6 +233,8 @@ export default function BookingsPage() {
 
   const activeBookings = bookingsData;
 
+
+
   const bookingStats = useMemo(() => {
     const now = new Date();
 
