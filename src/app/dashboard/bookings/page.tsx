@@ -160,10 +160,10 @@ export default function BookingsPage() {
             onClick={() => openBookingWorkspace(booking)}
             className="font-semibold text-blue-400 transition hover:text-blue-300 hover:underline"
           >
-            {booking.id}
+            {booking.externalId}
           </button>
         ),
-        sortValue: (booking) => booking.id,
+        sortValue: (booking) => booking.externalId,
         sortable: true,
         hideable: false,
       },
@@ -341,7 +341,7 @@ export default function BookingsPage() {
     return activeBookings.filter((booking) => {
       const matchesSearch =
         !normalizedSearch ||
-        booking.id.toLowerCase().includes(normalizedSearch) ||
+        booking.externalId.toLowerCase().includes(normalizedSearch) ||
         (booking.customerName ?? '').toLowerCase().includes(normalizedSearch) ||
         (booking.telephoneNumber ?? '').toLowerCase().includes(normalizedSearch);
 
@@ -420,9 +420,6 @@ export default function BookingsPage() {
                 Live
               </div>
 
-              <ActionButton icon="+">
-                New Booking
-              </ActionButton>
             </div>
           }
         />
@@ -545,7 +542,7 @@ export default function BookingsPage() {
             <ActionButton
               variant="ghost"
               size="sm"
-              aria-label={`View booking ${booking.id}`}
+              aria-label={`View Autocab booking ${booking.externalId}`}
               onClick={() => openBookingWorkspace(booking)}
             >
               View
