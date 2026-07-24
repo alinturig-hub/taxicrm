@@ -1,30 +1,49 @@
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 
-export async function getBookingTimeline(bookingId: string) {
-  const snapshots = await prisma.bookingSnapshot.findMany({
-    where: {
-      bookingId,
-    },
-    orderBy: {
-      version: "asc",
-    },
-    include: {
-      webhookEvent: {
-        select: {
-          id: true,
-          eventType: true,
-          receivedAt: true,
-        },
+export type AppendBookingTimelineEventInput = {
+  bookingId: string;
+  webhookEventId?: string | null;
+  eventType: string;
+  title: string;
+  description?: string | null;
+  metadata?: Prisma.InputJsonValue;
+  occurredAt?: Date;
+};
+
+export async function appendBookingTimelineEvent({
+  bookingId,
+  webhookEventId = null,
+  eventType,
+  title,
+  description = null,
+  metadata,
+  occurredAt = new Date(),
+}: AppendBookingTimelineEventInput) {
+  if (webhookEventId) {
+    const existing = await prisma.bookingTimelineEvent.findFirst({
+      where: {
+        webhookEventId,
       },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      return existing;
+    }
+  }
+
+  return prisma.bookingTimelineEvent.create({
+    data: {
+      bookingId,
+      webhookEventId,
+      eventType,
+      title,
+      description,
+      metadata,
+      occurredAt,
     },
   });
-
-  return snapshots.map((snapshot) => ({
-    version: snapshot.version,
-    eventType: snapshot.eventType,
-    timestamp:
-      snapshot.webhookEvent?.receivedAt ?? snapshot.createdAt,
-    webhookEventId: snapshot.webhookEventId,
-    snapshotId: snapshot.id,
-  }));
 }

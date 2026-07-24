@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
+import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
 
 type JsonObject = Record<string, unknown>;
 
@@ -902,6 +903,16 @@ export async function processBookingCreatedWebhook(
     await createBookingSnapshot({
       bookingId,
       webhookEventId: webhookEvent.id,
+    });
+
+    await appendBookingTimelineEvent({
+      bookingId,
+      webhookEventId: webhookEvent.id,
+      eventType: webhookEvent.eventType,
+      title: "Booking Created",
+      description: "Booking created in Autocab.",
+      metadata: payload as Prisma.InputJsonObject,
+      occurredAt: new Date(),
     });
   } catch (error) {
     const message =
