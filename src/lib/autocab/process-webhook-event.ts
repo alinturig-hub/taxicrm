@@ -23,7 +23,7 @@ export async function processWebhookEvent(
     case "booking.created":
     case "bookingcreated":
       await processBookingCreatedWebhook(webhookEvent.id);
-      break;
+      return;
 
     default:
       await prisma.webhookEvent.update({
@@ -31,13 +31,14 @@ export async function processWebhookEvent(
           id: webhookEvent.id,
         },
         data: {
-          status: "FAILED",
-          processingError: `Unsupported event type: ${webhookEvent.eventType}`,
+          status: "PROCESSED",
+          processingError: null,
+          processedAt: new Date(),
         },
       });
 
-      throw new Error(
-        `Unsupported event type: ${webhookEvent.eventType}`,
+      console.info(
+        `No handler registered for event type: ${webhookEvent.eventType}`,
       );
   }
 }
