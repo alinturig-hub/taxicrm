@@ -48,11 +48,15 @@ const intelligenceNavigation: NavigationItem[] = [
   { label: "Reports", href: "/dashboard/reports" },
 ];
 
-const administrationNavigation: NavigationItem[] = [
-  { label: "Integrations", href: "/dashboard/integrations" },
-  { label: "Users", href: "/dashboard/users" },
-  { label: "Roles", href: "/dashboard/roles" },
-  { label: "Settings", href: "/dashboard/settings" },
+const configurationNavigation: NavigationItem[] = [
+  { label: "Overview", href: "/dashboard/configuration" },
+  { label: "Integrations", href: "/dashboard/configuration/integrations" },
+  { label: "Webhooks", href: "/dashboard/configuration/webhooks" },
+  { label: "API Keys", href: "/dashboard/configuration/api-keys" },
+  { label: "Organizations", href: "/dashboard/configuration/organizations" },
+  { label: "Users & Roles", href: "/dashboard/configuration/users-roles" },
+  { label: "Audit Logs", href: "/dashboard/configuration/audit-logs" },
+  { label: "System Health", href: "/dashboard/configuration/system-health" },
 ];
 
 function isRouteActive(pathname: string, href: string) {
@@ -217,10 +221,10 @@ export default function DashboardShell({
         </section>
 
         <section className="mt-6">
-          <p className={sectionTitleClass}>Administration</p>
+          <p className={sectionTitleClass}>Configuration</p>
 
           <div className="space-y-1">
-            {renderNavigationItems(administrationNavigation)}
+            {renderNavigationItems(configurationNavigation)}
           </div>
         </section>
       </nav>
