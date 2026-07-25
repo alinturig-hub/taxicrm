@@ -5,7 +5,7 @@ export async function processBookingRejectedWebhook(
 ): Promise<void> {
   return processBookingWebhook(webhookEventId, {
     title: "Booking Rejected",
-    description: "Booking dispatch was rejected.",
+    description: "Booking was rejected.",
     status: "REJECTED",
     unknownErrorMessage: "Unknown BookingRejected processing error.",
   });
