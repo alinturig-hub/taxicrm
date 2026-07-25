@@ -1,5 +1,11 @@
+import {
+  AUTOCAB_EVENT_REGISTRY,
+} from "@/lib/autocab/event-registry";
 import { prisma } from "@/lib/prisma";
-import { processBookingCreatedWebhook } from "./process-booking-created";
+
+function normalizeEventType(eventType: string): string {
+  return eventType.replaceAll(".", "").toLowerCase();
+}
 
 export async function processWebhookEvent(
   webhookEventId: string,
@@ -19,26 +25,31 @@ export async function processWebhookEvent(
     throw new Error(`WebhookEvent not found: ${webhookEventId}`);
   }
 
-  switch (webhookEvent.eventType.toLowerCase()) {
-    case "booking.created":
-    case "bookingcreated":
-      await processBookingCreatedWebhook(webhookEvent.id);
-      return;
+  const normalized = normalizeEventType(webhookEvent.eventType);
 
-    default:
-      await prisma.webhookEvent.update({
-        where: {
-          id: webhookEvent.id,
-        },
-        data: {
-          status: "PROCESSED",
-          processingError: null,
-          processedAt: new Date(),
-        },
-      });
+  const definition =
+    AUTOCAB_EVENT_REGISTRY.get(webhookEvent.eventType) ??
+    Array.from(AUTOCAB_EVENT_REGISTRY.values()).find(
+      (event) => normalizeEventType(event.eventType) === normalized,
+    );
 
-      console.info(
-        `No handler registered for event type: ${webhookEvent.eventType}`,
-      );
+  if (definition?.handler) {
+    await definition.handler(webhookEvent.id);
+    return;
   }
+
+  await prisma.webhookEvent.update({
+    where: {
+      id: webhookEvent.id,
+    },
+    data: {
+      status: "PROCESSED",
+      processingError: null,
+      processedAt: new Date(),
+    },
+  });
+
+  console.info(
+    `No handler registered for event type: ${webhookEvent.eventType}`,
+  );
 }
