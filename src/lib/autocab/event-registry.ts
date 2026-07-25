@@ -4,6 +4,7 @@ import { processBookingDispatchedWebhook } from "@/lib/autocab/process-booking-d
 import { processBookingDispatchAcceptedWebhook } from "@/lib/autocab/process-booking-dispatch-accepted";
 import { processBookingArrivedWebhook } from "@/lib/autocab/process-booking-arrived";
 import { processBookingPOBWebhook } from "@/lib/autocab/process-booking-pob";
+import { processBookingCompleteWebhook } from "@/lib/autocab/process-booking-complete";
 
 export const AUTOCAB_EVENT_CATEGORIES = [
   "BOOKING",
@@ -112,6 +113,7 @@ const eventDefinitions = [
     createSnapshot: true,
     createTimeline: true,
     aiRelevant: true,
+    handler: processBookingCompleteWebhook,
   },
   {
     eventType: "BookingNoFare",
