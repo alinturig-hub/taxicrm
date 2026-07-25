@@ -1,5 +1,6 @@
 import { processBookingCreatedWebhook } from "@/lib/autocab/process-booking-created";
 import { processBookingModifiedWebhook } from "@/lib/autocab/process-booking-modified";
+import { processBookingDispatchedWebhook } from "@/lib/autocab/process-booking-dispatched";
 
 export const AUTOCAB_EVENT_CATEGORIES = [
   "BOOKING",
@@ -64,6 +65,7 @@ const eventDefinitions = [
     createSnapshot: true,
     createTimeline: true,
     aiRelevant: true,
+    handler: processBookingDispatchedWebhook,
   },
   {
     eventType: "BookingDispatchAccepted",
