@@ -1,6 +1,7 @@
 import { Prisma } from "@/generated/prisma/client";
 import {
   assignIfPresent,
+  buildBookingCreateData,
   buildLocationData,
   getArray,
   getObject,
@@ -20,128 +21,7 @@ import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-serv
 
 type LocationType = "PICKUP" | "DESTINATION";
 
-function buildBookingCreateData(
-  payload: JsonObject,
-  externalId: string,
-): Prisma.BookingCreateInput {
-  const company = getObject(payload, "Company");
-  const account = getObject(payload, "Account");
-  const pricing = getObject(payload, "Pricing");
-  const priceComparison = getObject(payload, "PriceComparison");
 
-  return {
-    provider: "AUTOCAB",
-    externalId,
-    originalBookingId: normaliseString(payload.OriginalBookingId),
-    bookingType: normaliseString(payload.BookingType),
-    typeOfBooking: normaliseString(payload.TypeOfBooking),
-    status: normaliseString(payload.Status) ?? "ACTIVE",
-
-    pickupDueTime: normaliseDate(payload.PickupDueTime),
-    dropOffDueTime: normaliseDate(payload.DropOffDueTime),
-    bookedAtTime: normaliseDate(payload.BookedAtTime),
-
-    customerName: normaliseString(payload.Name),
-    telephoneNumber: normaliseString(payload.TelephoneNumber),
-    customerEmail: normaliseString(payload.CustomerEmail),
-
-    paymentType: normaliseString(payload.PaymentType),
-    accountType: normaliseString(payload.AccountType),
-    accountId: account ? normaliseString(account.Id) : null,
-    accountName: account
-      ? normaliseString(account.DisplayName) ??
-        normaliseString(account.Name) ??
-        normaliseString(account.AccountCode)
-      : null,
-
-    companyId: company ? normaliseString(company.Id) : null,
-    companyName: company ? normaliseString(company.Name) : null,
-    companyRegisteredNo: company
-      ? normaliseString(company.RegisteredNumber)
-      : null,
-    companyCode: company ? normaliseString(company.CompanyCode) : null,
-
-    priority: normaliseInteger(payload.Priority) ?? 0,
-    passengers: normaliseInteger(payload.Passengers) ?? 1,
-    luggage: normaliseInteger(payload.Luggage) ?? 0,
-
-    driverNote: normaliseString(payload.DriverNote),
-    officeNote: normaliseString(payload.OfficeNote),
-    ourReference: normaliseString(payload.OurReference),
-    flightDetails: normaliseString(payload.FlightDetails),
-    bookedBy: normaliseString(payload.BookedBy),
-    bookingSource: normaliseString(payload.BookingSource),
-    cabExchangeReference: normaliseString(
-      payload.CabExchangeAgentBookingRef,
-    ),
-    loyaltyCardId: normaliseString(payload.LoyaltyCardID),
-    loyaltyCardCostValue:
-      normaliseDecimal(payload.LoyaltyCardCostValue) ??
-      new Prisma.Decimal(0),
-    isStreetPickup: normaliseBoolean(payload.IsStreetPickup) ?? false,
-
-    fare: pricing ? normaliseDecimal(pricing.Fare) : null,
-    cost: pricing ? normaliseDecimal(pricing.Cost) : null,
-    price: pricing ? normaliseDecimal(pricing.Price) : null,
-    extraCost: pricing ? normaliseDecimal(pricing.ExtraCost) : null,
-    fixedCost: pricing ? normaliseDecimal(pricing.FixedCost) : null,
-    fixedPrice: pricing ? normaliseDecimal(pricing.FixedPrice) : null,
-    chargingAreaCost: pricing
-      ? normaliseDecimal(pricing.ChargingAreaCost)
-      : null,
-    chargingAreaPrice: pricing
-      ? normaliseDecimal(pricing.ChargingAreaPrice)
-      : null,
-    waitingTime: pricing ? normaliseDecimal(pricing.WaitingTime) : null,
-    waitingTimeChargeable: pricing
-      ? normaliseDecimal(pricing.WaitingTimeChargeable)
-      : null,
-    gratuityAmount: pricing
-      ? normaliseDecimal(pricing.GratuityAmount)
-      : null,
-    costSource: pricing ? normaliseString(pricing.CostSource) : null,
-    pricingTariff: pricing
-      ? normaliseString(pricing.PricingTariff)
-      : null,
-    pricingSource: pricing
-      ? normaliseString(pricing.PricingSource)
-      : null,
-
-    distance: normaliseDecimal(payload.Distance),
-    systemDistance: normaliseDecimal(payload.SystemDistance),
-    meterDistance: normaliseDecimal(payload.MeterDistance),
-    meterDistanceMetres: normaliseInteger(payload.MeterDistanceAsMetres),
-
-    gpsMeterDistance: priceComparison
-      ? normaliseDecimal(priceComparison.GpsMeterDistance)
-      : null,
-    gpsMeterPrice: priceComparison
-      ? normaliseDecimal(priceComparison.GpsMeterPrice)
-      : null,
-    gpsMeterPriceSource: priceComparison
-      ? normaliseString(priceComparison.GpsMeterPriceSource)
-      : null,
-    estimatedDistance: priceComparison
-      ? normaliseDecimal(priceComparison.SystemEstimatedDistance)
-      : null,
-    estimatedPrice: priceComparison
-      ? normaliseDecimal(priceComparison.SystemEstimatedPrice)
-      : null,
-    estimatedPriceSource: priceComparison
-      ? normaliseString(priceComparison.SystemEstimatedPriceSource)
-      : null,
-    estimatedTime: priceComparison
-      ? normaliseString(priceComparison.EstimatedTime)
-      : null,
-
-    capabilities: jsonValue(payload.Capabilities),
-    yourReferences: jsonValue(payload.YourReferences),
-    promotionCodeDiscount: pricing
-      ? jsonValue(pricing.PromotionCodeDiscount)
-      : undefined,
-    rawPayload: payload as Prisma.InputJsonObject,
-  };
-}
 
 function buildBookingUpdateData(
   payload: JsonObject,
