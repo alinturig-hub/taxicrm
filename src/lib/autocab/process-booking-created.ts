@@ -1,14 +1,9 @@
 import { Prisma } from "@/generated/prisma/client";
 import {
-  buildBookingCreateData,
-  buildBookingUpdateData,
   isObject,
   normaliseString,
 } from "@/lib/autocab/booking-mappers";
-import {
-  synchroniseLocation,
-  synchroniseVias,
-} from "@/lib/autocab/booking-synchronisers";
+import { upsertBooking } from "@/lib/autocab/booking-upsert";
 import { prisma } from "@/lib/prisma";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
@@ -78,52 +73,21 @@ export async function processBookingCreatedWebhook(
 
   try {
     const bookingId = await prisma.$transaction(async (tx) => {
-      const booking = await tx.booking.upsert({
-        where: {
-          provider_externalId: {
-            provider: "AUTOCAB",
-            externalId,
-          },
-        },
-        create: buildBookingCreateData(payload, externalId),
-        update: buildBookingUpdateData(payload),
-        select: {
-          id: true,
-        },
-      });
-
-      await synchroniseLocation(
-        tx,
-        booking.id,
-        payload,
-        "Pickup",
-        "PICKUP",
-      );
-
-      await synchroniseLocation(
-        tx,
-        booking.id,
-        payload,
-        "Destination",
-        "DESTINATION",
-      );
-
-      await synchroniseVias(tx, booking.id, payload);
-
+      const bookingId = await upsertBooking(tx, externalId, payload);
       await tx.webhookEvent.update({
         where: {
           id: webhookEvent.id,
         },
         data: {
           externalBookingId: externalId,
-          bookingId: booking.id,
+          bookingId,
           status: "PROCESSED",
           processingError: null,
           processedAt: new Date(),
         },
       });
 
-      return booking.id;
+      return bookingId;
     });
 
     await createBookingSnapshot({
