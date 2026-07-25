@@ -125,3 +125,38 @@ export function assignIfPresent<T>(
     target[targetKey] = parser(source[sourceKey]);
   }
 }
+
+export function buildLocationData(
+  location: JsonObject,
+): {
+  address: string;
+  zoneId: string | null;
+  zoneDescriptor: string | null;
+  zoneName: string | null;
+  longitude: Prisma.Decimal | null;
+  latitude: Prisma.Decimal | null;
+} | null {
+  const address = normaliseString(location.Address);
+
+  if (!address) {
+    return null;
+  }
+
+  const zone = getObject(location, "Zone");
+  const coordinates = getObject(location, "Coordinates");
+
+  return {
+    address,
+    zoneId: zone ? normaliseString(zone.Id) : null,
+    zoneDescriptor: zone
+      ? normaliseString(zone.Descriptor)
+      : null,
+    zoneName: zone ? normaliseString(zone.Name) : null,
+    longitude: coordinates
+      ? normaliseDecimal(coordinates.Longitude)
+      : null,
+    latitude: coordinates
+      ? normaliseDecimal(coordinates.Latitude)
+      : null,
+  };
+}
