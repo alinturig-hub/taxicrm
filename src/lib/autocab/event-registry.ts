@@ -64,7 +64,6 @@ const eventDefinitions = [
     createSnapshot: true,
     createTimeline: true,
     aiRelevant: true,
-    handler: processBookingModifiedWebhook,
   },
   {
     eventType: "BookingDispatchAccepted",
@@ -145,6 +144,7 @@ const eventDefinitions = [
     createSnapshot: true,
     createTimeline: true,
     aiRelevant: true,
+    handler: processBookingModifiedWebhook,
   },
   {
     eventType: "VehicleTracksChanged",
