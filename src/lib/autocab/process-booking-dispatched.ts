@@ -6,6 +6,7 @@ export async function processBookingDispatchedWebhook(
   return processBookingWebhook(webhookEventId, {
     title: "Booking Dispatched",
     description: "Booking dispatched to a driver.",
+    status: "DISPATCHED",
     unknownErrorMessage: "Unknown BookingDispatched processing error.",
   });
 }

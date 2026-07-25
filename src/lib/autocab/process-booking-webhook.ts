@@ -4,6 +4,10 @@ import {
   normaliseString,
 } from "@/lib/autocab/booking-mappers";
 import { upsertBooking } from "@/lib/autocab/booking-upsert";
+import {
+  updateBookingStatus,
+  type BookingOperationalStatus,
+} from "@/lib/autocab/booking-state";
 import { prisma } from "@/lib/prisma";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
@@ -12,6 +16,7 @@ type ProcessBookingWebhookOptions = {
   title: string;
   description: string;
   unknownErrorMessage: string;
+  status: BookingOperationalStatus;
 };
 
 export async function processBookingWebhook(
@@ -81,6 +86,12 @@ export async function processBookingWebhook(
   try {
     const bookingId = await prisma.$transaction(async (tx) => {
       const id = await upsertBooking(tx, externalId, payload);
+
+      await updateBookingStatus(
+        tx,
+        id,
+        options.status,
+      );
 
       await tx.webhookEvent.update({
         where: {

@@ -6,6 +6,7 @@ export async function processBookingModifiedWebhook(
   return processBookingWebhook(webhookEventId, {
     title: "Booking Modified",
     description: "Booking modified in Autocab.",
+    status: "CREATED",
     unknownErrorMessage: "Unknown BookingModified processing error.",
   });
 }
