@@ -283,3 +283,407 @@ export function buildBookingCreateData(
     rawPayload: payload as Prisma.InputJsonObject,
   };
 }
+export function buildBookingUpdateData(
+  payload: JsonObject,
+): Prisma.BookingUpdateInput {
+  const data: Record<string, unknown> = {
+    rawPayload: payload as Prisma.InputJsonObject,
+  };
+
+  assignIfPresent(
+    data,
+    payload,
+    "OriginalBookingId",
+    "originalBookingId",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "BookingType",
+    "bookingType",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "TypeOfBooking",
+    "typeOfBooking",
+    normaliseString,
+  );
+  assignIfPresent(data, payload, "Status", "status", normaliseString);
+
+  assignIfPresent(
+    data,
+    payload,
+    "PickupDueTime",
+    "pickupDueTime",
+    normaliseDate,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "DropOffDueTime",
+    "dropOffDueTime",
+    normaliseDate,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "BookedAtTime",
+    "bookedAtTime",
+    normaliseDate,
+  );
+
+  assignIfPresent(data, payload, "Name", "customerName", normaliseString);
+  assignIfPresent(
+    data,
+    payload,
+    "TelephoneNumber",
+    "telephoneNumber",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "CustomerEmail",
+    "customerEmail",
+    normaliseString,
+  );
+
+  assignIfPresent(
+    data,
+    payload,
+    "PaymentType",
+    "paymentType",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "AccountType",
+    "accountType",
+    normaliseString,
+  );
+
+  if (hasOwn(payload, "Account")) {
+    const account = getObject(payload, "Account");
+
+    data.accountId = account ? normaliseString(account.Id) : null;
+    data.accountName = account
+      ? normaliseString(account.DisplayName) ??
+        normaliseString(account.Name) ??
+        normaliseString(account.AccountCode)
+      : null;
+  }
+
+  if (hasOwn(payload, "Company")) {
+    const company = getObject(payload, "Company");
+
+    data.companyId = company ? normaliseString(company.Id) : null;
+    data.companyName = company ? normaliseString(company.Name) : null;
+    data.companyRegisteredNo = company
+      ? normaliseString(company.RegisteredNumber)
+      : null;
+    data.companyCode = company
+      ? normaliseString(company.CompanyCode)
+      : null;
+  }
+
+  assignIfPresent(data, payload, "Priority", "priority", normaliseInteger);
+  assignIfPresent(
+    data,
+    payload,
+    "Passengers",
+    "passengers",
+    normaliseInteger,
+  );
+  assignIfPresent(data, payload, "Luggage", "luggage", normaliseInteger);
+
+  assignIfPresent(
+    data,
+    payload,
+    "DriverNote",
+    "driverNote",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "OfficeNote",
+    "officeNote",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "OurReference",
+    "ourReference",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "FlightDetails",
+    "flightDetails",
+    normaliseString,
+  );
+  assignIfPresent(data, payload, "BookedBy", "bookedBy", normaliseString);
+  assignIfPresent(
+    data,
+    payload,
+    "BookingSource",
+    "bookingSource",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "CabExchangeAgentBookingRef",
+    "cabExchangeReference",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "LoyaltyCardID",
+    "loyaltyCardId",
+    normaliseString,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "LoyaltyCardCostValue",
+    "loyaltyCardCostValue",
+    normaliseDecimal,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "IsStreetPickup",
+    "isStreetPickup",
+    normaliseBoolean,
+  );
+
+  if (hasOwn(payload, "Pricing")) {
+    const pricing = getObject(payload, "Pricing");
+
+    if (!pricing) {
+      data.fare = null;
+      data.cost = null;
+      data.price = null;
+      data.extraCost = null;
+      data.fixedCost = null;
+      data.fixedPrice = null;
+      data.chargingAreaCost = null;
+      data.chargingAreaPrice = null;
+      data.waitingTime = null;
+      data.waitingTimeChargeable = null;
+      data.gratuityAmount = null;
+      data.costSource = null;
+      data.pricingTariff = null;
+      data.pricingSource = null;
+      data.promotionCodeDiscount = Prisma.JsonNull;
+    } else {
+      assignIfPresent(data, pricing, "Fare", "fare", normaliseDecimal);
+      assignIfPresent(data, pricing, "Cost", "cost", normaliseDecimal);
+      assignIfPresent(data, pricing, "Price", "price", normaliseDecimal);
+      assignIfPresent(
+        data,
+        pricing,
+        "ExtraCost",
+        "extraCost",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "FixedCost",
+        "fixedCost",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "FixedPrice",
+        "fixedPrice",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "ChargingAreaCost",
+        "chargingAreaCost",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "ChargingAreaPrice",
+        "chargingAreaPrice",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "WaitingTime",
+        "waitingTime",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "WaitingTimeChargeable",
+        "waitingTimeChargeable",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "GratuityAmount",
+        "gratuityAmount",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "CostSource",
+        "costSource",
+        normaliseString,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "PricingTariff",
+        "pricingTariff",
+        normaliseString,
+      );
+      assignIfPresent(
+        data,
+        pricing,
+        "PricingSource",
+        "pricingSource",
+        normaliseString,
+      );
+
+      if (hasOwn(pricing, "PromotionCodeDiscount")) {
+        data.promotionCodeDiscount =
+          pricing.PromotionCodeDiscount === null
+            ? Prisma.JsonNull
+            : jsonValue(pricing.PromotionCodeDiscount);
+      }
+    }
+  }
+
+  assignIfPresent(
+    data,
+    payload,
+    "Distance",
+    "distance",
+    normaliseDecimal,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "SystemDistance",
+    "systemDistance",
+    normaliseDecimal,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "MeterDistance",
+    "meterDistance",
+    normaliseDecimal,
+  );
+  assignIfPresent(
+    data,
+    payload,
+    "MeterDistanceAsMetres",
+    "meterDistanceMetres",
+    normaliseInteger,
+  );
+
+  if (hasOwn(payload, "PriceComparison")) {
+    const comparison = getObject(payload, "PriceComparison");
+
+    if (!comparison) {
+      data.gpsMeterDistance = null;
+      data.gpsMeterPrice = null;
+      data.gpsMeterPriceSource = null;
+      data.estimatedDistance = null;
+      data.estimatedPrice = null;
+      data.estimatedPriceSource = null;
+      data.estimatedTime = null;
+    } else {
+      assignIfPresent(
+        data,
+        comparison,
+        "GpsMeterDistance",
+        "gpsMeterDistance",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "GpsMeterPrice",
+        "gpsMeterPrice",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "GpsMeterPriceSource",
+        "gpsMeterPriceSource",
+        normaliseString,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "SystemEstimatedDistance",
+        "estimatedDistance",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "SystemEstimatedPrice",
+        "estimatedPrice",
+        normaliseDecimal,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "SystemEstimatedPriceSource",
+        "estimatedPriceSource",
+        normaliseString,
+      );
+      assignIfPresent(
+        data,
+        comparison,
+        "EstimatedTime",
+        "estimatedTime",
+        normaliseString,
+      );
+    }
+  }
+
+  if (hasOwn(payload, "Capabilities")) {
+    data.capabilities =
+      payload.Capabilities === null
+        ? Prisma.JsonNull
+        : jsonValue(payload.Capabilities);
+  }
+
+  if (hasOwn(payload, "YourReferences")) {
+    data.yourReferences =
+      payload.YourReferences === null
+        ? Prisma.JsonNull
+        : jsonValue(payload.YourReferences);
+  }
+
+  return data as Prisma.BookingUpdateInput;
+}
+
+
+
