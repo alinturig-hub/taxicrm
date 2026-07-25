@@ -1,124 +1,23 @@
 import { Prisma } from "@/generated/prisma/client";
+import {
+  assignIfPresent,
+  getArray,
+  getObject,
+  hasOwn,
+  isObject,
+  jsonValue,
+  normaliseBoolean,
+  normaliseDate,
+  normaliseDecimal,
+  normaliseInteger,
+  normaliseString,
+  type JsonObject,
+} from "@/lib/autocab/booking-mappers";
 import { prisma } from "@/lib/prisma";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
 
-type JsonObject = Record<string, unknown>;
-
 type LocationType = "PICKUP" | "DESTINATION";
-
-function isObject(value: unknown): value is JsonObject {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function hasOwn(object: JsonObject, key: string): boolean {
-  return Object.prototype.hasOwnProperty.call(object, key);
-}
-
-function getObject(object: JsonObject, key: string): JsonObject | null {
-  const value = object[key];
-  return isObject(value) ? value : null;
-}
-
-function getArray(object: JsonObject, key: string): unknown[] | null {
-  const value = object[key];
-  return Array.isArray(value) ? value : null;
-}
-
-function normaliseString(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed === "" ? null : trimmed;
-  }
-
-  if (typeof value === "number" || typeof value === "bigint") {
-    return String(value);
-  }
-
-  return null;
-}
-
-function normaliseInteger(value: unknown): number | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return Math.trunc(value);
-  }
-
-  if (typeof value === "string" && value.trim() !== "") {
-    const parsed = Number(value);
-
-    if (Number.isFinite(parsed)) {
-      return Math.trunc(parsed);
-    }
-  }
-
-  return null;
-}
-
-function normaliseDecimal(value: unknown): Prisma.Decimal | null {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return new Prisma.Decimal(value.toString());
-  }
-
-  if (typeof value === "string" && value.trim() !== "") {
-    try {
-      return new Prisma.Decimal(value.trim());
-    } catch {
-      return null;
-    }
-  }
-
-  return null;
-}
-
-function normaliseBoolean(value: unknown): boolean | null {
-  if (typeof value === "boolean") {
-    return value;
-  }
-
-  if (value === 1 || value === "1" || value === "true") {
-    return true;
-  }
-
-  if (value === 0 || value === "0" || value === "false") {
-    return false;
-  }
-
-  return null;
-}
-
-function normaliseDate(value: unknown): Date | null {
-  if (typeof value !== "string" || value.trim() === "") {
-    return null;
-  }
-
-  const parsed = new Date(value);
-
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-
-  return parsed;
-}
-
-function jsonValue(value: unknown): Prisma.InputJsonValue | undefined {
-  if (value === undefined) {
-    return undefined;
-  }
-
-  return value as Prisma.InputJsonValue;
-}
-
-function assignIfPresent<T>(
-  target: Record<string, unknown>,
-  source: JsonObject,
-  sourceKey: string,
-  targetKey: string,
-  parser: (value: unknown) => T,
-): void {
-  if (hasOwn(source, sourceKey)) {
-    target[targetKey] = parser(source[sourceKey]);
-  }
-}
 
 function buildBookingCreateData(
   payload: JsonObject,
