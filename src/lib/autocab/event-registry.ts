@@ -8,6 +8,7 @@ import { processBookingCompleteWebhook } from "@/lib/autocab/process-booking-com
 import { processBookingNoFareWebhook } from "@/lib/autocab/process-booking-nofare";
 import { processBookingCancelledWebhook } from "@/lib/autocab/process-booking-cancelled";
 import { processBookingRejectedWebhook } from "@/lib/autocab/process-booking-rejected";
+import { processDriverShiftStartedEndedWebhook } from "@/lib/autocab/process-driver-shift-started-ended";
 
 export const AUTOCAB_EVENT_CATEGORIES = [
   "BOOKING",
@@ -181,6 +182,7 @@ const eventDefinitions = [
     createSnapshot: false,
     createTimeline: false,
     aiRelevant: true,
+    handler: processDriverShiftStartedEndedWebhook,
   },
 ] satisfies AutocabEventDefinition[];
 

@@ -305,3 +305,75 @@ model BookingSnapshot {
   @@index([bookingId, createdAt])
   @@index([eventType])
 }
+
+enum DriverShiftStatus {
+  ACTIVE
+  ENDED
+}
+
+model Driver {
+  id            String   @id @default(cuid())
+  provider      String   @default("AUTOCAB")
+  externalId    String
+  callsign      String?
+  forename      String?
+  surname       String?
+  badgeNumber   String?
+  licenceNumber String?
+  rawPayload    Json?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  shifts DriverShift[]
+
+  @@unique([provider, externalId])
+  @@index([callsign])
+  @@index([badgeNumber])
+  @@index([licenceNumber])
+}
+
+model Vehicle {
+  id           String   @id @default(cuid())
+  provider     String   @default("AUTOCAB")
+  externalId   String
+  callsign     String?
+  deviceId     String?
+  vinNumber    String?
+  plateNumber  String?
+  registration String?
+  rawPayload   Json?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  shifts DriverShift[]
+
+  @@unique([provider, externalId])
+  @@index([callsign])
+  @@index([registration])
+}
+
+model DriverShift {
+  id                 String            @id @default(cuid())
+  provider           String            @default("AUTOCAB")
+  driverId           String
+  vehicleId          String?
+  status             DriverShiftStatus @default(ACTIVE)
+  subEventType       String
+  startedAt          DateTime
+  endedAt            DateTime?
+  modifiedAt         DateTime?
+  durationSeconds    Int?
+  sourceWebhookEvent String?
+  rawPayload         Json
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  driver  Driver   @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  vehicle Vehicle? @relation(fields: [vehicleId], references: [id], onDelete: SetNull)
+
+  @@unique([provider, driverId, startedAt])
+  @@index([status])
+  @@index([startedAt])
+  @@index([endedAt])
+  @@index([vehicleId])
+}
