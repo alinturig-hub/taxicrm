@@ -9,6 +9,7 @@ import { processBookingNoFareWebhook } from "@/lib/autocab/process-booking-nofar
 import { processBookingCancelledWebhook } from "@/lib/autocab/process-booking-cancelled";
 import { processBookingRejectedWebhook } from "@/lib/autocab/process-booking-rejected";
 import { processDriverShiftStartedEndedWebhook } from "@/lib/autocab/process-driver-shift-started-ended";
+import { processVehicleTracksChangedWebhook } from "@/lib/autocab/process-vehicle-tracks-changed";
 
 export const AUTOCAB_EVENT_CATEGORIES = [
   "BOOKING",
@@ -17,8 +18,7 @@ export const AUTOCAB_EVENT_CATEGORIES = [
   "SYSTEM",
 ] as const;
 
-export type AutocabEventCategory =
-  (typeof AUTOCAB_EVENT_CATEGORIES)[number];
+export type AutocabEventCategory = (typeof AUTOCAB_EVENT_CATEGORIES)[number];
 
 export const AUTOCAB_EVENT_STAGES = [
   "CREATED",
@@ -33,12 +33,9 @@ export const AUTOCAB_EVENT_STAGES = [
   "CONTEXT",
 ] as const;
 
-export type AutocabEventStage =
-  (typeof AUTOCAB_EVENT_STAGES)[number];
+export type AutocabEventStage = (typeof AUTOCAB_EVENT_STAGES)[number];
 
-export type AutocabEventHandler = (
-  webhookEventId: string,
-) => Promise<void>;
+export type AutocabEventHandler = (webhookEventId: string) => Promise<void>;
 
 export type AutocabEventDefinition = {
   eventType: string;
@@ -169,9 +166,10 @@ const eventDefinitions = [
     description: "Vehicle tracking information changed.",
     category: "VEHICLE",
     stage: "CONTEXT",
-    createSnapshot: false,
+    createSnapshot: true,
     createTimeline: false,
     aiRelevant: true,
+    handler: processVehicleTracksChangedWebhook,
   },
   {
     eventType: "DriverShiftStartedEnded",
@@ -186,14 +184,8 @@ const eventDefinitions = [
   },
 ] satisfies AutocabEventDefinition[];
 
-export const AUTOCAB_EVENT_REGISTRY = new Map<
-  string,
-  AutocabEventDefinition
->(
-  eventDefinitions.map((definition) => [
-    definition.eventType,
-    definition,
-  ]),
+export const AUTOCAB_EVENT_REGISTRY = new Map<string, AutocabEventDefinition>(
+  eventDefinitions.map((definition) => [definition.eventType, definition]),
 );
 
 export function getAutocabEventDefinition(
@@ -202,8 +194,6 @@ export function getAutocabEventDefinition(
   return AUTOCAB_EVENT_REGISTRY.get(eventType) ?? null;
 }
 
-export function isRegisteredAutocabEvent(
-  eventType: string,
-): boolean {
+export function isRegisteredAutocabEvent(eventType: string): boolean {
   return AUTOCAB_EVENT_REGISTRY.has(eventType);
 }

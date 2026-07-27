@@ -324,7 +324,9 @@ model Driver {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  shifts DriverShift[]
+  shifts          DriverShift[]
+  currentVehicles Vehicle[]         @relation("CurrentVehicleDriver")
+  snapshots       VehicleSnapshot[]
 
   @@unique([provider, externalId])
   @@index([callsign])
@@ -333,8 +335,8 @@ model Driver {
 }
 
 model Vehicle {
-  id           String   @id @default(cuid())
-  provider     String   @default("AUTOCAB")
+  id           String  @id @default(cuid())
+  provider     String  @default("AUTOCAB")
   externalId   String
   callsign     String?
   deviceId     String?
@@ -342,14 +344,28 @@ model Vehicle {
   plateNumber  String?
   registration String?
   rawPayload   Json?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
 
-  shifts DriverShift[]
+  currentDriverId  String?
+  currentStatus    String?
+  currentBookingId Int?
+  currentLatitude  Decimal?  @db.Decimal(10, 7)
+  currentLongitude Decimal?  @db.Decimal(10, 7)
+  lastSeenAt       DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  currentDriver Driver?           @relation("CurrentVehicleDriver", fields: [currentDriverId], references: [id], onDelete: SetNull)
+  shifts        DriverShift[]
+  snapshots     VehicleSnapshot[]
 
   @@unique([provider, externalId])
   @@index([callsign])
   @@index([registration])
+  @@index([currentDriverId])
+  @@index([currentStatus])
+  @@index([currentBookingId])
+  @@index([lastSeenAt])
 }
 
 model DriverShift {
@@ -376,4 +392,29 @@ model DriverShift {
   @@index([startedAt])
   @@index([endedAt])
   @@index([vehicleId])
+}
+
+model VehicleSnapshot {
+  id              String   @id @default(cuid())
+  provider        String   @default("AUTOCAB")
+  vehicleId       String
+  driverId        String?
+  bookingId       Int?
+  vehicleStatus   String
+  latitude        Decimal  @db.Decimal(10, 7)
+  longitude       Decimal  @db.Decimal(10, 7)
+  snapshotAt      DateTime
+  receivedAt      DateTime @default(now())
+  sourceWebhookId String?
+  rawPayload      Json
+
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id], onDelete: Cascade)
+  driver  Driver? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([vehicleId, snapshotAt])
+  @@index([driverId, snapshotAt])
+  @@index([bookingId])
+  @@index([vehicleStatus])
+  @@index([snapshotAt])
+  @@index([sourceWebhookId])
 }
