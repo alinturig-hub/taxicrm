@@ -1,10 +1,17 @@
 import { Prisma } from "@/generated/prisma/client";
-import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
+import {
+  isObject,
+  normaliseString,
+} from "@/lib/autocab/booking-mappers";
 import { prisma } from "@/lib/prisma";
+import {
+  broadcastFleetVehicleUpdate,
+  type FleetVehicleUpdate,
+} from "@/lib/realtime/fleet-broadcast";
 
 function parseOptionalInteger(value: unknown): number | null {
   if (typeof value === "number" && Number.isInteger(value)) {
-    return value;
+    return value > 0 ? value : null;
   }
 
   const normalised = normaliseString(value);
@@ -15,16 +22,25 @@ function parseOptionalInteger(value: unknown): number | null {
 
   const parsed = Number.parseInt(normalised, 10);
 
-  return Number.isNaN(parsed) ? null : parsed;
+  if (Number.isNaN(parsed) || parsed <= 0) {
+    return null;
+  }
+
+  return parsed;
 }
 
-function parseCoordinate(value: unknown, fieldName: string): Prisma.Decimal {
+function parseCoordinate(
+  value: unknown,
+  fieldName: string,
+): Prisma.Decimal {
   if (typeof value !== "number" && typeof value !== "string") {
     throw new Error(`Missing ${fieldName}.`);
   }
 
   const normalised =
-    typeof value === "number" ? value.toString() : value.trim();
+    typeof value === "number"
+      ? value.toString()
+      : value.trim();
 
   if (!normalised) {
     throw new Error(`Missing ${fieldName}.`);
@@ -47,13 +63,17 @@ function parseSnapshotDate(value: unknown): Date {
   const date = new Date(normalised);
 
   if (Number.isNaN(date.getTime())) {
-    throw new Error(`Invalid VehicleTrack Timestamp: ${normalised}`);
+    throw new Error(
+      `Invalid VehicleTrack Timestamp: ${normalised}`,
+    );
   }
 
   return date;
 }
 
-function getVehicleTracks(payload: Prisma.JsonValue): Prisma.JsonObject[] {
+function getVehicleTracks(
+  payload: Prisma.JsonValue,
+): Prisma.JsonObject[] {
   if (!isObject(payload)) {
     throw new Error("Webhook payload is not a JSON object.");
   }
@@ -66,7 +86,9 @@ function getVehicleTracks(payload: Prisma.JsonValue): Prisma.JsonObject[] {
     );
   }
 
-  return tracks.filter((track): track is Prisma.JsonObject => isObject(track));
+  return tracks.filter(
+    (track): track is Prisma.JsonObject => isObject(track),
+  );
 }
 
 export async function processVehicleTracksChangedWebhook(
@@ -84,7 +106,9 @@ export async function processVehicleTracksChangedWebhook(
   });
 
   if (!webhookEvent) {
-    throw new Error(`WebhookEvent not found: ${webhookEventId}`);
+    throw new Error(
+      `WebhookEvent not found: ${webhookEventId}`,
+    );
   }
 
   if (webhookEvent.status === "PROCESSED") {
@@ -106,25 +130,36 @@ export async function processVehicleTracksChangedWebhook(
     },
   });
 
+  const realtimeUpdates: FleetVehicleUpdate[] = [];
+
   try {
     await prisma.$transaction(async (tx) => {
       for (const track of tracks) {
         if (!isObject(track.Vehicle)) {
-          throw new Error("VehicleTrack is missing the Vehicle payload.");
+          throw new Error(
+            "VehicleTrack is missing the Vehicle payload.",
+          );
         }
 
         const vehiclePayload = track.Vehicle;
-        const vehicleExternalId = normaliseString(vehiclePayload.Id);
+        const vehicleExternalId = normaliseString(
+          vehiclePayload.Id,
+        );
 
         if (!vehicleExternalId) {
-          throw new Error("VehicleTrack is missing the Autocab vehicle ID.");
+          throw new Error(
+            "VehicleTrack is missing the Autocab vehicle ID.",
+          );
         }
 
         let driverId: string | null = null;
+        let driverUpdate: FleetVehicleUpdate["driver"] = null;
 
         if (isObject(track.Driver)) {
           const driverPayload = track.Driver;
-          const driverExternalId = normaliseString(driverPayload.Id);
+          const driverExternalId = normaliseString(
+            driverPayload.Id,
+          );
 
           if (driverExternalId) {
             const driver = await tx.driver.upsert({
@@ -137,24 +172,61 @@ export async function processVehicleTracksChangedWebhook(
               create: {
                 provider: "AUTOCAB",
                 externalId: driverExternalId,
-                callsign: normaliseString(driverPayload.Callsign),
-                forename: normaliseString(driverPayload.Forename),
-                surname: normaliseString(driverPayload.Surname),
-                badgeNumber: normaliseString(driverPayload.BadgeNumber),
-                licenceNumber: normaliseString(driverPayload.LicenceNumber),
-                rawPayload: driverPayload as Prisma.InputJsonObject,
+                callsign: normaliseString(
+                  driverPayload.Callsign,
+                ),
+                forename: normaliseString(
+                  driverPayload.Forename,
+                ),
+                surname: normaliseString(
+                  driverPayload.Surname,
+                ),
+                badgeNumber: normaliseString(
+                  driverPayload.BadgeNumber,
+                ),
+                licenceNumber: normaliseString(
+                  driverPayload.LicenceNumber,
+                ),
+                rawPayload:
+                  driverPayload as Prisma.InputJsonObject,
               },
               update: {
-                callsign: normaliseString(driverPayload.Callsign),
-                forename: normaliseString(driverPayload.Forename),
-                surname: normaliseString(driverPayload.Surname),
-                badgeNumber: normaliseString(driverPayload.BadgeNumber),
-                licenceNumber: normaliseString(driverPayload.LicenceNumber),
-                rawPayload: driverPayload as Prisma.InputJsonObject,
+                callsign: normaliseString(
+                  driverPayload.Callsign,
+                ),
+                forename: normaliseString(
+                  driverPayload.Forename,
+                ),
+                surname: normaliseString(
+                  driverPayload.Surname,
+                ),
+                badgeNumber: normaliseString(
+                  driverPayload.BadgeNumber,
+                ),
+                licenceNumber: normaliseString(
+                  driverPayload.LicenceNumber,
+                ),
+                rawPayload:
+                  driverPayload as Prisma.InputJsonObject,
               },
             });
 
             driverId = driver.id;
+
+            const driverName = [
+              driver.forename,
+              driver.surname,
+            ]
+              .filter(Boolean)
+              .join(" ");
+
+            driverUpdate = {
+              id: driver.id,
+              externalId: driver.externalId,
+              callsign: driver.callsign,
+              name: driverName || null,
+              badgeNumber: driver.badgeNumber,
+            };
           }
         }
 
@@ -174,11 +246,16 @@ export async function processVehicleTracksChangedWebhook(
           "CurrentLocation.Longitude",
         );
 
-        const vehicleStatus = normaliseString(track.VehicleStatus) ?? "Unknown";
+        const vehicleStatus =
+          normaliseString(track.VehicleStatus) ?? "Unknown";
 
-        const bookingId = parseOptionalInteger(track.BookingId);
+        const bookingId = parseOptionalInteger(
+          track.BookingId,
+        );
 
-        const snapshotAt = parseSnapshotDate(track.Timestamp);
+        const snapshotAt = parseSnapshotDate(
+          track.Timestamp,
+        );
 
         const vehicle = await tx.vehicle.upsert({
           where: {
@@ -190,12 +267,23 @@ export async function processVehicleTracksChangedWebhook(
           create: {
             provider: "AUTOCAB",
             externalId: vehicleExternalId,
-            callsign: normaliseString(vehiclePayload.Callsign),
-            deviceId: normaliseString(vehiclePayload.DeviceId),
-            vinNumber: normaliseString(vehiclePayload.VINNumber),
-            plateNumber: normaliseString(vehiclePayload.PlateNumber),
-            registration: normaliseString(vehiclePayload.Registration),
-            rawPayload: vehiclePayload as Prisma.InputJsonObject,
+            callsign: normaliseString(
+              vehiclePayload.Callsign,
+            ),
+            deviceId: normaliseString(
+              vehiclePayload.DeviceId,
+            ),
+            vinNumber: normaliseString(
+              vehiclePayload.VINNumber,
+            ),
+            plateNumber: normaliseString(
+              vehiclePayload.PlateNumber,
+            ),
+            registration: normaliseString(
+              vehiclePayload.Registration,
+            ),
+            rawPayload:
+              vehiclePayload as Prisma.InputJsonObject,
             currentDriverId: driverId,
             currentStatus: vehicleStatus,
             currentBookingId: bookingId,
@@ -204,12 +292,23 @@ export async function processVehicleTracksChangedWebhook(
             lastSeenAt: snapshotAt,
           },
           update: {
-            callsign: normaliseString(vehiclePayload.Callsign),
-            deviceId: normaliseString(vehiclePayload.DeviceId),
-            vinNumber: normaliseString(vehiclePayload.VINNumber),
-            plateNumber: normaliseString(vehiclePayload.PlateNumber),
-            registration: normaliseString(vehiclePayload.Registration),
-            rawPayload: vehiclePayload as Prisma.InputJsonObject,
+            callsign: normaliseString(
+              vehiclePayload.Callsign,
+            ),
+            deviceId: normaliseString(
+              vehiclePayload.DeviceId,
+            ),
+            vinNumber: normaliseString(
+              vehiclePayload.VINNumber,
+            ),
+            plateNumber: normaliseString(
+              vehiclePayload.PlateNumber,
+            ),
+            registration: normaliseString(
+              vehiclePayload.Registration,
+            ),
+            rawPayload:
+              vehiclePayload as Prisma.InputJsonObject,
             currentDriverId: driverId,
             currentStatus: vehicleStatus,
             currentBookingId: bookingId,
@@ -219,19 +318,22 @@ export async function processVehicleTracksChangedWebhook(
           },
         });
 
-        await tx.vehicleSnapshot.create({
-          data: {
-            provider: "AUTOCAB",
-            vehicleId: vehicle.id,
-            driverId,
-            bookingId,
-            vehicleStatus,
-            latitude,
-            longitude,
-            snapshotAt,
-            sourceWebhookId: webhookEvent.id,
-            rawPayload: track as Prisma.InputJsonObject,
-          },
+        realtimeUpdates.push({
+          id: vehicle.id,
+          provider: vehicle.provider,
+          externalId: vehicle.externalId,
+          callsign: vehicle.callsign,
+          registration:
+            vehicle.registration ??
+            vehicle.plateNumber ??
+            null,
+          status: vehicleStatus,
+          bookingId,
+          latitude: Number(latitude.toString()),
+          longitude: Number(longitude.toString()),
+          lastSeenAt: snapshotAt.toISOString(),
+          isLive: true,
+          driver: driverUpdate,
         });
       }
 
@@ -246,6 +348,10 @@ export async function processVehicleTracksChangedWebhook(
         },
       });
     });
+
+    for (const update of realtimeUpdates) {
+      broadcastFleetVehicleUpdate(update);
+    }
   } catch (error) {
     const message =
       error instanceof Error

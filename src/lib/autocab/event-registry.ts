@@ -166,7 +166,7 @@ const eventDefinitions = [
     description: "Vehicle tracking information changed.",
     category: "VEHICLE",
     stage: "CONTEXT",
-    createSnapshot: true,
+    createSnapshot: false,
     createTimeline: false,
     aiRelevant: true,
     handler: processVehicleTracksChangedWebhook,
