@@ -367,51 +367,93 @@ export default function BookingsPage() {
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
 
-    return activeBookings.filter((booking) => {
-      const matchesSearch =
-        !normalizedSearch ||
-        booking.externalId.toLowerCase().includes(normalizedSearch) ||
-        (booking.customerName ?? '').toLowerCase().includes(normalizedSearch) ||
-        (booking.telephoneNumber ?? '').toLowerCase().includes(normalizedSearch);
+    const statusPriority: Record<string, number> = {
+      CREATED: 1,
+      DISPATCHED: 2,
+      ACCEPTED: 3,
+      ARRIVED: 4,
+      POB: 5,
+      COMPLETED: 6,
+      CANCELLED: 7,
+      REJECTED: 8,
+      NO_FARE: 9,
+    };
 
-      const matchesStatus =
-        statusFilter === "all" || booking.status === statusFilter;
+    return activeBookings
+      .filter((booking) => {
+        const matchesSearch =
+          !normalizedSearch ||
+          booking.externalId.toLowerCase().includes(normalizedSearch) ||
+          (booking.customerName ?? "").toLowerCase().includes(normalizedSearch) ||
+          (booking.telephoneNumber ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch);
 
-      const matchesSource =
-        sourceFilter === "all" || booking.bookingSource === sourceFilter;
+        const normalizedStatus = booking.status.toUpperCase();
 
-      const matchesPayment =
-        paymentFilter === "all" || booking.paymentType === paymentFilter;
+        const matchesStatus =
+          statusFilter === "all" ||
+          normalizedStatus === statusFilter.toUpperCase();
 
-      const bookingDate = booking.bookedAtTime
-        ? new Date(booking.bookedAtTime)
-        : null;
+        const matchesSource =
+          sourceFilter === "all" ||
+          booking.bookingSource === sourceFilter;
 
-      const fromBoundary = fromDate
-        ? new Date(`${fromDate}T00:00:00`)
-        : null;
+        const matchesPayment =
+          paymentFilter === "all" ||
+          booking.paymentType === paymentFilter;
 
-      const toBoundary = toDate
-        ? new Date(`${toDate}T23:59:59.999`)
-        : null;
+        const bookingDate = booking.bookedAtTime
+          ? new Date(booking.bookedAtTime)
+          : null;
 
-      const matchesFrom =
-        !fromBoundary ||
-        (bookingDate !== null && bookingDate >= fromBoundary);
+        const fromBoundary = fromDate
+          ? new Date(`${fromDate}T00:00:00`)
+          : null;
 
-      const matchesTo =
-        !toBoundary ||
-        (bookingDate !== null && bookingDate <= toBoundary);
+        const toBoundary = toDate
+          ? new Date(`${toDate}T23:59:59.999`)
+          : null;
 
-      return (
-        matchesSearch &&
-        matchesStatus &&
-        matchesSource &&
-        matchesPayment &&
-        matchesFrom &&
-        matchesTo
-      );
-    });
+        const matchesFrom =
+          !fromBoundary ||
+          (bookingDate !== null && bookingDate >= fromBoundary);
+
+        const matchesTo =
+          !toBoundary ||
+          (bookingDate !== null && bookingDate <= toBoundary);
+
+        return (
+          matchesSearch &&
+          matchesStatus &&
+          matchesSource &&
+          matchesPayment &&
+          matchesFrom &&
+          matchesTo
+        );
+      })
+      .sort((firstBooking, secondBooking) => {
+        const firstStatus = firstBooking.status.toUpperCase();
+        const secondStatus = secondBooking.status.toUpperCase();
+
+        const priorityDifference =
+          (statusPriority[firstStatus] ?? 999) -
+          (statusPriority[secondStatus] ?? 999);
+
+        if (priorityDifference !== 0) {
+          return priorityDifference;
+        }
+
+        const firstTime = firstBooking.bookedAtTime
+          ? new Date(firstBooking.bookedAtTime).getTime()
+          : 0;
+
+        const secondTime = secondBooking.bookedAtTime
+          ? new Date(secondBooking.bookedAtTime).getTime()
+          : 0;
+
+        return secondTime - firstTime;
+      });
   }, [
     activeBookings,
     fromDate,
