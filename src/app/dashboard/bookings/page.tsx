@@ -55,6 +55,8 @@ export default function BookingsPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
   const [selectedRowIds, setSelectedRowIds] = useState<string[]>([]);
   const [selectedBooking, setSelectedBooking] =
     useState<BookingWorkspaceData | null>(null);
@@ -381,15 +383,44 @@ export default function BookingsPage() {
       const matchesPayment =
         paymentFilter === "all" || booking.paymentType === paymentFilter;
 
+      const bookingDate = booking.bookedAtTime
+        ? new Date(booking.bookedAtTime)
+        : null;
 
-  return (
+      const fromBoundary = fromDate
+        ? new Date(`${fromDate}T00:00:00`)
+        : null;
+
+      const toBoundary = toDate
+        ? new Date(`${toDate}T23:59:59.999`)
+        : null;
+
+      const matchesFrom =
+        !fromBoundary ||
+        (bookingDate !== null && bookingDate >= fromBoundary);
+
+      const matchesTo =
+        !toBoundary ||
+        (bookingDate !== null && bookingDate <= toBoundary);
+
+      return (
         matchesSearch &&
         matchesStatus &&
         matchesSource &&
-        matchesPayment
+        matchesPayment &&
+        matchesFrom &&
+        matchesTo
       );
     });
-  }, [activeBookings, paymentFilter, searchValue, sourceFilter, statusFilter]);
+  }, [
+    activeBookings,
+    fromDate,
+    paymentFilter,
+    searchValue,
+    sourceFilter,
+    statusFilter,
+    toDate,
+  ]);
 
   const totalPages = Math.max(
     1,
@@ -415,6 +446,16 @@ export default function BookingsPage() {
 
   const handlePageSizeChange = (newPageSize: number) => {
     setPageSize(newPageSize);
+    setPage(1);
+  };
+
+  const handleResetFilters = () => {
+    setSearchValue("");
+    setFromDate("");
+    setToDate("");
+    setStatusFilter("all");
+    setSourceFilter("all");
+    setPaymentFilter("all");
     setPage(1);
   };
 
@@ -502,6 +543,37 @@ export default function BookingsPage() {
           onExport={() => undefined}
           filters={
             <>
+              <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
+                <span className="text-xs font-semibold text-slate-500">
+                  From
+                </span>
+                <input
+                  type="date"
+                  value={fromDate}
+                  onChange={(event) => {
+                    setFromDate(event.target.value);
+                    setPage(1);
+                  }}
+                  className="min-w-[132px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
+                />
+              </label>
+
+              <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
+                <span className="text-xs font-semibold text-slate-500">
+                  To
+                </span>
+                <input
+                  type="date"
+                  value={toDate}
+                  min={fromDate || undefined}
+                  onChange={(event) => {
+                    setToDate(event.target.value);
+                    setPage(1);
+                  }}
+                  className="min-w-[132px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
+                />
+              </label>
+
               <select
                 value={statusFilter}
                 onChange={(event) => {
@@ -552,6 +624,15 @@ export default function BookingsPage() {
                   </option>
                 ))}
               </select>
+            </>
+
+              <button
+                type="button"
+                onClick={handleResetFilters}
+                className="h-11 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
+              >
+                Reset
+              </button>
             </>
           }
         />
