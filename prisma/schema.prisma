@@ -81,6 +81,20 @@ model Booking {
   pickupDueTime  DateTime?
   dropOffDueTime DateTime?
   bookedAtTime   DateTime?
+  dispatchedAt   DateTime?
+  acceptedAt     DateTime?
+  arrivedAt      DateTime?
+  pickedUpAt     DateTime?
+
+  driverId            String?
+  driverCallSign      String?
+  driverForename      String?
+  driverSurname       String?
+  driverBadgeNumber   String?
+  vehicleId           String?
+  vehicleCallSign     String?
+  vehicleRegistration String?
+  vehiclePlateNumber  String?
 
   customerName    String?
   telephoneNumber String?
