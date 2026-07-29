@@ -8,6 +8,7 @@ import { processBookingCompleteWebhook } from "@/lib/autocab/process-booking-com
 import { processBookingNoFareWebhook } from "@/lib/autocab/process-booking-nofare";
 import { processBookingCancelledWebhook } from "@/lib/autocab/process-booking-cancelled";
 import { processBookingRejectedWebhook } from "@/lib/autocab/process-booking-rejected";
+import { processBookingRecoveredWebhook } from "@/lib/autocab/process-booking-recovered";
 import { processDriverShiftStartedEndedWebhook } from "@/lib/autocab/process-driver-shift-started-ended";
 import { processVehicleTracksChangedWebhook } from "@/lib/autocab/process-vehicle-tracks-changed";
 
@@ -148,6 +149,17 @@ const eventDefinitions = [
     createTimeline: true,
     aiRelevant: true,
     handler: processBookingRejectedWebhook,
+  },
+  {
+    eventType: "BookingRecovered",
+    title: "Booking Recovered",
+    description: "Booking recovered and returned to the dispatch workflow.",
+    category: "BOOKING",
+    stage: "DISPATCHED",
+    createSnapshot: true,
+    createTimeline: true,
+    aiRelevant: true,
+    handler: processBookingRecoveredWebhook,
   },
   {
     eventType: "BookingModified",

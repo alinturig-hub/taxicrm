@@ -5,7 +5,6 @@ import {
   buildBookingUpdateData,
   type JsonObject,
 } from "@/lib/autocab/booking-mappers";
-
 import {
   synchroniseLocation,
   synchroniseVias,
@@ -15,59 +14,24 @@ export async function upsertBooking(
   tx: Prisma.TransactionClient,
   externalId: string,
   payload: JsonObject,
-) {
-  const existing = await tx.booking.findUnique({
+): Promise<string> {
+  const booking = await tx.booking.upsert({
     where: {
       provider_externalId: {
         provider: "AUTOCAB",
         externalId,
       },
     },
+    create: buildBookingCreateData(payload, externalId),
+    update: buildBookingUpdateData(payload),
     select: {
       id: true,
     },
   });
 
-  if (!existing) {
-    const booking = await tx.booking.create({
-      data: buildBookingCreateData(payload, externalId),
-    });
-
-    await synchroniseLocation(
-      tx,
-      booking.id,
-      payload,
-      "Pickup",
-      "PICKUP",
-    );
-
-    await synchroniseLocation(
-      tx,
-      booking.id,
-      payload,
-      "Destination",
-      "DESTINATION",
-    );
-
-    await synchroniseVias(
-      tx,
-      booking.id,
-      payload,
-    );
-
-    return booking.id;
-  }
-
-  await tx.booking.update({
-    where: {
-      id: existing.id,
-    },
-    data: buildBookingUpdateData(payload),
-  });
-
   await synchroniseLocation(
     tx,
-    existing.id,
+    booking.id,
     payload,
     "Pickup",
     "PICKUP",
@@ -75,7 +39,7 @@ export async function upsertBooking(
 
   await synchroniseLocation(
     tx,
-    existing.id,
+    booking.id,
     payload,
     "Destination",
     "DESTINATION",
@@ -83,9 +47,9 @@ export async function upsertBooking(
 
   await synchroniseVias(
     tx,
-    existing.id,
+    booking.id,
     payload,
   );
 
-  return existing.id;
+  return booking.id;
 }
