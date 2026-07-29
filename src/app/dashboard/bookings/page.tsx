@@ -624,9 +624,7 @@ export default function BookingsPage() {
                   </option>
                 ))}
               </select>
-            </>
-
-              <button
+<button
                 type="button"
                 onClick={handleResetFilters}
                 className="h-11 rounded-xl border border-slate-700 bg-slate-900 px-4 text-sm font-semibold text-slate-300 transition hover:border-slate-600 hover:bg-slate-800 hover:text-white"
