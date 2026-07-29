@@ -7,9 +7,17 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const bookings = await prisma.booking.findMany({
-      orderBy: {
-        pickupDueTime: "desc",
-      },
+      orderBy: [
+        {
+          pickupDueTime: {
+            sort: "desc",
+            nulls: "last",
+          },
+        },
+        {
+          updatedAt: "desc",
+        },
+      ],
       include: {
         locations: {
           orderBy: {

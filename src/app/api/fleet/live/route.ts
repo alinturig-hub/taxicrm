@@ -1,0 +1,206 @@
+import { getServerSession } from "next-auth";
+import { NextResponse } from "next/server";
+import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+function toNumber(value: unknown): number | null {
+  if (value === null || value === undefined) {
+    return null;
+  }
+
+  const parsed = Number(value);
+
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+export async function GET() {
+  const session = await getServerSession(authOptions);
+
+  if (!session?.user) {
+    return NextResponse.json(
+      {
+        error: "UNAUTHORIZED",
+        message: "Authentication required.",
+      },
+      {
+        status: 401,
+      },
+    );
+  }
+
+  try {
+    const vehicles = await prisma.vehicle.findMany({
+      where: {
+        currentLatitude: {
+          not: null,
+        },
+        currentLongitude: {
+          not: null,
+        },
+        lastSeenAt: {
+          not: null,
+        },
+      },
+      orderBy: [
+        {
+          lastSeenAt: "desc",
+        },
+        {
+          callsign: "asc",
+        },
+      ],
+      select: {
+        id: true,
+        provider: true,
+        externalId: true,
+        callsign: true,
+        registration: true,
+        plateNumber: true,
+        currentStatus: true,
+        currentBookingId: true,
+        currentLatitude: true,
+        currentLongitude: true,
+        lastSeenAt: true,
+        currentDriver: {
+          select: {
+            id: true,
+            externalId: true,
+            callsign: true,
+            forename: true,
+            surname: true,
+            badgeNumber: true,
+          },
+        },
+      },
+    });
+
+    const now = Date.now();
+
+    const liveVehicles = vehicles
+      .map((vehicle) => {
+        const latitude = toNumber(vehicle.currentLatitude);
+        const longitude = toNumber(vehicle.currentLongitude);
+
+        if (
+          latitude === null ||
+          longitude === null ||
+          latitude < -90 ||
+          latitude > 90 ||
+          longitude < -180 ||
+          longitude > 180
+        ) {
+          return null;
+        }
+
+        const lastSeenAt = vehicle.lastSeenAt;
+        const ageSeconds = lastSeenAt
+          ? Math.max(
+              0,
+              Math.floor((now - lastSeenAt.getTime()) / 1000),
+            )
+          : null;
+
+        const driverName = [
+          vehicle.currentDriver?.forename,
+          vehicle.currentDriver?.surname,
+        ]
+          .filter(Boolean)
+          .join(" ");
+
+        return {
+          id: vehicle.id,
+          provider: vehicle.provider,
+          externalId: vehicle.externalId,
+          callsign: vehicle.callsign,
+          registration:
+            vehicle.registration || vehicle.plateNumber || null,
+          status: vehicle.currentStatus || "Unknown",
+          bookingId:
+            vehicle.currentBookingId &&
+            vehicle.currentBookingId > 0
+              ? vehicle.currentBookingId
+              : null,
+          latitude,
+          longitude,
+          lastSeenAt: lastSeenAt?.toISOString() || null,
+          ageSeconds,
+          isLive: ageSeconds !== null && ageSeconds <= 120,
+          driver: vehicle.currentDriver
+            ? {
+                id: vehicle.currentDriver.id,
+                externalId: vehicle.currentDriver.externalId,
+                callsign: vehicle.currentDriver.callsign,
+                name: driverName || null,
+                badgeNumber: vehicle.currentDriver.badgeNumber,
+              }
+            : null,
+        };
+      })
+      .filter(
+        (
+          vehicle,
+        ): vehicle is NonNullable<typeof vehicle> =>
+          vehicle !== null,
+      );
+
+    const summary = liveVehicles.reduce(
+      (accumulator, vehicle) => {
+        accumulator.total += 1;
+
+        if (vehicle.isLive) {
+          accumulator.live += 1;
+        } else {
+          accumulator.stale += 1;
+        }
+
+        if (vehicle.status === "Clear") {
+          accumulator.clear += 1;
+        } else if (vehicle.status === "NotWorking") {
+          accumulator.notWorking += 1;
+        } else {
+          accumulator.busy += 1;
+        }
+
+        return accumulator;
+      },
+      {
+        total: 0,
+        live: 0,
+        stale: 0,
+        clear: 0,
+        busy: 0,
+        notWorking: 0,
+      },
+    );
+
+    return NextResponse.json(
+      {
+        generatedAt: new Date().toISOString(),
+        refreshAfterSeconds: 10,
+        summary,
+        vehicles: liveVehicles,
+      },
+      {
+        headers: {
+          "Cache-Control":
+            "no-store, no-cache, must-revalidate, proxy-revalidate",
+        },
+      },
+    );
+  } catch (error) {
+    console.error("Failed to load live fleet:", error);
+
+    return NextResponse.json(
+      {
+        error: "LIVE_FLEET_LOAD_FAILED",
+        message: "Unable to load live fleet data.",
+      },
+      {
+        status: 500,
+      },
+    );
+  }
+}

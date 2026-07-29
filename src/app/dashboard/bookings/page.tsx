@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { usePathname } from "next/navigation";
 
 import ActionButton from "@/components/ui/ActionButton";
 import DataTable, {
@@ -49,6 +50,7 @@ const workspaceTabs: WorkspaceTab[] = [
 ];
 
 export default function BookingsPage() {
+  const pathname = usePathname();
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
@@ -103,6 +105,31 @@ export default function BookingsPage() {
   useEffect(() => {
     void loadBookings();
   }, [loadBookings]);
+
+  useEffect(() => {
+    const routeStatus = pathname.split("/").filter(Boolean).at(-1);
+
+    const validStatuses = new Set([
+      "created",
+      "on-hold",
+      "dispatched",
+      "accepted",
+      "arrived",
+      "on-board",
+      "completed",
+      "cancelled",
+      "rejected",
+      "no-show",
+    ]);
+
+    if (routeStatus && validStatuses.has(routeStatus)) {
+      setStatusFilter(routeStatus);
+      setPage(1);
+      return;
+    }
+
+    setStatusFilter("all");
+  }, [pathname]);
 
   const openBookingWorkspace = async (
     booking: BookingWorkspaceData | string,
