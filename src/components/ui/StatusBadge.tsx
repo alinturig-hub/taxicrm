@@ -8,7 +8,7 @@ const styles = {
   completed: "bg-green-500/10 text-green-400 border-green-500/20",
   cancelled: "bg-red-500/10 text-red-400 border-red-500/20",
   rejected: "bg-orange-500/10 text-orange-400 border-orange-500/20",
-  "no-show": "bg-slate-600/20 text-slate-300 border-slate-600/30",
+  "no-fare": "bg-slate-600/20 text-slate-300 border-slate-600/30",
   active: "bg-emerald-500/10 text-emerald-400 border-emerald-500/20",
   inactive: "bg-slate-500/10 text-slate-400 border-slate-500/20",
   success: "bg-green-500/10 text-green-400 border-green-500/20",
@@ -27,7 +27,7 @@ const labels = {
   completed: "Completed",
   cancelled: "Cancelled",
   rejected: "Rejected",
-  "no-show": "No Show",
+  "no-fare": "No Fare",
   active: "Active",
   inactive: "Inactive",
   success: "Success",
@@ -43,17 +43,46 @@ type StatusBadgeProps = {
   label?: string;
 };
 
+function normalizeStatus(status: string): KnownStatus {
+  const normalized = status.trim().toUpperCase();
+
+  const statusMap: Record<string, KnownStatus> = {
+    CREATED: "created",
+    ON_HOLD: "on-hold",
+    ONHOLD: "on-hold",
+    DISPATCHED: "dispatched",
+    ACCEPTED: "accepted",
+    ARRIVED: "arrived",
+    POB: "on-board",
+    ON_BOARD: "on-board",
+    PASSENGER_ON_BOARD: "on-board",
+    COMPLETED: "completed",
+    CANCELLED: "cancelled",
+    CANCELED: "cancelled",
+    REJECTED: "rejected",
+    NO_FARE: "no-fare",
+    NOFARE: "no-fare",
+    ACTIVE: "active",
+    INACTIVE: "inactive",
+    SUCCESS: "success",
+    WARNING: "warning",
+    ERROR: "error",
+    INFO: "info",
+  };
+
+  return statusMap[normalized] ?? "info";
+}
+
 export default function StatusBadge({
   status,
   label,
 }: StatusBadgeProps) {
-  const normalizedStatus: KnownStatus =
-    status in styles ? (status as KnownStatus) : "info";
+  const normalizedStatus = normalizeStatus(status);
 
   return (
     <span
       className={[
-        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold",
+        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold whitespace-nowrap",
         styles[normalizedStatus],
       ].join(" ")}
     >
