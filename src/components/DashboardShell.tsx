@@ -16,19 +16,6 @@ type NavigationItem = {
 
 const bookingNavigation: NavigationItem[] = [
   { label: "All Bookings", href: "/dashboard/bookings" },
-  { label: "Created", href: "/dashboard/bookings/created" },
-  { label: "On Hold", href: "/dashboard/bookings/on-hold" },
-  { label: "Dispatched", href: "/dashboard/bookings/dispatched" },
-  { label: "Accepted", href: "/dashboard/bookings/accepted" },
-  { label: "Arrived", href: "/dashboard/bookings/arrived" },
-  {
-    label: "Passenger On Board",
-    href: "/dashboard/bookings/passenger-on-board",
-  },
-  { label: "Completed", href: "/dashboard/bookings/completed" },
-  { label: "Cancelled", href: "/dashboard/bookings/cancelled" },
-  { label: "Rejected", href: "/dashboard/bookings/rejected" },
-  { label: "No Show", href: "/dashboard/bookings/no-show" },
 ];
 
 const operationsNavigation: NavigationItem[] = [
