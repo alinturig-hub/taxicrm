@@ -114,6 +114,24 @@ export function getArray(
   return Array.isArray(value) ? value : null;
 }
 
+function getAssignedDriver(payload: JsonObject): JsonObject | null {
+  const driverDetails = getObject(payload, "DriverDetails");
+
+  return (
+    (driverDetails ? getObject(driverDetails, "Driver") : null) ??
+    getObject(payload, "Driver")
+  );
+}
+
+function getAssignedVehicle(payload: JsonObject): JsonObject | null {
+  const vehicleDetails = getObject(payload, "VehicleDetails");
+
+  return (
+    (vehicleDetails ? getObject(vehicleDetails, "Vehicle") : null) ??
+    getObject(payload, "Vehicle")
+  );
+}
+
 export function assignIfPresent<T>(
   target: Record<string, unknown>,
   source: JsonObject,
@@ -169,6 +187,8 @@ export function buildBookingCreateData(
   const account = getObject(payload, "Account");
   const pricing = getObject(payload, "Pricing");
   const priceComparison = getObject(payload, "PriceComparison");
+  const driver = getAssignedDriver(payload);
+  const vehicle = getAssignedVehicle(payload);
 
   return {
     provider: "AUTOCAB",
@@ -177,6 +197,25 @@ export function buildBookingCreateData(
     bookingType: normaliseString(payload.BookingType),
     typeOfBooking: normaliseString(payload.TypeOfBooking),
     status: normaliseString(payload.Status) ?? "ACTIVE",
+
+    driverId: driver ? normaliseString(driver.Id) : null,
+    driverCallSign: driver ? normaliseString(driver.Callsign) : null,
+    driverForename: driver ? normaliseString(driver.Forename) : null,
+    driverSurname: driver ? normaliseString(driver.Surname) : null,
+    driverBadgeNumber: driver
+      ? normaliseString(driver.BadgeNumber)
+      : null,
+
+    vehicleId: vehicle ? normaliseString(vehicle.Id) : null,
+    vehicleCallSign: vehicle
+      ? normaliseString(vehicle.Callsign)
+      : null,
+    vehicleRegistration: vehicle
+      ? normaliseString(vehicle.Registration)
+      : null,
+    vehiclePlateNumber: vehicle
+      ? normaliseString(vehicle.PlateNumber)
+      : null,
 
     pickupDueTime: normaliseDate(payload.PickupDueTime),
     dropOffDueTime: normaliseDate(payload.DropOffDueTime),
@@ -289,6 +328,39 @@ export function buildBookingUpdateData(
   const data: Record<string, unknown> = {
     rawPayload: payload as Prisma.InputJsonObject,
   };
+
+  if (hasOwn(payload, "DriverDetails") || hasOwn(payload, "Driver")) {
+    const driver = getAssignedDriver(payload);
+
+    data.driverId = driver ? normaliseString(driver.Id) : null;
+    data.driverCallSign = driver
+      ? normaliseString(driver.Callsign)
+      : null;
+    data.driverForename = driver
+      ? normaliseString(driver.Forename)
+      : null;
+    data.driverSurname = driver
+      ? normaliseString(driver.Surname)
+      : null;
+    data.driverBadgeNumber = driver
+      ? normaliseString(driver.BadgeNumber)
+      : null;
+  }
+
+  if (hasOwn(payload, "VehicleDetails") || hasOwn(payload, "Vehicle")) {
+    const vehicle = getAssignedVehicle(payload);
+
+    data.vehicleId = vehicle ? normaliseString(vehicle.Id) : null;
+    data.vehicleCallSign = vehicle
+      ? normaliseString(vehicle.Callsign)
+      : null;
+    data.vehicleRegistration = vehicle
+      ? normaliseString(vehicle.Registration)
+      : null;
+    data.vehiclePlateNumber = vehicle
+      ? normaliseString(vehicle.PlateNumber)
+      : null;
+  }
 
   assignIfPresent(
     data,
