@@ -32,6 +32,7 @@ export async function processBookingWebhook(
       eventType: true,
       status: true,
       payload: true,
+      receivedAt: true,
     },
   });
 
@@ -92,6 +93,30 @@ export async function processBookingWebhook(
         id,
         options.status,
       );
+
+      if (options.status === "ACCEPTED") {
+        await tx.booking.updateMany({
+          where: {
+            id,
+            acceptedAt: null,
+          },
+          data: {
+            acceptedAt: webhookEvent.receivedAt,
+          },
+        });
+      }
+
+      if (options.status === "CANCELLED") {
+        await tx.booking.updateMany({
+          where: {
+            id,
+            cancelledAt: null,
+          },
+          data: {
+            cancelledAt: webhookEvent.receivedAt,
+          },
+        });
+      }
 
       await tx.webhookEvent.update({
         where: {

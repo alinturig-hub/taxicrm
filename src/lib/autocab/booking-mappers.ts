@@ -337,34 +337,24 @@ export function buildBookingUpdateData(
   if (hasOwn(payload, "DriverDetails") || hasOwn(payload, "Driver")) {
     const driver = getAssignedDriver(payload);
 
-    data.driverId = driver ? normaliseString(driver.Id) : null;
-    data.driverCallSign = driver
-      ? normaliseString(driver.Callsign)
-      : null;
-    data.driverForename = driver
-      ? normaliseString(driver.Forename)
-      : null;
-    data.driverSurname = driver
-      ? normaliseString(driver.Surname)
-      : null;
-    data.driverBadgeNumber = driver
-      ? normaliseString(driver.BadgeNumber)
-      : null;
+    if (driver) {
+      data.driverId = normaliseString(driver.Id);
+      data.driverCallSign = normaliseString(driver.Callsign);
+      data.driverForename = normaliseString(driver.Forename);
+      data.driverSurname = normaliseString(driver.Surname);
+      data.driverBadgeNumber = normaliseString(driver.BadgeNumber);
+    }
   }
 
   if (hasOwn(payload, "VehicleDetails") || hasOwn(payload, "Vehicle")) {
     const vehicle = getAssignedVehicle(payload);
 
-    data.vehicleId = vehicle ? normaliseString(vehicle.Id) : null;
-    data.vehicleCallSign = vehicle
-      ? normaliseString(vehicle.Callsign)
-      : null;
-    data.vehicleRegistration = vehicle
-      ? normaliseString(vehicle.Registration)
-      : null;
-    data.vehiclePlateNumber = vehicle
-      ? normaliseString(vehicle.PlateNumber)
-      : null;
+    if (vehicle) {
+      data.vehicleId = normaliseString(vehicle.Id);
+      data.vehicleCallSign = normaliseString(vehicle.Callsign);
+      data.vehicleRegistration = normaliseString(vehicle.Registration);
+      data.vehiclePlateNumber = normaliseString(vehicle.PlateNumber);
+    }
   }
 
   const dispatchedAt = normaliseDate(payload.DispatchedAtTime);
