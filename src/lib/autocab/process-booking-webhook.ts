@@ -118,6 +118,18 @@ export async function processBookingWebhook(
         });
       }
 
+      if (options.status === "NO_FARE") {
+        await tx.booking.updateMany({
+          where: {
+            id,
+            noFareAt: null,
+          },
+          data: {
+            noFareAt: webhookEvent.receivedAt,
+          },
+        });
+      }
+
       await tx.webhookEvent.update({
         where: {
           id: webhookEvent.id,

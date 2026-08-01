@@ -87,6 +87,7 @@ model Booking {
   pickedUpAt     DateTime?
   completedAt    DateTime?
   cancelledAt    DateTime?
+  noFareAt       DateTime?
 
   driverId            String?
   driverCallSign      String?
