@@ -121,6 +121,19 @@ export async function POST(
   request: NextRequest,
   context: RouteContext,
 ) {
+  if (process.env.AUTOCAB_WEBHOOKS_PAUSED === "true") {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "WEBHOOKS_PAUSED",
+        message: "Autocab webhook processing is temporarily paused.",
+      },
+      {
+        status: 503,
+      },
+    );
+  }
+
   const eventSlug = normaliseEventSlug(
     context.params.event,
   );
