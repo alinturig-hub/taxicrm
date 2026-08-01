@@ -50,7 +50,7 @@ export async function processBookingWebhook(
   const payload = webhookEvent.payload;
 
   const externalId = normaliseString(
-    payload.Id ?? payload.BookingId ?? payload.OriginalBookingId,
+    payload.OriginalBookingId ?? payload.BookingId ?? payload.Id,
   );
 
   if (!externalId) {

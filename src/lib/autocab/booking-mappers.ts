@@ -217,6 +217,11 @@ export function buildBookingCreateData(
       ? normaliseString(vehicle.PlateNumber)
       : null,
 
+    dispatchedAt: normaliseDate(payload.DispatchedAtTime),
+    arrivedAt: normaliseDate(payload.VehicleArrivedAtTime),
+    pickedUpAt: normaliseDate(payload.PickedUpAtTime),
+    completedAt: normaliseDate(payload.CompletedAtTime),
+
     pickupDueTime: normaliseDate(payload.PickupDueTime),
     dropOffDueTime: normaliseDate(payload.DropOffDueTime),
     bookedAtTime: normaliseDate(payload.BookedAtTime),
@@ -360,6 +365,26 @@ export function buildBookingUpdateData(
     data.vehiclePlateNumber = vehicle
       ? normaliseString(vehicle.PlateNumber)
       : null;
+  }
+
+  const dispatchedAt = normaliseDate(payload.DispatchedAtTime);
+  if (dispatchedAt) {
+    data.dispatchedAt = dispatchedAt;
+  }
+
+  const arrivedAt = normaliseDate(payload.VehicleArrivedAtTime);
+  if (arrivedAt) {
+    data.arrivedAt = arrivedAt;
+  }
+
+  const pickedUpAt = normaliseDate(payload.PickedUpAtTime);
+  if (pickedUpAt) {
+    data.pickedUpAt = pickedUpAt;
+  }
+
+  const completedAt = normaliseDate(payload.CompletedAtTime);
+  if (completedAt) {
+    data.completedAt = completedAt;
   }
 
   assignIfPresent(
