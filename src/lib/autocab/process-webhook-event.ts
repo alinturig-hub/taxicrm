@@ -18,11 +18,35 @@ export async function processWebhookEvent(
       id: true,
       eventType: true,
       status: true,
+      webhookConfigurationId: true,
+      webhookConfiguration: {
+        select: {
+          isEnabled: true,
+        },
+      },
     },
   });
 
   if (!webhookEvent) {
     throw new Error(`WebhookEvent not found: ${webhookEventId}`);
+  }
+
+  if (
+    !webhookEvent.webhookConfiguration ||
+    !webhookEvent.webhookConfiguration.isEnabled
+  ) {
+    await prisma.webhookEvent.update({
+      where: {
+        id: webhookEvent.id,
+      },
+      data: {
+        status: "IGNORED",
+        processingError: null,
+        processedAt: new Date(),
+      },
+    });
+
+    return;
   }
 
   const normalized = normalizeEventType(webhookEvent.eventType);

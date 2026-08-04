@@ -234,6 +234,16 @@ export async function POST(
     rawBody,
   );
 
+  const webhookConfiguration =
+    await prisma.autocabWebhookConfiguration.findUnique({
+      where: {
+        endpointSlug: eventSlug,
+      },
+      select: {
+        id: true,
+      },
+    });
+
   try {
     const webhookEvent =
       await prisma.webhookEvent.create({
@@ -245,6 +255,7 @@ export async function POST(
           status: "RECEIVED",
           payload: payload as Prisma.InputJsonObject,
           headers: headersToJson(request),
+          webhookConfigurationId: webhookConfiguration?.id,
         },
         select: {
           id: true,

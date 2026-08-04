@@ -1,12 +1,11 @@
-import { processBookingWebhook } from "@/lib/autocab/process-booking-webhook";
+import { processBookingContextWebhook } from "@/lib/autocab/process-booking-context-webhook";
 
 export async function processBookingModifiedWebhook(
   webhookEventId: string,
 ): Promise<void> {
-  return processBookingWebhook(webhookEventId, {
+  return processBookingContextWebhook(webhookEventId, {
     title: "Booking Modified",
     description: "Booking modified in Autocab.",
-    status: "CREATED",
     unknownErrorMessage: "Unknown BookingModified processing error.",
   });
 }
