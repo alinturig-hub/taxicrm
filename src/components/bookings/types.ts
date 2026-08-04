@@ -94,6 +94,25 @@ export interface BookingWorkspaceData {
   dropOffDueTime: string | null;
   bookedAtTime: string | null;
 
+  dispatchedAt: string | null;
+  acceptedAt: string | null;
+  arrivedAt: string | null;
+  pickedUpAt: string | null;
+  completedAt: string | null;
+  cancelledAt: string | null;
+  noFareAt: string | null;
+
+  driverId: string | null;
+  driverCallSign: string | null;
+  driverForename: string | null;
+  driverSurname: string | null;
+  driverBadgeNumber: string | null;
+
+  vehicleId: string | null;
+  vehicleCallSign: string | null;
+  vehicleRegistration: string | null;
+  vehiclePlateNumber: string | null;
+
   pickup: BookingLocation | null;
   destination: BookingLocation | null;
   vias: BookingVia[];

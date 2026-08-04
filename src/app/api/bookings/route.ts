@@ -61,6 +61,26 @@ export async function GET() {
           pickupDueTime: booking.pickupDueTime,
           dropOffDueTime: booking.dropOffDueTime,
           bookedAtTime: booking.bookedAtTime,
+
+          dispatchedAt: booking.dispatchedAt,
+          acceptedAt: booking.acceptedAt,
+          arrivedAt: booking.arrivedAt,
+          pickedUpAt: booking.pickedUpAt,
+          completedAt: booking.completedAt,
+          cancelledAt: booking.cancelledAt,
+          noFareAt: booking.noFareAt,
+
+          driverId: booking.driverId,
+          driverCallSign: booking.driverCallSign,
+          driverForename: booking.driverForename,
+          driverSurname: booking.driverSurname,
+          driverBadgeNumber: booking.driverBadgeNumber,
+
+          vehicleId: booking.vehicleId,
+          vehicleCallSign: booking.vehicleCallSign,
+          vehicleRegistration: booking.vehicleRegistration,
+          vehiclePlateNumber: booking.vehiclePlateNumber,
+
           pickup: pickup
             ? {
                 address: pickup.address,

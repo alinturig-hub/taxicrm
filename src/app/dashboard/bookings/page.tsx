@@ -228,6 +228,77 @@ export default function BookingsPage() {
         sortable: true,
       },
       {
+        id: "journey",
+        header: "Journey",
+        accessor: (booking) => (
+          <div className="max-w-[320px] space-y-1">
+            <p className="truncate text-sm font-medium text-slate-200">
+              {booking.pickup?.address ?? "Pickup unavailable"}
+            </p>
+            <p className="truncate text-xs text-slate-500">
+              → {booking.destination?.address ?? "Destination unavailable"}
+            </p>
+          </div>
+        ),
+        sortValue: (booking) => booking.pickup?.address ?? "",
+        sortable: true,
+      },
+      {
+        id: "driver",
+        header: "Driver",
+        accessor: (booking) => {
+          const fullName = [
+            booking.driverForename,
+            booking.driverSurname,
+          ]
+            .filter(Boolean)
+            .join(" ");
+
+          return (
+            <div className="space-y-1">
+              <p className="text-sm font-medium text-slate-200">
+                {booking.driverCallSign
+                  ? `#${booking.driverCallSign}`
+                  : "Unassigned"}
+              </p>
+              {fullName ? (
+                <p className="text-xs text-slate-500">
+                  {fullName}
+                </p>
+              ) : null}
+            </div>
+          );
+        },
+        sortValue: (booking) =>
+          booking.driverCallSign ??
+          booking.driverSurname ??
+          "",
+        sortable: true,
+      },
+      {
+        id: "vehicle",
+        header: "Vehicle",
+        accessor: (booking) => (
+          <div className="space-y-1">
+            <p className="text-sm font-medium text-slate-200">
+              {booking.vehicleCallSign
+                ? `#${booking.vehicleCallSign}`
+                : "Unassigned"}
+            </p>
+            {booking.vehicleRegistration ? (
+              <p className="text-xs text-slate-500">
+                {booking.vehicleRegistration}
+              </p>
+            ) : null}
+          </div>
+        ),
+        sortValue: (booking) =>
+          booking.vehicleCallSign ??
+          booking.vehicleRegistration ??
+          "",
+        sortable: true,
+      },
+      {
         id: "source",
         header: "Source",
         accessor: (booking) => booking.bookingSource,
@@ -384,8 +455,25 @@ export default function BookingsPage() {
         const matchesSearch =
           !normalizedSearch ||
           booking.externalId.toLowerCase().includes(normalizedSearch) ||
-          (booking.customerName ?? "").toLowerCase().includes(normalizedSearch) ||
+          (booking.customerName ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
           (booking.telephoneNumber ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
+          (booking.driverCallSign ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
+          (booking.driverForename ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
+          (booking.driverSurname ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
+          (booking.vehicleCallSign ?? "")
+            .toLowerCase()
+            .includes(normalizedSearch) ||
+          (booking.vehicleRegistration ?? "")
             .toLowerCase()
             .includes(normalizedSearch);
 
@@ -578,7 +666,7 @@ export default function BookingsPage() {
             setSearchValue(value);
             setPage(1);
           }}
-          searchPlaceholder="Search booking ID, customer or phone..."
+          searchPlaceholder="Search booking, customer, phone, driver or vehicle..."
           selectedCount={selectedRowIds.length}
           refreshing={refreshing}
           onRefresh={handleRefresh}
