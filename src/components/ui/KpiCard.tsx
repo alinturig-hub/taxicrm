@@ -14,9 +14,9 @@ type KpiCardProps = {
 };
 
 const trendStyles: Record<KpiTrend["direction"], string> = {
-  up: "bg-emerald-500/10 text-emerald-400",
-  down: "bg-red-500/10 text-red-400",
-  neutral: "bg-slate-800 text-slate-400",
+  up: "bg-emerald-50 text-emerald-700",
+  down: "bg-red-50 text-red-700",
+  neutral: "bg-slate-100 text-slate-600",
 };
 
 const trendSymbols: Record<KpiTrend["direction"], string> = {
@@ -33,24 +33,26 @@ export default function KpiCard({
   trend,
 }: KpiCardProps) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-sm">
+    <article className="rounded-appLg border border-app-border bg-white p-5 shadow-card transition hover:border-app-border-strong">
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="text-sm font-medium text-slate-400">{title}</p>
+          <p className="text-sm font-medium text-app-muted">
+            {title}
+          </p>
 
-          <p className="mt-3 truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
+          <p className="mt-3 truncate text-2xl font-bold tracking-tight text-app-primary sm:text-3xl">
             {value}
           </p>
         </div>
 
         {icon ? (
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-700 bg-slate-800 text-lg text-slate-300">
+          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-appMd border border-app-border bg-surface-subtle text-lg text-app-secondary">
             {icon}
           </div>
         ) : null}
       </div>
 
-      {(description || trend) && (
+      {(description || trend) ? (
         <div className="mt-4 flex flex-wrap items-center gap-2">
           {trend ? (
             <span
@@ -65,10 +67,12 @@ export default function KpiCard({
           ) : null}
 
           {description ? (
-            <p className="text-xs leading-5 text-slate-500">{description}</p>
+            <p className="text-xs leading-5 text-app-muted">
+              {description}
+            </p>
           ) : null}
         </div>
-      )}
+      ) : null}
     </article>
   );
 }

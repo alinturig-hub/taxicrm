@@ -35,18 +35,29 @@ function isTerminalStatus(
 }
 
 function canTransitionBookingStatus(
-  currentStatus: BookingOperationalStatus,
+  currentStatus: string,
   nextStatus: BookingOperationalStatus,
 ): boolean {
-  if (currentStatus === nextStatus) {
+  const normalizedCurrentStatus =
+    currentStatus.toUpperCase() as BookingOperationalStatus;
+
+  if (normalizedCurrentStatus === nextStatus) {
     return false;
+  }
+
+  /*
+   * Legacy or provider statuses such as ACTIVE may initialise
+   * the operational lifecycle at CREATED.
+   */
+  if (!(normalizedCurrentStatus in activeStatusPriority)) {
+    return nextStatus === "CREATED";
   }
 
   /*
    * A final status cannot be replaced by a delayed or duplicated webhook.
    * The rest of the booking payload is still processed by upsertBooking().
    */
-  if (isTerminalStatus(currentStatus)) {
+  if (isTerminalStatus(normalizedCurrentStatus)) {
     return false;
   }
 
@@ -57,7 +68,8 @@ function canTransitionBookingStatus(
     return true;
   }
 
-  const currentPriority = activeStatusPriority[currentStatus];
+  const currentPriority =
+    activeStatusPriority[normalizedCurrentStatus];
   const nextPriority = activeStatusPriority[nextStatus];
 
   if (
@@ -93,8 +105,7 @@ export async function updateBookingStatus(
     throw new Error(`Booking not found: ${bookingId}`);
   }
 
-  const currentStatus =
-    booking.status.toUpperCase() as BookingOperationalStatus;
+  const currentStatus = booking.status.toUpperCase();
 
   if (!canTransitionBookingStatus(currentStatus, nextStatus)) {
     return;

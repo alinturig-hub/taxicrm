@@ -36,13 +36,13 @@ type ActionButtonProps = ButtonProps | LinkProps;
 
 const variantClasses: Record<ActionButtonVariant, string> = {
   primary:
-    "border-blue-500 bg-blue-600 text-white hover:bg-blue-500 focus:ring-blue-500/30",
+    "border-brand bg-brand text-white shadow-sm hover:border-brand-hover hover:bg-brand-hover focus:ring-brand/20",
   secondary:
-    "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 focus:ring-slate-500/30",
+    "border-app-border bg-white text-app-primary shadow-sm hover:border-app-border-strong hover:bg-surface-subtle focus:ring-brand/15",
   danger:
-    "border-red-500/40 bg-red-500/10 text-red-400 hover:bg-red-500/20 focus:ring-red-500/30",
+    "border-red-200 bg-red-50 text-red-700 hover:border-red-300 hover:bg-red-100 focus:ring-red-500/15",
   ghost:
-    "border-transparent bg-transparent text-slate-400 hover:bg-slate-800 hover:text-white focus:ring-slate-500/30",
+    "border-transparent bg-transparent text-app-secondary hover:bg-surface-muted hover:text-app-primary focus:ring-brand/15",
 };
 
 const sizeClasses: Record<ActionButtonSize, string> = {
@@ -62,8 +62,8 @@ export default function ActionButton(props: ActionButtonProps) {
   } = props;
 
   const classes = [
-    "inline-flex items-center justify-center gap-2 rounded-xl border font-semibold outline-none transition",
-    "focus:ring-2 disabled:cursor-not-allowed disabled:opacity-50",
+    "inline-flex items-center justify-center gap-2 rounded-appMd border font-semibold outline-none transition-all duration-150",
+    "focus:ring-4 disabled:cursor-not-allowed disabled:opacity-50",
     variantClasses[variant],
     sizeClasses[size],
     fullWidth ? "w-full" : "",
