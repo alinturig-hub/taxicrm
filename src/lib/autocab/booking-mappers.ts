@@ -196,7 +196,7 @@ export function buildBookingCreateData(
     originalBookingId: normaliseString(payload.OriginalBookingId),
     bookingType: normaliseString(payload.BookingType),
     typeOfBooking: normaliseString(payload.TypeOfBooking),
-    status: normaliseString(payload.Status) ?? "ACTIVE",
+    status: "CREATED",
 
     driverId: driver ? normaliseString(driver.Id) : null,
     driverCallSign: driver ? normaliseString(driver.Callsign) : null,
@@ -398,7 +398,6 @@ export function buildBookingUpdateData(
     "typeOfBooking",
     normaliseString,
   );
-  assignIfPresent(data, payload, "Status", "status", normaliseString);
 
   assignIfPresent(
     data,

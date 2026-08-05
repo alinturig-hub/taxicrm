@@ -11,9 +11,14 @@ export type BookingOperationalStatus =
   | "NO_FARE"
   | "REJECTED";
 
+type CurrentBookingStatus =
+  | BookingOperationalStatus
+  | "ACTIVE";
+
 const activeStatusPriority: Partial<
-  Record<BookingOperationalStatus, number>
+  Record<CurrentBookingStatus, number>
 > = {
+  ACTIVE: 1,
   CREATED: 1,
   DISPATCHED: 2,
   ACCEPTED: 3,
@@ -21,68 +26,69 @@ const activeStatusPriority: Partial<
   POB: 5,
 };
 
-const terminalStatuses = new Set<BookingOperationalStatus>([
-  "COMPLETED",
-  "CANCELLED",
-  "NO_FARE",
-  "REJECTED",
-]);
+const terminalStatuses =
+  new Set<BookingOperationalStatus>([
+    "COMPLETED",
+    "CANCELLED",
+    "NO_FARE",
+    "REJECTED",
+  ]);
 
 function isTerminalStatus(
-  status: BookingOperationalStatus,
-): boolean {
-  return terminalStatuses.has(status);
+  status: string,
+): status is BookingOperationalStatus {
+  return terminalStatuses.has(
+    status as BookingOperationalStatus,
+  );
 }
 
 function canTransitionBookingStatus(
   currentStatus: string,
   nextStatus: BookingOperationalStatus,
 ): boolean {
-  const normalizedCurrentStatus =
-    currentStatus.toUpperCase() as BookingOperationalStatus;
+  const current =
+    currentStatus.toUpperCase() as CurrentBookingStatus;
 
-  if (normalizedCurrentStatus === nextStatus) {
+  if (current === nextStatus) {
     return false;
   }
 
   /*
-   * Legacy or provider statuses such as ACTIVE may initialise
-   * the operational lifecycle at CREATED.
+   * Once a booking reaches a terminal state, delayed webhooks
+   * must not move it back into the operational lifecycle.
    */
-  if (!(normalizedCurrentStatus in activeStatusPriority)) {
-    return nextStatus === "CREATED";
-  }
-
-  /*
-   * A final status cannot be replaced by a delayed or duplicated webhook.
-   * The rest of the booking payload is still processed by upsertBooking().
-   */
-  if (isTerminalStatus(normalizedCurrentStatus)) {
+  if (isTerminalStatus(current)) {
     return false;
   }
 
   /*
-   * An active booking may finish from any operational stage.
+   * Any non-terminal booking may move directly to a terminal
+   * state if intermediary events were delayed or missing.
    */
   if (isTerminalStatus(nextStatus)) {
     return true;
   }
 
   const currentPriority =
-    activeStatusPriority[normalizedCurrentStatus];
-  const nextPriority = activeStatusPriority[nextStatus];
+    activeStatusPriority[current];
 
-  if (
-    currentPriority === undefined ||
-    nextPriority === undefined
-  ) {
+  const nextPriority =
+    activeStatusPriority[nextStatus];
+
+  /*
+   * Unknown provider statuses may initialise only as CREATED.
+   */
+  if (currentPriority === undefined) {
+    return nextStatus === "CREATED";
+  }
+
+  if (nextPriority === undefined) {
     return false;
   }
 
   /*
-   * Only forward movement is allowed.
-   * Skipped intermediary webhooks are accepted, for example:
-   * DISPATCHED -> ARRIVED.
+   * Forward-only transitions prevent delayed webhooks from
+   * regressing the booking lifecycle.
    */
   return nextPriority > currentPriority;
 }
@@ -105,9 +111,12 @@ export async function updateBookingStatus(
     throw new Error(`Booking not found: ${bookingId}`);
   }
 
-  const currentStatus = booking.status.toUpperCase();
-
-  if (!canTransitionBookingStatus(currentStatus, nextStatus)) {
+  if (
+    !canTransitionBookingStatus(
+      booking.status,
+      nextStatus,
+    )
+  ) {
     return;
   }
 
