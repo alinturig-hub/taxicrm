@@ -435,3 +435,28 @@ model VehicleSnapshot {
   @@index([snapshotAt])
   @@index([sourceWebhookId])
 }
+
+model CompanyDailyMetric {
+  id   String   @id @default(cuid())
+  date DateTime @unique @db.Date
+
+  bookings  Int @default(0)
+  completed Int @default(0)
+  cancelled Int @default(0)
+  noFare    Int @default(0)
+  rejected  Int @default(0)
+
+  revenue              Decimal @default(0) @db.Decimal(14, 2)
+  estimatedRevenueLost Decimal @default(0) @db.Decimal(14, 2)
+  averageBookingValue  Decimal @default(0) @db.Decimal(12, 2)
+
+  completionRate   Decimal @default(0) @db.Decimal(7, 2)
+  cancellationRate Decimal @default(0) @db.Decimal(7, 2)
+  noFareRate       Decimal @default(0) @db.Decimal(7, 2)
+  rejectionRate    Decimal @default(0) @db.Decimal(7, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([date])
+}
