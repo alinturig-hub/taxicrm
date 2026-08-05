@@ -46,6 +46,19 @@ export type LiveOperationsData = {
     bookingsWithoutDriver: number;
     acceptedOver15Minutes: number;
     driversWithoutVehicle: number;
+
+    items: Array<{
+      id: string;
+      severity:
+        | "critical"
+        | "warning"
+        | "info"
+        | "success";
+      title: string;
+      subtitle?: string;
+      bookingId?: string;
+      occurredAt: string;
+    }>;
   };
 
   recentActivity: Array<{
@@ -376,6 +389,46 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
       bookingsWithoutDriver: withoutDriver,
       acceptedOver15Minutes,
       driversWithoutVehicle,
+
+      items: [
+        ...(fleet.stale > 0
+          ? [{
+              id: "stale-vehicles",
+              severity: "warning" as const,
+              title: `${fleet.stale} stale vehicles`,
+              subtitle:
+                "Vehicles offline for more than 2 minutes",
+              occurredAt: now.toISOString(),
+            }]
+          : []),
+
+        ...(withoutDriver > 0
+          ? [{
+              id: "bookings-without-driver",
+              severity: "critical" as const,
+              title: `${withoutDriver} bookings without driver`,
+              occurredAt: now.toISOString(),
+            }]
+          : []),
+
+        ...(acceptedOver15Minutes > 0
+          ? [{
+              id: "accepted-over-15",
+              severity: "warning" as const,
+              title: `${acceptedOver15Minutes} accepted over 15 minutes`,
+              occurredAt: now.toISOString(),
+            }]
+          : []),
+
+        ...(driversWithoutVehicle > 0
+          ? [{
+              id: "drivers-without-vehicle",
+              severity: "info" as const,
+              title: `${driversWithoutVehicle} drivers without vehicle`,
+              occurredAt: now.toISOString(),
+            }]
+          : []),
+      ],
     },
 
     recentActivity: recentActivityFeed,

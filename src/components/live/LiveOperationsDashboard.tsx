@@ -588,6 +588,9 @@ export default function LiveOperationsDashboard() {
     );
   }
 
+  const alertItems = operations.alerts?.items ?? [];
+  const recentActivity = operations.recentActivity ?? [];
+
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-7 xl:px-8">
       <div className="mx-auto max-w-7xl">
@@ -839,12 +842,12 @@ export default function LiveOperationsDashboard() {
               </div>
 
               <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200">
-                {operations.alerts.items.length} active
+                {alertItems.length} active
               </span>
             </div>
 
             <div className="mt-4 space-y-3">
-              {operations.alerts.items.length === 0 ? (
+              {alertItems.length === 0 ? (
                 <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 p-4">
                   <p className="text-sm font-semibold text-emerald-300">
                     No active operational alerts
@@ -854,7 +857,7 @@ export default function LiveOperationsDashboard() {
                   </p>
                 </div>
               ) : (
-                operations.alerts.items.map((alert) => (
+                alertItems.map((alert) => (
                   <OperationalAlertCard
                     key={alert.id}
                     severity={alert.severity}
@@ -890,19 +893,19 @@ export default function LiveOperationsDashboard() {
               </div>
 
               <span className="rounded-full border border-violet-500/30 bg-violet-500/10 px-3 py-1 text-xs font-semibold text-violet-200">
-                {operations.recentActivity.length} events
+                {recentActivity.length} events
               </span>
             </div>
 
             <div className="mt-4 space-y-3">
-              {operations.recentActivity.length === 0 ? (
+              {recentActivity.length === 0 ? (
                 <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
                   <p className="text-sm text-slate-500">
                     No recent operational activity.
                   </p>
                 </div>
               ) : (
-                operations.recentActivity.map((activity) => (
+                recentActivity.map((activity) => (
                   <RecentActivityCard
                     key={activity.id}
                     bookingId={activity.bookingId}
