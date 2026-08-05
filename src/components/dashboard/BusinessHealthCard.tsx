@@ -16,15 +16,15 @@ export default function BusinessHealthCard({
 }: Props) {
   const items = [
     {
-      label: "Completion Rate",
+      label: "Completion",
       value: `${period.completionRate.toFixed(1)}%`,
     },
     {
-      label: "Cancellation Rate",
+      label: "Cancellation",
       value: `${period.cancellationRate.toFixed(1)}%`,
     },
     {
-      label: "No-Fare Rate",
+      label: "No-Fare",
       value: `${period.noFareRate.toFixed(1)}%`,
     },
     {
@@ -36,26 +36,26 @@ export default function BusinessHealthCard({
   ];
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+    <article className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
         Business Health
       </p>
 
-      <h2 className="mt-3 text-xl font-bold text-white">
+      <h2 className="mt-2 text-lg font-bold text-white">
         Today at a glance
       </h2>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2">
+      <div className="mt-4 grid grid-cols-2 gap-3">
         {items.map((item) => (
           <div
             key={item.label}
-            className="rounded-xl border border-slate-800 bg-slate-950/60 p-4"
+            className="rounded-lg border border-slate-800 bg-slate-950/60 p-3"
           >
-            <p className="text-sm text-slate-500">
+            <p className="text-[11px] leading-4 text-slate-500 sm:text-xs">
               {item.label}
             </p>
 
-            <p className="mt-2 text-2xl font-bold text-white">
+            <p className="mt-1.5 text-xl font-bold text-white">
               {item.value}
             </p>
           </div>

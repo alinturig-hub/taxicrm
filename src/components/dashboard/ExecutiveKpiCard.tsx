@@ -12,15 +12,13 @@ function trendClasses(
   trend: MetricTrend,
   inverseTrend: boolean,
 ) {
-  const positive =
-    inverseTrend
-      ? trend.direction === "DOWN"
-      : trend.direction === "UP";
+  const positive = inverseTrend
+    ? trend.direction === "DOWN"
+    : trend.direction === "UP";
 
-  const negative =
-    inverseTrend
-      ? trend.direction === "UP"
-      : trend.direction === "DOWN";
+  const negative = inverseTrend
+    ? trend.direction === "UP"
+    : trend.direction === "DOWN";
 
   if (positive) {
     return "text-emerald-400";
@@ -53,17 +51,17 @@ export default function ExecutiveKpiCard({
   inverseTrend = false,
 }: Props) {
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5 shadow-lg">
-      <p className="text-sm font-medium text-slate-400">
+    <article className="flex min-h-[156px] flex-col rounded-xl border border-slate-800 bg-slate-900 p-4 shadow-lg sm:min-h-[168px]">
+      <p className="text-xs font-medium text-slate-400 sm:text-sm">
         {label}
       </p>
 
-      <p className="mt-3 text-3xl font-bold tracking-tight text-white">
+      <p className="mt-2 text-2xl font-bold tracking-tight text-white lg:text-3xl">
         {value}
       </p>
 
       {trend ? (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs sm:text-sm">
           <span
             className={[
               "font-semibold",
@@ -77,12 +75,12 @@ export default function ExecutiveKpiCard({
           </span>
 
           <span className="text-slate-500">
-            vs previous period
+            vs previous
           </span>
         </div>
       ) : null}
 
-      <p className="mt-3 text-xs leading-5 text-slate-500">
+      <p className="mt-auto pt-3 text-[11px] leading-4 text-slate-500 sm:text-xs sm:leading-5">
         {description}
       </p>
     </article>

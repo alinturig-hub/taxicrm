@@ -30,45 +30,45 @@ export default function PeriodComparisonCard({
         100;
 
   return (
-    <article className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
-      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-slate-500">
+    <article className="rounded-xl border border-slate-800 bg-slate-900 p-4 sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
         {title}
       </p>
 
-      <div className="mt-6 grid grid-cols-2 gap-6">
-        <div>
-          <p className="text-sm text-slate-500">
+      <div className="mt-4 grid grid-cols-2 gap-4">
+        <div className="min-w-0">
+          <p className="text-xs text-slate-500 sm:text-sm">
             {currentLabel}
           </p>
 
-          <p className="mt-2 text-2xl font-bold text-white">
+          <p className="mt-1.5 truncate text-xl font-bold text-white sm:text-2xl">
             {formatCurrency(current.revenue)}
           </p>
 
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500">
             {current.bookings.toLocaleString("en-GB")} bookings
           </p>
         </div>
 
-        <div>
-          <p className="text-sm text-slate-500">
+        <div className="min-w-0">
+          <p className="text-xs text-slate-500 sm:text-sm">
             {previousLabel}
           </p>
 
-          <p className="mt-2 text-2xl font-bold text-white">
+          <p className="mt-1.5 truncate text-xl font-bold text-white sm:text-2xl">
             {formatCurrency(previous.revenue)}
           </p>
 
-          <p className="mt-2 text-xs text-slate-500">
+          <p className="mt-1.5 text-xs text-slate-500">
             {previous.bookings.toLocaleString("en-GB")} bookings
           </p>
         </div>
       </div>
 
-      <div className="mt-6 border-t border-slate-800 pt-4">
+      <div className="mt-4 border-t border-slate-800 pt-3">
         <p
           className={[
-            "text-sm font-semibold",
+            "text-xs font-semibold sm:text-sm",
             revenueChange === null
               ? "text-slate-400"
               : revenueChange > 0

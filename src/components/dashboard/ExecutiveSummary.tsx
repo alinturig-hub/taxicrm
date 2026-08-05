@@ -17,73 +17,67 @@ export default function ExecutiveSummary({
   const revenueTrend = metrics.trends.revenueVsYesterday;
   const bookingTrend = metrics.trends.bookingsVsYesterday;
 
-  const revenueSentence =
+  const revenueSignal =
     revenueTrend.changePercent === null
-      ? "There is no comparable revenue baseline for yesterday."
-      : `Revenue is ${
+      ? "No revenue baseline for yesterday."
+      : `Revenue ${
           revenueTrend.direction === "UP"
-            ? "up"
+            ? "increased"
             : revenueTrend.direction === "DOWN"
-              ? "down"
-              : "unchanged"
+              ? "decreased"
+              : "remained unchanged"
         } by ${Math.abs(
           revenueTrend.changePercent,
-        ).toFixed(1)}% compared with yesterday.`;
+        ).toFixed(1)}%.`;
 
-  const bookingSentence =
+  const bookingSignal =
     bookingTrend.changePercent === null
-      ? "There is no comparable booking baseline for yesterday."
-      : `Booking volume is ${
+      ? "No booking baseline for yesterday."
+      : `Booking volume ${
           bookingTrend.direction === "UP"
-            ? "up"
+            ? "increased"
             : bookingTrend.direction === "DOWN"
-              ? "down"
-              : "unchanged"
+              ? "decreased"
+              : "remained unchanged"
         } by ${Math.abs(
           bookingTrend.changePercent,
         ).toFixed(1)}%.`;
 
+  const signals = [
+    `Revenue today: ${formatCurrency(
+      metrics.today.revenue,
+    )}.`,
+    revenueSignal,
+    bookingSignal,
+    `Completion rate: ${metrics.today.completionRate.toFixed(
+      1,
+    )}%.`,
+    `Estimated revenue lost: ${formatCurrency(
+      metrics.today.estimatedRevenueLost,
+    )}.`,
+  ];
+
   return (
-    <article className="rounded-2xl border border-violet-900/60 bg-violet-950/30 p-6">
-      <p className="text-sm font-semibold uppercase tracking-[0.16em] text-violet-400">
+    <article className="rounded-xl border border-violet-900/60 bg-violet-950/30 p-4 sm:p-5">
+      <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-400">
         Executive Summary
       </p>
 
-      <h2 className="mt-3 text-xl font-bold text-white">
+      <h2 className="mt-2 text-lg font-bold text-white">
         Today&apos;s business signal
       </h2>
 
-      <div className="mt-5 space-y-3 text-sm leading-6 text-slate-300">
-        <p>
-          Revenue today is{" "}
-          <strong className="text-white">
-            {formatCurrency(metrics.today.revenue)}
-          </strong>
-          .
-        </p>
-
-        <p>{revenueSentence}</p>
-        <p>{bookingSentence}</p>
-
-        <p>
-          Completion rate is{" "}
-          <strong className="text-white">
-            {metrics.today.completionRate.toFixed(1)}%
-          </strong>
-          .
-        </p>
-
-        <p>
-          Estimated revenue lost through cancellations and
-          no-fare bookings is{" "}
-          <strong className="text-white">
-            {formatCurrency(
-              metrics.today.estimatedRevenueLost,
-            )}
-          </strong>
-          .
-        </p>
-      </div>
+      <ul className="mt-4 space-y-2.5">
+        {signals.map((signal) => (
+          <li
+            key={signal}
+            className="flex items-start gap-2.5 text-xs leading-5 text-slate-300 sm:text-sm"
+          >
+            <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-violet-400" />
+            <span>{signal}</span>
+          </li>
+        ))}
+      </ul>
     </article>
   );
 }
