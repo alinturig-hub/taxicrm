@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
-import { getExecutiveDashboard } from "@/lib/analytics/executive-dashboard";
+import { getCompanyMetrics } from "@/lib/analytics/company";
 
 export const dynamic = "force-dynamic";
 
@@ -19,47 +19,47 @@ export default async function DashboardPage() {
     redirect("/login");
   }
 
-  const dashboard = await getExecutiveDashboard();
+  const dashboard = await getCompanyMetrics();
 
   const metrics = [
     {
       label: "Revenue Today",
-      value: formatCurrency(dashboard.revenueToday),
+      value: formatCurrency(dashboard.today.revenue),
       description: "Completed bookings today",
     },
     {
       label: "Bookings Today",
-      value: dashboard.bookingsToday.toLocaleString("en-GB"),
+      value: dashboard.today.bookings.toLocaleString("en-GB"),
       description: "Bookings created today",
     },
     {
       label: "Completed",
-      value: dashboard.completedToday.toLocaleString("en-GB"),
+      value: dashboard.today.completed.toLocaleString("en-GB"),
       description: "Completed journeys today",
     },
     {
       label: "Active Bookings",
-      value: dashboard.activeBookings.toLocaleString("en-GB"),
+      value: "—",
       description: "Currently active journeys",
     },
     {
       label: "Cancelled",
-      value: dashboard.cancelledToday.toLocaleString("en-GB"),
+      value: dashboard.today.cancelled.toLocaleString("en-GB"),
       description: "Cancelled today",
     },
     {
       label: "No Fare",
-      value: dashboard.noFareToday.toLocaleString("en-GB"),
+      value: dashboard.today.noFare.toLocaleString("en-GB"),
       description: "No-fare journeys today",
     },
     {
       label: "Average Booking Value",
-      value: formatCurrency(dashboard.averageBookingValue),
+      value: formatCurrency(dashboard.today.averageCompletedBookingValue),
       description: "Average completed booking value",
     },
     {
       label: "Estimated Revenue Lost",
-      value: formatCurrency(dashboard.estimatedRevenueLost),
+      value: formatCurrency(dashboard.today.estimatedRevenueLost),
       description: "Cancelled and no-fare value",
     },
   ];
@@ -118,10 +118,10 @@ export default async function DashboardPage() {
                   Completion rate
                 </p>
                 <p className="mt-2 text-2xl font-bold">
-                  {dashboard.bookingsToday > 0
+                  {dashboard.today.bookings > 0
                     ? `${Math.round(
-                        (dashboard.completedToday /
-                          dashboard.bookingsToday) *
+                        (dashboard.today.completed /
+                          dashboard.today.bookings) *
                           100,
                       )}%`
                     : "0%"}
@@ -133,10 +133,10 @@ export default async function DashboardPage() {
                   Cancellation rate
                 </p>
                 <p className="mt-2 text-2xl font-bold">
-                  {dashboard.bookingsToday > 0
+                  {dashboard.today.bookings > 0
                     ? `${Math.round(
-                        (dashboard.cancelledToday /
-                          dashboard.bookingsToday) *
+                        (dashboard.today.cancelled /
+                          dashboard.today.bookings) *
                           100,
                       )}%`
                     : "0%"}
@@ -148,10 +148,10 @@ export default async function DashboardPage() {
                   No-fare rate
                 </p>
                 <p className="mt-2 text-2xl font-bold">
-                  {dashboard.bookingsToday > 0
+                  {dashboard.today.bookings > 0
                     ? `${Math.round(
-                        (dashboard.noFareToday /
-                          dashboard.bookingsToday) *
+                        (dashboard.today.noFare /
+                          dashboard.today.bookings) *
                           100,
                       )}%`
                     : "0%"}

@@ -1,5 +1,6 @@
 "use client";
 
+import { formatDateTime } from "@/lib/date";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { usePathname } from "next/navigation";
 
@@ -323,8 +324,8 @@ export default function BookingsPage() {
       {
         id: "bookedAt",
         header: "Booked At",
-        accessor: (booking) => (booking.bookedAtTime ?? '—'),
-        sortValue: (booking) => (booking.bookedAtTime ?? '—'),
+        accessor: (booking) => formatDateTime(booking.bookedAtTime),
+        sortValue: (booking) => (booking.bookedAtTime ?? ''),
         sortable: true,
       },
     ],
@@ -805,7 +806,7 @@ export default function BookingsPage() {
         }
         subtitle={
           selectedBooking
-            ? `${selectedBooking.customerName ?? 'Unknown Customer'} · ${selectedBooking.bookedAtTime ?? 'Unknown Date'}`
+            ? `${selectedBooking.customerName ?? 'Unknown Customer'} · ${formatDateTime(selectedBooking.bookedAtTime)}`
             : undefined
         }
         status={
