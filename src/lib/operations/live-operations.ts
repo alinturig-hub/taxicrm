@@ -54,6 +54,13 @@ export type LiveOperationsData = {
     title: string;
     description: string | null;
     bookingId: string;
+    externalBookingId: string;
+    status: string;
+    customerName: string | null;
+    driverName: string | null;
+    pickupAddress: string | null;
+    destinationAddress: string | null;
+    fare: number | null;
     occurredAt: Date;
   }>;
 };
@@ -208,14 +215,35 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
       orderBy: {
         occurredAt: "desc",
       },
-      take: 12,
+      take: 15,
       select: {
         id: true,
         eventType: true,
         title: true,
         description: true,
-        bookingId: true,
         occurredAt: true,
+        booking: {
+          select: {
+            id: true,
+            externalId: true,
+            status: true,
+            customerName: true,
+            driverCallSign: true,
+            driverForename: true,
+            driverSurname: true,
+            fare: true,
+            price: true,
+            locations: {
+              orderBy: {
+                type: "asc",
+              },
+              select: {
+                type: true,
+                address: true,
+              },
+            },
+          },
+        },
       },
     }),
   ]);
@@ -276,6 +304,47 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
     acceptedOver15Minutes +
     driversWithoutVehicle;
 
+  const recentActivityFeed = recentActivity.map((event) => {
+    const pickup =
+      event.booking.locations.find(
+        (location) => location.type === "PICKUP",
+      )?.address ?? null;
+
+    const destination =
+      event.booking.locations.find(
+        (location) => location.type === "DESTINATION",
+      )?.address ?? null;
+
+    const driverName =
+      [
+        event.booking.driverForename,
+        event.booking.driverSurname,
+      ]
+        .filter(Boolean)
+        .join(" ") ||
+      event.booking.driverCallSign ||
+      null;
+
+    const fareValue =
+      event.booking.fare ?? event.booking.price;
+
+    return {
+      id: event.id,
+      eventType: event.eventType,
+      title: event.title,
+      description: event.description,
+      bookingId: event.booking.id,
+      externalBookingId: event.booking.externalId,
+      status: event.booking.status,
+      customerName: event.booking.customerName,
+      driverName,
+      pickupAddress: pickup,
+      destinationAddress: destination,
+      fare: fareValue === null ? null : Number(fareValue),
+      occurredAt: event.occurredAt,
+    };
+  });
+
   return {
     generatedAt: now,
 
@@ -309,6 +378,6 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
       driversWithoutVehicle,
     },
 
-    recentActivity,
+    recentActivity: recentActivityFeed,
   };
 }
