@@ -1,16 +1,8 @@
 import { prisma } from "@/lib/prisma";
-
-function startOfDay(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
+import {
+  addLondonDays,
+  startOfLondonDay,
+} from "@/lib/time/london-calendar";
 
 function toNumber(value: unknown): number {
   if (value === null || value === undefined) {
@@ -39,8 +31,8 @@ function percentage(
 export async function buildCompanyDailyMetrics(
   date: Date,
 ) {
-  const from = startOfDay(date);
-  const to = addDays(from, 1);
+  const from = startOfLondonDay(date);
+  const to = addLondonDays(from, 1);
 
   const [
     bookings,

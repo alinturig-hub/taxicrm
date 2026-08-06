@@ -1,3 +1,10 @@
+import {
+  addLondonDays,
+  addLondonMonths,
+  startOfLondonDay,
+  startOfLondonMonth,
+  startOfLondonWeek,
+} from "@/lib/time/london-calendar";
 import { prisma } from "@/lib/prisma";
 
 export type CompanyMetricPeriod = {
@@ -71,50 +78,6 @@ function percentage(
   }
 
   return round((numerator / denominator) * 100);
-}
-
-function startOfDay(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function startOfWeek(date: Date): Date {
-  const result = startOfDay(date);
-  const day = result.getDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-
-  return addDays(result, -daysSinceMonday);
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    1,
-    0,
-    0,
-    0,
-    0,
-  );
-}
-
-function addMonths(date: Date, months: number): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth() + months,
-    1,
-    0,
-    0,
-    0,
-    0,
-  );
 }
 
 function createTrend(
@@ -341,14 +304,14 @@ async function calculatePeriod(
 export async function getCompanyMetrics(): Promise<CompanyMetrics> {
   const now = new Date();
 
-  const todayFrom = startOfDay(now);
-  const yesterdayFrom = addDays(todayFrom, -1);
+  const todayFrom = startOfLondonDay(now);
+  const yesterdayFrom = addLondonDays(todayFrom, -1);
 
-  const weekFrom = startOfWeek(now);
-  const lastWeekFrom = addDays(weekFrom, -7);
+  const weekFrom = startOfLondonWeek(now);
+  const lastWeekFrom = addLondonDays(weekFrom, -7);
 
-  const monthFrom = startOfMonth(now);
-  const lastMonthFrom = addMonths(monthFrom, -1);
+  const monthFrom = startOfLondonMonth(now);
+  const lastMonthFrom = addLondonMonths(monthFrom, -1);
 
   const [
     today,

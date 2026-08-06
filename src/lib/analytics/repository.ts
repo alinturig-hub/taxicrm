@@ -1,5 +1,11 @@
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
+import {
+  addLondonDays,
+  startOfLondonDay,
+  startOfLondonMonth,
+  startOfLondonWeek,
+} from "@/lib/time/london-calendar";
 
 export type StoredCompanyDailyMetric = {
   id: string;
@@ -81,44 +87,12 @@ function mapDailyMetric(
   };
 }
 
-function startOfDay(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function startOfWeek(date: Date): Date {
-  const result = startOfDay(date);
-  const day = result.getDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-
-  return addDays(result, -daysSinceMonday);
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    1,
-    0,
-    0,
-    0,
-    0,
-  );
-}
-
 export async function getDailyMetric(
   date: Date,
 ): Promise<StoredCompanyDailyMetric | null> {
   const metric = await prisma.companyDailyMetric.findUnique({
     where: {
-      date: startOfDay(date),
+      date: startOfLondonDay(date),
     },
   });
 
@@ -133,8 +107,8 @@ export async function getDailyMetricsBetween(
     await prisma.companyDailyMetric.findMany({
       where: {
         date: {
-          gte: startOfDay(from),
-          lt: startOfDay(to),
+          gte: startOfLondonDay(from),
+          lt: startOfLondonDay(to),
         },
       },
       orderBy: {
@@ -153,8 +127,8 @@ export async function getCurrentWeekMetrics() {
   const now = new Date();
 
   return getDailyMetricsBetween(
-    startOfWeek(now),
-    addDays(startOfDay(now), 1),
+    startOfLondonWeek(now),
+    addLondonDays(startOfLondonDay(now), 1),
   );
 }
 
@@ -162,8 +136,8 @@ export async function getCurrentMonthMetrics() {
   const now = new Date();
 
   return getDailyMetricsBetween(
-    startOfMonth(now),
-    addDays(startOfDay(now), 1),
+    startOfLondonMonth(now),
+    addLondonDays(startOfLondonDay(now), 1),
   );
 }
 

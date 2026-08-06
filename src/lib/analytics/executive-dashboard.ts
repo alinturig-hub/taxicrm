@@ -7,50 +7,13 @@ import {
   getDailyMetricsBetween,
   type StoredCompanyDailyMetric,
 } from "@/lib/analytics/repository";
-
-function startOfDay(date: Date): Date {
-  const result = new Date(date);
-  result.setHours(0, 0, 0, 0);
-  return result;
-}
-
-function addDays(date: Date, days: number): Date {
-  const result = new Date(date);
-  result.setDate(result.getDate() + days);
-  return result;
-}
-
-function startOfWeek(date: Date): Date {
-  const result = startOfDay(date);
-  const day = result.getDay();
-  const daysSinceMonday = day === 0 ? 6 : day - 1;
-
-  return addDays(result, -daysSinceMonday);
-}
-
-function startOfMonth(date: Date): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth(),
-    1,
-    0,
-    0,
-    0,
-    0,
-  );
-}
-
-function addMonths(date: Date, months: number): Date {
-  return new Date(
-    date.getFullYear(),
-    date.getMonth() + months,
-    1,
-    0,
-    0,
-    0,
-    0,
-  );
-}
+import {
+  addLondonDays,
+  addLondonMonths,
+  startOfLondonDay,
+  startOfLondonMonth,
+  startOfLondonWeek,
+} from "@/lib/time/london-calendar";
 
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
@@ -178,11 +141,11 @@ function selectMetrics(
   from: Date,
   to: Date,
 ): StoredCompanyDailyMetric[] {
-  const fromTime = startOfDay(from).getTime();
-  const toTime = startOfDay(to).getTime();
+  const fromTime = startOfLondonDay(from).getTime();
+  const toTime = startOfLondonDay(to).getTime();
 
   return metrics.filter((metric) => {
-    const metricTime = startOfDay(metric.date).getTime();
+    const metricTime = startOfLondonDay(metric.date).getTime();
 
     return metricTime >= fromTime && metricTime < toTime;
   });
@@ -190,16 +153,16 @@ function selectMetrics(
 
 export async function getExecutiveDashboard(): Promise<CompanyMetrics> {
   const now = new Date();
-  const tomorrow = addDays(startOfDay(now), 1);
+  const tomorrow = addLondonDays(startOfLondonDay(now), 1);
 
-  const todayFrom = startOfDay(now);
-  const yesterdayFrom = addDays(todayFrom, -1);
+  const todayFrom = startOfLondonDay(now);
+  const yesterdayFrom = addLondonDays(todayFrom, -1);
 
-  const weekFrom = startOfWeek(now);
-  const lastWeekFrom = addDays(weekFrom, -7);
+  const weekFrom = startOfLondonWeek(now);
+  const lastWeekFrom = addLondonDays(weekFrom, -7);
 
-  const monthFrom = startOfMonth(now);
-  const lastMonthFrom = addMonths(monthFrom, -1);
+  const monthFrom = startOfLondonMonth(now);
+  const lastMonthFrom = addLondonMonths(monthFrom, -1);
 
   const storedMetrics = await getDailyMetricsBetween(
     lastMonthFrom,
