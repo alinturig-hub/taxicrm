@@ -1,3 +1,4 @@
+import AutocabApiConfigurationForm from "@/components/integrations/autocab/AutocabApiConfigurationForm";
 import { prisma } from "@/lib/prisma";
 import AutocabEventsTable from "@/components/webhooks/AutocabEventsTable";
 
@@ -104,6 +105,8 @@ export default async function AutocabIntegrationPage() {
           </h2>
         </div>
       </div>
+
+      <AutocabApiConfigurationForm />
 
       <AutocabEventsTable events={events} />
 

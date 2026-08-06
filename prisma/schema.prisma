@@ -436,6 +436,22 @@ model VehicleSnapshot {
   @@index([sourceWebhookId])
 }
 
+model AutocabApiConfiguration {
+  id                   String    @id @default(cuid())
+  provider             String    @unique @default("AUTOCAB")
+  baseUrl              String    @default("https://autocab-api.azure-api.net")
+  apiKeyEncrypted      String?   @db.Text
+  apiKeyLastFour       String?
+  isEnabled            Boolean   @default(false)
+  lastTestedAt         DateTime?
+  lastSuccessfulSyncAt DateTime?
+  lastError            String?   @db.Text
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  @@index([isEnabled])
+}
+
 model CompanyDailyMetric {
   id   String   @id @default(cuid())
   date DateTime @unique @db.Date
