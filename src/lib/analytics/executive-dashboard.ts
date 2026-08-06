@@ -10,6 +10,7 @@ import {
 import {
   addLondonDays,
   addLondonMonths,
+  londonDateKey,
   startOfLondonDay,
   startOfLondonMonth,
   startOfLondonWeek,
@@ -141,11 +142,13 @@ function selectMetrics(
   from: Date,
   to: Date,
 ): StoredCompanyDailyMetric[] {
-  const fromTime = startOfLondonDay(from).getTime();
-  const toTime = startOfLondonDay(to).getTime();
+  const fromTime = londonDateKey(from).getTime();
+  const toTime = londonDateKey(to).getTime();
 
   return metrics.filter((metric) => {
-    const metricTime = startOfLondonDay(metric.date).getTime();
+    const metricTime = londonDateKey(
+      metric.date,
+    ).getTime();
 
     return metricTime >= fromTime && metricTime < toTime;
   });

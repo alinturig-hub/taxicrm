@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   addLondonDays,
+  londonDateKey,
   startOfLondonDay,
 } from "@/lib/time/london-calendar";
 
@@ -33,6 +34,7 @@ export async function buildCompanyDailyMetrics(
 ) {
   const from = startOfLondonDay(date);
   const to = addLondonDays(from, 1);
+  const metricDate = londonDateKey(date);
 
   const [
     bookings,
@@ -190,10 +192,10 @@ export async function buildCompanyDailyMetrics(
 
   return prisma.companyDailyMetric.upsert({
     where: {
-      date: from,
+      date: metricDate,
     },
     create: {
-      date: from,
+      date: metricDate,
       bookings,
       completed,
       cancelled,

@@ -114,6 +114,24 @@ function londonMidnightToUtc(
   return new Date(result);
 }
 
+export function londonDateKey(
+  date: Date,
+): Date {
+  const parts = getLondonDateParts(date);
+
+  return new Date(
+    Date.UTC(
+      parts.year,
+      parts.month - 1,
+      parts.day,
+      0,
+      0,
+      0,
+      0,
+    ),
+  );
+}
+
 export function startOfLondonDay(
   date: Date,
 ): Date {

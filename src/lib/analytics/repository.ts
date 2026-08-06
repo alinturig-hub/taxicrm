@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   addLondonDays,
+  londonDateKey,
   startOfLondonDay,
   startOfLondonMonth,
   startOfLondonWeek,
@@ -92,7 +93,7 @@ export async function getDailyMetric(
 ): Promise<StoredCompanyDailyMetric | null> {
   const metric = await prisma.companyDailyMetric.findUnique({
     where: {
-      date: startOfLondonDay(date),
+      date: londonDateKey(date),
     },
   });
 
@@ -107,8 +108,8 @@ export async function getDailyMetricsBetween(
     await prisma.companyDailyMetric.findMany({
       where: {
         date: {
-          gte: startOfLondonDay(from),
-          lt: startOfLondonDay(to),
+          gte: londonDateKey(from),
+          lt: londonDateKey(to),
         },
       },
       orderBy: {
