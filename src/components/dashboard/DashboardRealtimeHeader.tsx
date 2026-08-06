@@ -31,34 +31,82 @@ export default function DashboardRealtimeHeader() {
       setNow(new Date());
     }, 1000);
 
-    async function refreshDashboardData() {
-      try {
-        await fetch(
-          "/api/internal/analytics/rebuild",
-          {
-            method: "POST",
-            cache: "no-store",
-          },
-        );
-      } catch (error) {
-        console.error(
-          "Dashboard analytics refresh failed:",
-          error,
-        );
-      } finally {
-        router.refresh();
-        setLastRefresh(new Date());
-      }
-    }
+    let socket: WebSocket | null = null;
+    let reconnectTimer:
+      | ReturnType<typeof setTimeout>
+      | null = null;
+    let disposed = false;
 
-    const dataInterval = window.setInterval(
-      refreshDashboardData,
-      10000,
+    const refreshDashboard = () => {
+      router.refresh();
+      setLastRefresh(new Date());
+    };
+
+    const connect = () => {
+      if (disposed) {
+        return;
+      }
+
+      const protocol =
+        window.location.protocol === "https:"
+          ? "wss:"
+          : "ws:";
+
+      socket = new WebSocket(
+        `${protocol}//${window.location.host}/ws/fleet`,
+      );
+
+      socket.addEventListener("message", (event) => {
+        try {
+          const message = JSON.parse(
+            event.data as string,
+          ) as {
+            type?: string;
+          };
+
+          if (
+            message.type ===
+            "dashboard.metrics.updated"
+          ) {
+            refreshDashboard();
+          }
+        } catch {
+          // Ignore malformed WebSocket messages.
+        }
+      });
+
+      socket.addEventListener("close", () => {
+        if (!disposed) {
+          reconnectTimer = setTimeout(
+            connect,
+            2000,
+          );
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        socket?.close();
+      });
+    };
+
+    connect();
+
+    const fallbackInterval = window.setInterval(
+      refreshDashboard,
+      60000,
     );
 
     return () => {
+      disposed = true;
+
       window.clearInterval(clockInterval);
-      window.clearInterval(dataInterval);
+      window.clearInterval(fallbackInterval);
+
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer);
+      }
+
+      socket?.close();
     };
   }, [router]);
 
@@ -97,7 +145,7 @@ export default function DashboardRealtimeHeader() {
         </p>
 
         <p className="mt-2 text-[11px] text-slate-500">
-          Dashboard data refreshes every 10 seconds
+          Dashboard updates instantly from live webhook events
           {lastRefresh
             ? ` · Last refresh ${lastRefresh.toLocaleTimeString(
                 "en-GB",

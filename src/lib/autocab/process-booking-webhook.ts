@@ -8,7 +8,9 @@ import {
   updateBookingStatus,
   type BookingOperationalStatus,
 } from "@/lib/autocab/booking-state";
+import { buildCompanyDailyMetrics } from "@/lib/analytics/build-company-daily-metrics";
 import { prisma } from "@/lib/prisma";
+import { broadcastDashboardMetricUpdate } from "@/lib/realtime/dashboard-broadcast";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
 
@@ -159,6 +161,29 @@ export async function processBookingWebhook(
       description: options.description,
       metadata: payload as Prisma.InputJsonObject,
       occurredAt: new Date(),
+    });
+
+    const metric = await buildCompanyDailyMetrics(
+      webhookEvent.receivedAt,
+    );
+
+    broadcastDashboardMetricUpdate({
+      date: metric.date.toISOString(),
+      revenue: Number(metric.revenue),
+      cashRevenue: Number(metric.cashRevenue),
+      accountRevenue: Number(
+        metric.accountRevenue,
+      ),
+      cardRevenue: Number(metric.cardRevenue),
+      bookings: metric.bookings,
+      completed: metric.completed,
+      cancelled: metric.cancelled,
+      noFare: metric.noFare,
+      rejected: metric.rejected,
+      completionRate: Number(
+        metric.completionRate,
+      ),
+      updatedAt: metric.updatedAt.toISOString(),
     });
   } catch (error) {
     const message =
