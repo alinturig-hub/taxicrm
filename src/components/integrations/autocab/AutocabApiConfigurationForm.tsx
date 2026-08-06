@@ -40,6 +40,28 @@ type TestResponse = {
   providerStatus?: number | null;
 };
 
+type DriverSyncResult = {
+  jobId: string;
+  status: "SUCCESS" | "PARTIAL" | "FAILED";
+  startedAt: string;
+  finishedAt: string;
+  durationMs: number;
+  recordsReceived: number;
+  recordsEligible: number;
+  recordsCreated: number;
+  recordsUpdated: number;
+  recordsSkipped: number;
+  recordsDisabled: number;
+  recordsFailed: number;
+  nextSyncAt: string;
+};
+
+type DriverSyncResponse = {
+  success: boolean;
+  message?: string;
+  result?: DriverSyncResult;
+};
+
 const DEFAULT_BASE_URL =
   "https://autocab-api.azure-api.net";
 
@@ -67,9 +89,14 @@ export default function AutocabApiConfigurationForm() {
   const [testResult, setTestResult] =
     useState<TestResult | null>(null);
 
+  const [driverSyncResult, setDriverSyncResult] =
+    useState<DriverSyncResult | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
+  const [syncingDrivers, setSyncingDrivers] =
+    useState(false);
 
   const [successMessage, setSuccessMessage] =
     useState<string | null>(null);
@@ -229,6 +256,56 @@ export default function AutocabApiConfigurationForm() {
       );
     } finally {
       setTesting(false);
+    }
+  }
+
+  async function syncDrivers() {
+    try {
+      setSyncingDrivers(true);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+      setDriverSyncResult(null);
+
+      const response = await fetch(
+        "/api/dashboard/integrations/autocab/drivers/sync",
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload =
+        (await response.json()) as DriverSyncResponse;
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.result
+      ) {
+        throw new Error(
+          payload.message ??
+            "Autocab drivers could not be synchronized.",
+        );
+      }
+
+      setDriverSyncResult(payload.result);
+      setSuccessMessage(
+        `Driver sync completed: ${payload.result.recordsCreated.toLocaleString(
+          "en-GB",
+        )} created, ${payload.result.recordsUpdated.toLocaleString(
+          "en-GB",
+        )} updated.`,
+      );
+
+      await loadConfiguration();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to synchronize Autocab drivers.",
+      );
+    } finally {
+      setSyncingDrivers(false);
     }
   }
 
@@ -471,6 +548,118 @@ export default function AutocabApiConfigurationForm() {
           </div>
         ) : null}
 
+        <div className="rounded-2xl border border-violet-500/20 bg-violet-950/10 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-400">
+                Driver Synchronization
+              </p>
+
+              <h3 className="mt-2 text-lg font-semibold text-white">
+                Import active drivers
+              </h3>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Imports Autocab driver master data into
+                TaxiCRM. Login, logout and live driver
+                status continue to be updated exclusively
+                by webhooks.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={syncDrivers}
+              disabled={
+                syncingDrivers ||
+                saving ||
+                testing ||
+                !hasStoredKey ||
+                !configuration?.isEnabled
+              }
+              className="inline-flex min-w-40 items-center justify-center rounded-xl bg-violet-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {syncingDrivers
+                ? "Synchronizing…"
+                : "Sync Drivers Now"}
+            </button>
+          </div>
+
+          {!configuration?.isEnabled ? (
+            <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-xs text-amber-300">
+              Enable and save the Autocab REST integration
+              before running a driver synchronization.
+            </p>
+          ) : null}
+
+          {driverSyncResult ? (
+            <div className="mt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Synchronization {driverSyncResult.status.toLowerCase()}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Job {driverSyncResult.jobId}
+                  </p>
+                </div>
+
+                <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-300">
+                  {driverSyncResult.durationMs.toLocaleString(
+                    "en-GB",
+                  )}{" "}
+                  ms
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+                <SyncMetric
+                  label="Received"
+                  value={driverSyncResult.recordsReceived}
+                />
+
+                <SyncMetric
+                  label="Eligible"
+                  value={driverSyncResult.recordsEligible}
+                />
+
+                <SyncMetric
+                  label="Created"
+                  value={driverSyncResult.recordsCreated}
+                />
+
+                <SyncMetric
+                  label="Updated"
+                  value={driverSyncResult.recordsUpdated}
+                />
+
+                <SyncMetric
+                  label="Skipped"
+                  value={driverSyncResult.recordsSkipped}
+                />
+
+                <SyncMetric
+                  label="Disabled"
+                  value={driverSyncResult.recordsDisabled}
+                />
+
+                <SyncMetric
+                  label="Failed"
+                  value={driverSyncResult.recordsFailed}
+                />
+              </div>
+
+              <p className="mt-4 text-xs text-slate-500">
+                Next scheduled sync:{" "}
+                <span className="font-medium text-slate-300">
+                  {formatDate(driverSyncResult.nextSyncAt)}
+                </span>
+              </p>
+            </div>
+          ) : null}
+        </div>
+
         <div className="grid gap-3 border-t border-slate-800 pt-5 sm:grid-cols-3">
           <StatusMetric
             label="Key status"
@@ -527,6 +716,26 @@ function ResultMetric({
       </p>
 
       <p className="mt-1 text-[10px] uppercase tracking-wide text-slate-500">
+        {label}
+      </p>
+    </div>
+  );
+}
+
+function SyncMetric({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <div className="rounded-xl border border-slate-800 bg-slate-950/60 p-3 text-center">
+      <p className="text-lg font-bold text-white">
+        {value.toLocaleString("en-GB")}
+      </p>
+
+      <p className="mt-1 text-[9px] font-semibold uppercase tracking-wide text-slate-500">
         {label}
       </p>
     </div>

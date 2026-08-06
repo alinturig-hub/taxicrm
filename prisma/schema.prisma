@@ -323,23 +323,71 @@ model BookingSnapshot {
   @@index([eventType])
 }
 
+enum IntegrationSyncStatus {
+  RUNNING
+  SUCCESS
+  PARTIAL
+  FAILED
+}
+
+enum IntegrationSyncEntity {
+  DRIVERS
+  VEHICLES
+  COMPANIES
+  ZONES
+  CAPABILITIES
+}
+
 enum DriverShiftStatus {
   ACTIVE
   ENDED
 }
 
 model Driver {
-  id            String   @id @default(cuid())
-  provider      String   @default("AUTOCAB")
-  externalId    String
-  callsign      String?
-  forename      String?
-  surname       String?
+  id         String @id @default(cuid())
+  provider   String @default("AUTOCAB")
+  externalId String
+
+  rowVersion Int?
+  callsign   String?
+  forename   String?
+  surname    String?
+  fullName   String?
+
+  mobile    String?
+  telephone String?
+  email     String?
+
   badgeNumber   String?
   licenceNumber String?
-  rawPayload    Json?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+
+  active    Boolean @default(true)
+  suspended Boolean @default(false)
+  archived  Boolean @default(false)
+
+  companyId      Int?
+  shiftPatternId Int?
+  fleetOwnerId   Int?
+
+  postalAddressSummary String?
+
+  badgeExpiryDate       DateTime?
+  cpcExpiryDate         DateTime?
+  dbsExpiryDate         DateTime?
+  tachographExpiryDate  DateTime?
+  licenceExpiryDate     DateTime?
+  insuranceExpiryDate   DateTime?
+  medicalCardExpiryDate DateTime?
+
+  capabilities Json?
+
+  lastApiSyncAt    DateTime?
+  lastSeenInApiAt  DateTime?
+  markedInactiveAt DateTime?
+  rawPayload       Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   shifts          DriverShift[]
   currentVehicles Vehicle[]         @relation("CurrentVehicleDriver")
@@ -349,6 +397,10 @@ model Driver {
   @@index([callsign])
   @@index([badgeNumber])
   @@index([licenceNumber])
+  @@index([active])
+  @@index([suspended])
+  @@index([companyId])
+  @@index([lastApiSyncAt])
 }
 
 model Vehicle {
@@ -446,10 +498,53 @@ model AutocabApiConfiguration {
   lastTestedAt         DateTime?
   lastSuccessfulSyncAt DateTime?
   lastError            String?   @db.Text
-  createdAt            DateTime  @default(now())
-  updatedAt            DateTime  @updatedAt
+
+  driverSyncEnabled          Boolean                @default(false)
+  driverSyncIntervalMinutes  Int                    @default(1440)
+  importActiveDriversOnly    Boolean                @default(true)
+  createNewDrivers           Boolean                @default(true)
+  updateExistingDrivers      Boolean                @default(true)
+  markMissingDriversInactive Boolean                @default(true)
+  lastDriverSyncAt           DateTime?
+  nextDriverSyncAt           DateTime?
+  lastDriverSyncStatus       IntegrationSyncStatus?
+  lastDriverSyncMessage      String?                @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([isEnabled])
+  @@index([driverSyncEnabled, nextDriverSyncAt])
+}
+
+model IntegrationSyncJob {
+  id       String                @id @default(cuid())
+  provider String                @default("AUTOCAB")
+  entity   IntegrationSyncEntity
+  status   IntegrationSyncStatus @default(RUNNING)
+  source   String                @default("MANUAL")
+
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  durationMs Int?
+
+  recordsReceived Int @default(0)
+  recordsCreated  Int @default(0)
+  recordsUpdated  Int @default(0)
+  recordsSkipped  Int @default(0)
+  recordsDisabled Int @default(0)
+  recordsFailed   Int @default(0)
+
+  message  String? @db.Text
+  error    String? @db.Text
+  metadata Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([provider, entity, startedAt])
+  @@index([status])
+  @@index([startedAt])
 }
 
 model CompanyDailyMetric {

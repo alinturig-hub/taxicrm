@@ -1,10 +1,7 @@
-export type AutocabDriverSummary = {
-  id: number;
-  callsign?: string | null;
-  fullName?: string | null;
-  active?: boolean;
-  suspended?: boolean;
-};
+import type { AutocabDriverRecord } from "@/lib/integrations/autocab/driver-sync/types";
+
+export type AutocabDriverSummary =
+  AutocabDriverRecord;
 
 type AutocabRequestOptions = {
   baseUrl: string;
