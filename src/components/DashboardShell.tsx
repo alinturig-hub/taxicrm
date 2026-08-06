@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { signOut, useSession } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
 import {
   type ReactNode,
@@ -266,11 +266,12 @@ function getActiveGroup(pathname: string) {
 
 export default function DashboardShell({
   children,
+  userEmail,
 }: {
   children: ReactNode;
+  userEmail?: string | null;
 }) {
   const pathname = usePathname();
-  const { data: session } = useSession();
 
   const activeGroup = useMemo(
     () => getActiveGroup(pathname),
@@ -298,8 +299,7 @@ export default function DashboardShell({
   }, [mobileOpen]);
 
   const displayName =
-    session?.user?.name?.trim() ||
-    session?.user?.email?.split("@")[0] ||
+    userEmail?.split("@")[0] ||
     "Account";
 
   const initials = displayName
@@ -317,7 +317,7 @@ export default function DashboardShell({
           openGroup={openGroup}
           setOpenGroup={setOpenGroup}
           displayName={displayName}
-          email={session?.user?.email ?? null}
+          email={userEmail ?? null}
           initials={initials}
         />
       </aside>
@@ -337,7 +337,7 @@ export default function DashboardShell({
               openGroup={openGroup}
               setOpenGroup={setOpenGroup}
               displayName={displayName}
-              email={session?.user?.email ?? null}
+              email={userEmail ?? null}
               initials={initials}
               onNavigate={() =>
                 setMobileOpen(false)

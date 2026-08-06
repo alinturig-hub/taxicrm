@@ -16,7 +16,7 @@ export default async function DashboardLayout({
   }
 
   return (
-    <DashboardShell>
+    <DashboardShell userEmail={session.user.email}>
       {children}
     </DashboardShell>
   );
