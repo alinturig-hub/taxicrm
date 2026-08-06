@@ -11,6 +11,10 @@ function formatCurrency(value: number) {
   }).format(value);
 }
 
+function formatBookings(value: number) {
+  return `${value.toLocaleString("en-GB")} bookings`;
+}
+
 export default function BusinessHealthCard({
   period,
 }: Props) {
@@ -18,20 +22,26 @@ export default function BusinessHealthCard({
     {
       label: "Completion",
       value: `${period.completionRate.toFixed(1)}%`,
+      detail: formatBookings(period.completed),
     },
     {
       label: "Cancellation",
       value: `${period.cancellationRate.toFixed(1)}%`,
+      detail: formatBookings(period.cancelled),
     },
     {
       label: "No-Fare",
-      value: `${period.noFare.toLocaleString("en-GB")} · ${period.noFareRate.toFixed(1)}%`,
+      value: `${period.noFareRate.toFixed(1)}%`,
+      detail: formatBookings(period.noFare),
     },
     {
       label: "Average Booking",
       value: formatCurrency(
         period.averageCompletedBookingValue,
       ),
+      detail: `${period.completed.toLocaleString(
+        "en-GB",
+      )} completed bookings`,
     },
   ];
 
@@ -57,6 +67,10 @@ export default function BusinessHealthCard({
 
             <p className="mt-1.5 text-xl font-bold text-white">
               {item.value}
+            </p>
+
+            <p className="mt-1 text-xs font-medium text-slate-500">
+              {item.detail}
             </p>
           </div>
         ))}
