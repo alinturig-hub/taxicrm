@@ -11,8 +11,21 @@ const ACTIVE_BOOKING_STATUSES = [
 export type LiveOperationsData = {
   generatedAt: Date;
 
+  window: {
+    pastMinutes: number;
+    futureMinutes: number;
+    startsAt: Date;
+    endsAt: Date;
+  };
+
   bookings: {
     active: number;
+    asap: number;
+    advanced: number;
+    overdue: number;
+    dueSoon: number;
+    upcoming: number;
+    later: number;
     created: number;
     dispatched: number;
     accepted: number;
@@ -84,9 +97,69 @@ function startOfToday(date: Date): Date {
   return result;
 }
 
-export async function getLiveOperations(): Promise<LiveOperationsData> {
+type LiveOperationsOptions = {
+  pastMinutes?: number;
+  futureMinutes?: number;
+};
+
+function clampMinutes(
+  value: number | undefined,
+  fallback: number,
+): number {
+  if (
+    value === undefined ||
+    !Number.isFinite(value)
+  ) {
+    return fallback;
+  }
+
+  return Math.min(
+    1440,
+    Math.max(0, Math.round(value)),
+  );
+}
+
+export async function getLiveOperations(
+  options: LiveOperationsOptions = {},
+): Promise<LiveOperationsData> {
   const now = new Date();
   const today = startOfToday(now);
+
+  const pastMinutes = clampMinutes(
+    options.pastMinutes,
+    60,
+  );
+
+  const futureMinutes = clampMinutes(
+    options.futureMinutes,
+    120,
+  );
+
+  const liveWindowStart = new Date(
+    now.getTime() - pastMinutes * 60 * 1000,
+  );
+
+  const liveWindowEnd = new Date(
+    now.getTime() + futureMinutes * 60 * 1000,
+  );
+
+  const dueSoonEnd = new Date(
+    now.getTime() + 10 * 60 * 1000,
+  );
+
+  const upcomingEnd = new Date(
+    now.getTime() + 20 * 60 * 1000,
+  );
+
+  const activeWindowWhere = {
+    status: {
+      in: ACTIVE_BOOKING_STATUSES,
+    },
+    pickupDueTime: {
+      gte: liveWindowStart,
+      lte: liveWindowEnd,
+    },
+  };
 
   const liveThreshold = new Date(
     now.getTime() - 2 * 60 * 1000,
@@ -102,6 +175,12 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
     accepted,
     arrived,
     passengerOnBoard,
+    asap,
+    advanced,
+    overdue,
+    dueSoon,
+    upcoming,
+    later,
     completedToday,
     cancelledToday,
     noFareToday,
@@ -115,30 +194,112 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
     prisma.booking.count({
       where: {
         status: "CREATED",
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
+        },
       },
     }),
 
     prisma.booking.count({
       where: {
         status: "DISPATCHED",
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
+        },
       },
     }),
 
     prisma.booking.count({
       where: {
         status: "ACCEPTED",
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
+        },
       },
     }),
 
     prisma.booking.count({
       where: {
         status: "ARRIVED",
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
+        },
       },
     }),
 
     prisma.booking.count({
       where: {
         status: "POB",
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        ...activeWindowWhere,
+        typeOfBooking: "ASAP",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        ...activeWindowWhere,
+        typeOfBooking: "Advanced",
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lt: now,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        pickupDueTime: {
+          gte: now,
+          lte: dueSoonEnd,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        pickupDueTime: {
+          gt: dueSoonEnd,
+          lte: upcomingEnd,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        pickupDueTime: {
+          gt: upcomingEnd,
+          lte: liveWindowEnd,
+        },
       },
     }),
 
@@ -177,6 +338,7 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
           ],
         },
         pickupDueTime: {
+          gte: liveWindowStart,
           lte: now,
         },
         pickedUpAt: null,
@@ -185,9 +347,7 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
 
     prisma.booking.count({
       where: {
-        status: {
-          in: ACTIVE_BOOKING_STATUSES,
-        },
+        ...activeWindowWhere,
         driverId: null,
       },
     }),
@@ -197,6 +357,10 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
         status: "ACCEPTED",
         acceptedAt: {
           lte: acceptedWarningThreshold,
+        },
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lte: liveWindowEnd,
         },
         pickedUpAt: null,
       },
@@ -361,8 +525,21 @@ export async function getLiveOperations(): Promise<LiveOperationsData> {
   return {
     generatedAt: now,
 
+    window: {
+      pastMinutes,
+      futureMinutes,
+      startsAt: liveWindowStart,
+      endsAt: liveWindowEnd,
+    },
+
     bookings: {
       active: activeBookings,
+      asap,
+      advanced,
+      overdue,
+      dueSoon,
+      upcoming,
+      later,
       created,
       dispatched,
       accepted,
