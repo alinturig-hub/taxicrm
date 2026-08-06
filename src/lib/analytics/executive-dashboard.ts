@@ -106,6 +106,9 @@ function aggregatePeriod(
       result.cancelled += metric.cancelled;
       result.noFare += metric.noFare;
       result.revenue += metric.revenue;
+      result.cashRevenue += metric.cashRevenue;
+      result.accountRevenue += metric.accountRevenue;
+      result.cardRevenue += metric.cardRevenue;
       result.estimatedRevenueLost +=
         metric.estimatedRevenueLost;
 
@@ -117,6 +120,9 @@ function aggregatePeriod(
       cancelled: 0,
       noFare: 0,
       revenue: 0,
+      cashRevenue: 0,
+      accountRevenue: 0,
+      cardRevenue: 0,
       estimatedRevenueLost: 0,
     },
   );
@@ -136,6 +142,11 @@ function aggregatePeriod(
     active: 0,
 
     revenue: round(totals.revenue),
+    cashRevenue: round(totals.cashRevenue),
+    accountRevenue: round(
+      totals.accountRevenue,
+    ),
+    cardRevenue: round(totals.cardRevenue),
     estimatedRevenueLost: round(
       totals.estimatedRevenueLost,
     ),

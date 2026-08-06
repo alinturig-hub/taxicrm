@@ -10,6 +10,9 @@ export type StoredCompanyDailyMetric = {
   noFare: number;
   rejected: number;
   revenue: number;
+  cashRevenue: number;
+  accountRevenue: number;
+  cardRevenue: number;
   estimatedRevenueLost: number;
   averageBookingValue: number;
   completionRate: number;
@@ -34,6 +37,9 @@ function mapDailyMetric(
     noFare: number;
     rejected: number;
     revenue: Prisma.Decimal;
+    cashRevenue: Prisma.Decimal;
+    accountRevenue: Prisma.Decimal;
+    cardRevenue: Prisma.Decimal;
     estimatedRevenueLost: Prisma.Decimal;
     averageBookingValue: Prisma.Decimal;
     completionRate: Prisma.Decimal;
@@ -53,6 +59,11 @@ function mapDailyMetric(
     noFare: metric.noFare,
     rejected: metric.rejected,
     revenue: toNumber(metric.revenue),
+    cashRevenue: toNumber(metric.cashRevenue),
+    accountRevenue: toNumber(
+      metric.accountRevenue,
+    ),
+    cardRevenue: toNumber(metric.cardRevenue),
     estimatedRevenueLost: toNumber(
       metric.estimatedRevenueLost,
     ),

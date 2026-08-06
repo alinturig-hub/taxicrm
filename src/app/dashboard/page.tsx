@@ -36,22 +36,69 @@ export default async function DashboardPage() {
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           <ExecutiveKpiCard
-            label="Revenue Today"
+            label="Total Revenue"
             value={formatCurrency(dashboard.today.revenue)}
-            description="Revenue from completed bookings"
+            description="Company revenue from completed bookings"
+            trend={dashboard.trends.revenueVsYesterday}
+          />
+
+          <ExecutiveKpiCard
+            label="Cash Revenue"
+            value={formatCurrency(
+              dashboard.today.cashRevenue,
+            )}
+            description="Revenue from completed cash bookings"
+          />
+
+          <ExecutiveKpiCard
+            label="Account Revenue"
+            value={formatCurrency(
+              dashboard.today.accountRevenue,
+            )}
+            description="Revenue from completed account bookings"
+          />
+
+          <ExecutiveKpiCard
+            label="Card Revenue"
+            value={formatCurrency(
+              dashboard.today.cardRevenue,
+            )}
+            description="Revenue from completed card bookings"
+          />
+
+          <ExecutiveKpiCard
+            label={
+              dashboard.trends.revenueVsYesterday.direction ===
+              "UP"
+                ? "Revenue Gain"
+                : dashboard.trends.revenueVsYesterday
+                      .direction === "DOWN"
+                  ? "Revenue Decline"
+                  : "Revenue Change"
+            }
+            value={formatCurrency(
+              Math.abs(
+                dashboard.trends.revenueVsYesterday.change,
+              ),
+            )}
+            description="Absolute revenue change versus yesterday"
             trend={dashboard.trends.revenueVsYesterday}
           />
 
           <ExecutiveKpiCard
             label="Bookings Today"
-            value={dashboard.today.bookings.toLocaleString("en-GB")}
+            value={dashboard.today.bookings.toLocaleString(
+              "en-GB",
+            )}
             description="Bookings created today"
             trend={dashboard.trends.bookingsVsYesterday}
           />
 
           <ExecutiveKpiCard
             label="Completion Rate"
-            value={`${dashboard.today.completionRate.toFixed(1)}%`}
+            value={`${dashboard.today.completionRate.toFixed(
+              1,
+            )}%`}
             description="Completed share of bookings"
           />
 
@@ -61,7 +108,9 @@ export default async function DashboardPage() {
               dashboard.today.estimatedRevenueLost,
             )}
             description="Cancelled and no-fare value"
-            trend={dashboard.trends.lostRevenueVsYesterday}
+            trend={
+              dashboard.trends.lostRevenueVsYesterday
+            }
             inverseTrend
           />
         </section>

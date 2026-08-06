@@ -66,8 +66,12 @@ export async function buildCompanyDailyMetrics(
         },
       },
       select: {
-        fare: true,
+        cost: true,
         price: true,
+        paymentType: true,
+        accountAmount: true,
+        cashAmount: true,
+        cardAmount: true,
       },
     }),
 
@@ -110,11 +114,59 @@ export async function buildCompanyDailyMetrics(
     }),
   ]);
 
-  const revenue = completedBookings.reduce(
-    (total, booking) =>
-      total + toNumber(booking.fare ?? booking.price),
-    0,
+  const revenueBreakdown = completedBookings.reduce(
+    (totals, booking) => {
+      const price = toNumber(booking.price);
+      const cost = toNumber(booking.cost);
+
+      const bookingRevenue =
+        price > 0 ? price : cost;
+
+      const explicitAccount =
+        toNumber(booking.accountAmount);
+      const explicitCash =
+        toNumber(booking.cashAmount);
+      const explicitCard =
+        toNumber(booking.cardAmount);
+
+      const paymentType =
+        booking.paymentType?.trim().toUpperCase() ?? "";
+
+      totals.revenue += bookingRevenue;
+
+      if (explicitAccount > 0) {
+        totals.accountRevenue += explicitAccount;
+      } else if (paymentType.includes("ACCOUNT")) {
+        totals.accountRevenue += bookingRevenue;
+      }
+
+      if (explicitCash > 0) {
+        totals.cashRevenue += explicitCash;
+      } else if (paymentType.includes("CASH")) {
+        totals.cashRevenue += bookingRevenue;
+      }
+
+      if (explicitCard > 0) {
+        totals.cardRevenue += explicitCard;
+      } else if (
+        paymentType.includes("CARD") ||
+        paymentType.includes("CREDIT") ||
+        paymentType.includes("DEBIT")
+      ) {
+        totals.cardRevenue += bookingRevenue;
+      }
+
+      return totals;
+    },
+    {
+      revenue: 0,
+      cashRevenue: 0,
+      accountRevenue: 0,
+      cardRevenue: 0,
+    },
   );
+
+  const revenue = revenueBreakdown.revenue;
 
   const cancelledRevenueLost =
     cancelledBookings.reduce(
@@ -156,6 +208,15 @@ export async function buildCompanyDailyMetrics(
       noFare,
       rejected,
       revenue: round(revenue),
+      cashRevenue: round(
+        revenueBreakdown.cashRevenue,
+      ),
+      accountRevenue: round(
+        revenueBreakdown.accountRevenue,
+      ),
+      cardRevenue: round(
+        revenueBreakdown.cardRevenue,
+      ),
       estimatedRevenueLost: round(
         cancelledRevenueLost + noFareRevenueLost,
       ),
@@ -184,6 +245,15 @@ export async function buildCompanyDailyMetrics(
       noFare,
       rejected,
       revenue: round(revenue),
+      cashRevenue: round(
+        revenueBreakdown.cashRevenue,
+      ),
+      accountRevenue: round(
+        revenueBreakdown.accountRevenue,
+      ),
+      cardRevenue: round(
+        revenueBreakdown.cardRevenue,
+      ),
       estimatedRevenueLost: round(
         cancelledRevenueLost + noFareRevenueLost,
       ),
