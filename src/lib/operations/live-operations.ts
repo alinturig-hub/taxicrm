@@ -502,8 +502,22 @@ export async function getLiveOperations(
       event.booking.driverCallSign ||
       null;
 
+    const priceValue =
+      event.booking.price === null
+        ? 0
+        : Number(event.booking.price);
+
     const fareValue =
-      event.booking.fare ?? event.booking.price;
+      event.booking.fare === null
+        ? 0
+        : Number(event.booking.fare);
+
+    const displayPrice =
+      priceValue > 0
+        ? priceValue
+        : fareValue > 0
+          ? fareValue
+          : null;
 
     return {
       id: event.id,
@@ -517,7 +531,7 @@ export async function getLiveOperations(
       driverName,
       pickupAddress: pickup,
       destinationAddress: destination,
-      fare: fareValue === null ? null : Number(fareValue),
+      fare: displayPrice,
       occurredAt: event.occurredAt,
     };
   });
