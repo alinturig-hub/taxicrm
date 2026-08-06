@@ -488,7 +488,9 @@ function SidebarContent({
                 <button
                   type="button"
                   onClick={() =>
-                    setOpenGroup(group.id)
+                    setOpenGroup(
+                      isOpen ? "" : group.id,
+                    )
                   }
                   aria-expanded={isOpen}
                   className={[
