@@ -114,6 +114,32 @@ export function getArray(
   return Array.isArray(value) ? value : null;
 }
 
+function getFirstPresent(
+  object: JsonObject,
+  ...keys: string[]
+): unknown {
+  for (const key of keys) {
+    if (hasOwn(object, key)) {
+      return object[key];
+    }
+  }
+
+  return undefined;
+}
+
+function assignDecimalFromKeys(
+  target: Record<string, unknown>,
+  source: JsonObject,
+  targetKey: string,
+  ...sourceKeys: string[]
+): void {
+  const value = getFirstPresent(source, ...sourceKeys);
+
+  if (value !== undefined) {
+    target[targetKey] = normaliseDecimal(value);
+  }
+}
+
 function getAssignedDriver(payload: JsonObject): JsonObject | null {
   const driverDetails = getObject(payload, "DriverDetails");
 
@@ -265,9 +291,48 @@ export function buildBookingCreateData(
       new Prisma.Decimal(0),
     isStreetPickup: normaliseBoolean(payload.IsStreetPickup) ?? false,
 
-    fare: pricing ? normaliseDecimal(pricing.Fare) : null,
-    cost: pricing ? normaliseDecimal(pricing.Cost) : null,
-    price: pricing ? normaliseDecimal(pricing.Price) : null,
+    fare: pricing
+      ? normaliseDecimal(
+          getFirstPresent(pricing, "Fare", "fare"),
+        )
+      : null,
+    cost: pricing
+      ? normaliseDecimal(
+          getFirstPresent(pricing, "Cost", "cost"),
+        )
+      : null,
+    price: pricing
+      ? normaliseDecimal(
+          getFirstPresent(pricing, "Price", "price"),
+        )
+      : null,
+    accountAmount: pricing
+      ? normaliseDecimal(
+          getFirstPresent(
+            pricing,
+            "AccountAmount",
+            "accountAmount",
+          ),
+        )
+      : null,
+    cashAmount: pricing
+      ? normaliseDecimal(
+          getFirstPresent(
+            pricing,
+            "CashAmount",
+            "cashAmount",
+          ),
+        )
+      : null,
+    cardAmount: pricing
+      ? normaliseDecimal(
+          getFirstPresent(
+            pricing,
+            "CardAmount",
+            "cardAmount",
+          ),
+        )
+      : null,
     extraCost: pricing ? normaliseDecimal(pricing.ExtraCost) : null,
     fixedCost: pricing ? normaliseDecimal(pricing.FixedCost) : null,
     fixedPrice: pricing ? normaliseDecimal(pricing.FixedPrice) : null,
@@ -558,6 +623,9 @@ export function buildBookingUpdateData(
       data.fare = null;
       data.cost = null;
       data.price = null;
+      data.accountAmount = null;
+      data.cashAmount = null;
+      data.cardAmount = null;
       data.extraCost = null;
       data.fixedCost = null;
       data.fixedPrice = null;
@@ -571,9 +639,48 @@ export function buildBookingUpdateData(
       data.pricingSource = null;
       data.promotionCodeDiscount = Prisma.JsonNull;
     } else {
-      assignIfPresent(data, pricing, "Fare", "fare", normaliseDecimal);
-      assignIfPresent(data, pricing, "Cost", "cost", normaliseDecimal);
-      assignIfPresent(data, pricing, "Price", "price", normaliseDecimal);
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "fare",
+        "Fare",
+        "fare",
+      );
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "cost",
+        "Cost",
+        "cost",
+      );
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "price",
+        "Price",
+        "price",
+      );
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "accountAmount",
+        "AccountAmount",
+        "accountAmount",
+      );
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "cashAmount",
+        "CashAmount",
+        "cashAmount",
+      );
+      assignDecimalFromKeys(
+        data,
+        pricing,
+        "cardAmount",
+        "CardAmount",
+        "cardAmount",
+      );
       assignIfPresent(
         data,
         pricing,

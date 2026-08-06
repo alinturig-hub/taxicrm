@@ -131,6 +131,9 @@ model Booking {
   fare                  Decimal? @db.Decimal(12, 2)
   cost                  Decimal? @db.Decimal(12, 2)
   price                 Decimal? @db.Decimal(12, 2)
+  accountAmount         Decimal? @db.Decimal(12, 2)
+  cashAmount            Decimal? @db.Decimal(12, 2)
+  cardAmount            Decimal? @db.Decimal(12, 2)
   extraCost             Decimal? @db.Decimal(12, 2)
   fixedCost             Decimal? @db.Decimal(12, 2)
   fixedPrice            Decimal? @db.Decimal(12, 2)
@@ -558,6 +561,9 @@ model CompanyDailyMetric {
   rejected  Int @default(0)
 
   revenue              Decimal @default(0) @db.Decimal(14, 2)
+  cashRevenue          Decimal @default(0) @db.Decimal(14, 2)
+  accountRevenue       Decimal @default(0) @db.Decimal(14, 2)
+  cardRevenue          Decimal @default(0) @db.Decimal(14, 2)
   estimatedRevenueLost Decimal @default(0) @db.Decimal(14, 2)
   averageBookingValue  Decimal @default(0) @db.Decimal(12, 2)
 
