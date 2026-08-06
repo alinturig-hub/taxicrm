@@ -31,10 +31,30 @@ export default function DashboardRealtimeHeader() {
       setNow(new Date());
     }, 1000);
 
-    const dataInterval = window.setInterval(() => {
-      router.refresh();
-      setLastRefresh(new Date());
-    }, 10000);
+    async function refreshDashboardData() {
+      try {
+        await fetch(
+          "/api/internal/analytics/rebuild",
+          {
+            method: "POST",
+            cache: "no-store",
+          },
+        );
+      } catch (error) {
+        console.error(
+          "Dashboard analytics refresh failed:",
+          error,
+        );
+      } finally {
+        router.refresh();
+        setLastRefresh(new Date());
+      }
+    }
+
+    const dataInterval = window.setInterval(
+      refreshDashboardData,
+      10000,
+    );
 
     return () => {
       window.clearInterval(clockInterval);

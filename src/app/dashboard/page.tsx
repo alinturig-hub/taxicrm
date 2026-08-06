@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import BusinessHealthCard from "@/components/dashboard/BusinessHealthCard";
+import DashboardRealtimeHeader from "@/components/dashboard/DashboardRealtimeHeader";
 import ExecutiveKpiCard from "@/components/dashboard/ExecutiveKpiCard";
 import ExecutiveSummary from "@/components/dashboard/ExecutiveSummary";
 import PeriodComparisonCard from "@/components/dashboard/PeriodComparisonCard";
@@ -29,19 +30,8 @@ export default async function DashboardPage() {
   return (
     <main className="min-h-screen bg-slate-950 px-4 py-5 text-white sm:px-6 sm:py-7 xl:px-8">
       <div className="mx-auto max-w-7xl">
-        <header className="mb-5 sm:mb-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-400 sm:text-sm">
-            Executive Dashboard
-          </p>
-
-          <h1 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl xl:text-4xl">
-            Company performance
-          </h1>
-
-          <p className="mt-2 max-w-2xl text-xs leading-5 text-slate-400 sm:text-sm">
-            Live financial and operational intelligence from real
-            company data.
-          </p>
+        <header className="mb-6">
+          <DashboardRealtimeHeader />
         </header>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
