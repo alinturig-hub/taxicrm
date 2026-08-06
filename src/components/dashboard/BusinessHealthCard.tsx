@@ -25,7 +25,7 @@ export default function BusinessHealthCard({
     },
     {
       label: "No-Fare",
-      value: `${period.noFareRate.toFixed(1)}%`,
+      value: `${period.noFare.toLocaleString("en-GB")} · ${period.noFareRate.toFixed(1)}%`,
     },
     {
       label: "Average Booking",
