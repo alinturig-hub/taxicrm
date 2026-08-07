@@ -9,6 +9,7 @@ import { processBookingNoFareWebhook } from "@/lib/autocab/process-booking-nofar
 import { processBookingCancelledWebhook } from "@/lib/autocab/process-booking-cancelled";
 import { processBookingRejectedWebhook } from "@/lib/autocab/process-booking-rejected";
 import { processBookingRecoveredWebhook } from "@/lib/autocab/process-booking-recovered";
+import { processBookingRunningLateWebhook } from "@/lib/autocab/process-booking-running-late";
 import { processDriverShiftStartedEndedWebhook } from "@/lib/autocab/process-driver-shift-started-ended";
 import { processVehicleTracksChangedWebhook } from "@/lib/autocab/process-vehicle-tracks-changed";
 
@@ -160,6 +161,17 @@ const eventDefinitions = [
     createTimeline: true,
     aiRelevant: true,
     handler: processBookingRecoveredWebhook,
+  },
+  {
+    eventType: "BookingRunningLate",
+    title: "Booking Running Late",
+    description: "Booking reported as running late by Autocab.",
+    category: "BOOKING",
+    stage: "CONTEXT",
+    createSnapshot: true,
+    createTimeline: true,
+    aiRelevant: true,
+    handler: processBookingRunningLateWebhook,
   },
   {
     eventType: "BookingModified",
