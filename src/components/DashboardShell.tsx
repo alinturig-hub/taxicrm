@@ -80,7 +80,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Drivers",
         href: "/dashboard/drivers",
         icon: "drivers",
-        available: false,
+        available: true,
       },
       {
         label: "Fleet",
