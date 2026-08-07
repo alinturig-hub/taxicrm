@@ -790,7 +790,7 @@ export default function LiveOperationsDashboard() {
                     tone: "cyan" as const,
                   },
                   {
-                    label: "Arrived",
+                    label: "DAP",
                     value: operations.bookings.arrived,
                     tone: "amber" as const,
                   },
