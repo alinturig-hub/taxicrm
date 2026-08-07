@@ -407,14 +407,52 @@ model Driver {
 }
 
 model Vehicle {
-  id           String  @id @default(cuid())
-  provider     String  @default("AUTOCAB")
-  externalId   String
-  callsign     String?
+  id         String @id @default(cuid())
+  provider   String @default("AUTOCAB")
+  externalId String
+
+  rowVersion Int?
+  companyId  Int?
+  callsign   String?
+
+  make              String?
+  model             String?
+  colour            String?
+  yearOfManufacture Int?
+  vehicleType       String?
+  size              Int?
+
   deviceId     String?
   vinNumber    String?
   plateNumber  String?
   registration String?
+  phoneNumber  String?
+
+  isSuspended Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  fleetOwnerId        Int?
+  ownerDriverId       Int?
+  secondOwnerDriverId Int?
+
+  plateExpiryDate     DateTime?
+  insuranceExpiryDate DateTime?
+  motExpiryDate       DateTime?
+  roadTaxExpiryDate   DateTime?
+
+  mileage Int?
+
+  mdtId        Int?
+  terminalId   Int?
+  terminalType String?
+  mdtVersion   String?
+  imei         String?
+  serial       String?
+  simNumber1   String?
+  simNumber2   String?
+
+  capabilities Json?
+  drivers      Json?
   rawPayload   Json?
 
   currentDriverId  String?

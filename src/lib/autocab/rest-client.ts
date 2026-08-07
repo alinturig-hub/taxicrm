@@ -107,3 +107,84 @@ export async function getAutocabDrivers({
     clearTimeout(timeout);
   }
 }
+
+export async function getAutocabVehicles({
+  baseUrl,
+  apiKey,
+  timeoutMs = 15000,
+}: AutocabRequestOptions): Promise<
+  import("@/lib/integrations/autocab/vehicle-sync/types").AutocabVehicleRecord[]
+> {
+  const controller = new AbortController();
+
+  const timeout = setTimeout(() => {
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    const response = await fetch(
+      `${normaliseBaseUrl(baseUrl)}/vehicle/v1/vehicles`,
+      {
+        method: "GET",
+        headers: {
+          Accept: "application/json",
+          "Ocp-Apim-Subscription-Key": apiKey,
+        },
+        cache: "no-store",
+        signal: controller.signal,
+      },
+    );
+
+    const responseText = await response.text();
+
+    if (!response.ok) {
+      throw new AutocabRestError(
+        `Autocab returned HTTP ${response.status}.`,
+        {
+          status: response.status,
+          responseBody: responseText.slice(0, 1000),
+        },
+      );
+    }
+
+    let payload: unknown;
+
+    try {
+      payload = JSON.parse(responseText);
+    } catch {
+      throw new AutocabRestError(
+        "Autocab returned invalid JSON.",
+        {
+          status: response.status,
+          responseBody: responseText.slice(0, 1000),
+        },
+      );
+    }
+
+    if (!Array.isArray(payload)) {
+      throw new AutocabRestError(
+        "Autocab vehicles response is not an array.",
+        {
+          status: response.status,
+        },
+      );
+    }
+
+    return payload as import(
+      "@/lib/integrations/autocab/vehicle-sync/types"
+    ).AutocabVehicleRecord[];
+  } catch (error) {
+    if (
+      error instanceof Error &&
+      error.name === "AbortError"
+    ) {
+      throw new AutocabRestError(
+        `Autocab request timed out after ${timeoutMs}ms.`,
+      );
+    }
+
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
