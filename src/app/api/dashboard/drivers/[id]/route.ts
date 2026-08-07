@@ -318,6 +318,7 @@ export async function GET(
         make: true,
         model: true,
         ownerDriverId: true,
+        capabilities: true,
       },
     }),
   ]);

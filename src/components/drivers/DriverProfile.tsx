@@ -12,6 +12,7 @@ type Vehicle = {
   make: string | null;
   model: string | null;
   ownerDriverId?: number | null;
+  capabilities?: unknown;
 };
 
 type DriverProfileResponse = {
@@ -146,8 +147,10 @@ export default function DriverProfile({
           </h1>
 
           <p className="mt-2 text-sm text-slate-400">
-            Callsign {driver.callsign ?? "—"} · Autocab ID{" "}
-            {driver.externalId}
+            Callsign {driver.callsign ?? "—"}
+          </p>
+          <p className="mt-1 text-xs text-slate-600">
+            Autocab Driver ID {driver.externalId}
           </p>
         </div>
 
@@ -170,7 +173,7 @@ export default function DriverProfile({
           Today
         </h2>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Hours"
             value={analytics.today.hours}
@@ -207,7 +210,7 @@ export default function DriverProfile({
           This Week
         </h2>
 
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-7">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
           <MetricCard
             label="Hours"
             value={analytics.week.hours}
@@ -282,8 +285,25 @@ export default function DriverProfile({
                   <p className="text-xs text-slate-500">
                     {vehicle.registration ??
                       vehicle.plateNumber ??
-                      vehicle.externalId}
+                      "No registration"}
                   </p>
+                  <p className="mt-1 text-[11px] text-slate-600">
+                    Autocab Vehicle ID {vehicle.externalId}
+                  </p>
+
+                  {Array.isArray(vehicle.capabilities) &&
+                  vehicle.capabilities.length > 0 ? (
+                    <div className="mt-2 flex flex-wrap gap-1">
+                      {vehicle.capabilities.map((capability) => (
+                        <span
+                          key={String(capability)}
+                          className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-slate-400"
+                        >
+                          {String(capability)}
+                        </span>
+                      ))}
+                    </div>
+                  ) : null}
                 </div>
 
                 <span className="text-xs font-medium text-slate-400">
