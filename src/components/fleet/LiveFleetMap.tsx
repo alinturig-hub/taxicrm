@@ -8,6 +8,7 @@ import {
   MapContainer,
   Popup,
   TileLayer,
+  Tooltip,
   useMap,
 } from "react-leaflet";
 import {
@@ -33,6 +34,7 @@ type LiveVehicle = {
   callsign: string | null;
   registration: string | null;
   status: string;
+  operationalStatus: "CLEAR" | "DOW" | "DAP" | "POB";
   bookingId: number | null;
   latitude: number;
   longitude: number;
@@ -41,6 +43,27 @@ type LiveVehicle = {
   isLive: boolean;
   driver: Driver | null;
 };
+
+function operationalStatusFromVehicleStatus(
+  status: string,
+): "CLEAR" | "DOW" | "POB" {
+  if (
+    status === "BusyMeterOnFromClear" ||
+    status === "BusyMeterOnFromMeterOffCash" ||
+    status === "BusyMeterOnFromMeterOffAccount"
+  ) {
+    return "POB";
+  }
+
+  if (
+    status === "BusyMeterOff" ||
+    status === "BusyMeterOffAccount"
+  ) {
+    return "DOW";
+  }
+
+  return "CLEAR";
+}
 
 type FleetSummary = {
   total: number;
@@ -395,6 +418,10 @@ export default function LiveFleetMap() {
 
         const vehicle: LiveVehicle = {
           ...incomingVehicle,
+          operationalStatus:
+            operationalStatusFromVehicleStatus(
+              incomingVehicle.status,
+            ),
           ageSeconds: 0,
           isLive: true,
         };
@@ -809,6 +836,20 @@ export default function LiveFleetMap() {
                   fillOpacity: 0.95,
                 }}
               >
+                <Tooltip
+                  permanent
+                  direction="top"
+                  offset={[0, -8]}
+                  opacity={0.95}
+                  className="fleet-callsign-tooltip"
+                >
+                  {(vehicle.driver?.callsign ||
+                    vehicle.callsign ||
+                    vehicle.externalId) +
+                    " · " +
+                    vehicle.operationalStatus}
+                </Tooltip>
+
                 <Popup>
                   <div className="min-w-56 text-sm">
                     <p className="text-base font-bold">
