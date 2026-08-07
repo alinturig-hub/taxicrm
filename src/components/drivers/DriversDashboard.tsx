@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 type DriverVehicle = {
@@ -243,9 +244,12 @@ export default function DriversDashboard() {
                       </div>
 
                       <div>
-                        <p className="font-semibold text-white">
+                        <Link
+                          href={`/dashboard/drivers/${driver.id}`}
+                          className="font-semibold text-white hover:text-blue-300"
+                        >
                           {driver.fullName || "Unnamed driver"}
-                        </p>
+                        </Link>
                         <p className="mt-1 text-xs text-slate-500">
                           Autocab ID {driver.externalId}
                         </p>
