@@ -62,6 +62,14 @@ type DriverSyncResponse = {
   result?: DriverSyncResult;
 };
 
+type VehicleSyncResult = DriverSyncResult;
+
+type VehicleSyncResponse = {
+  success: boolean;
+  message?: string;
+  result?: VehicleSyncResult;
+};
+
 const DEFAULT_BASE_URL =
   "https://autocab-api.azure-api.net";
 
@@ -92,10 +100,15 @@ export default function AutocabApiConfigurationForm() {
   const [driverSyncResult, setDriverSyncResult] =
     useState<DriverSyncResult | null>(null);
 
+  const [vehicleSyncResult, setVehicleSyncResult] =
+    useState<VehicleSyncResult | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncingDrivers, setSyncingDrivers] =
+    useState(false);
+  const [syncingVehicles, setSyncingVehicles] =
     useState(false);
 
   const [successMessage, setSuccessMessage] =
@@ -306,6 +319,56 @@ export default function AutocabApiConfigurationForm() {
       );
     } finally {
       setSyncingDrivers(false);
+    }
+  }
+
+  async function syncVehicles() {
+    try {
+      setSyncingVehicles(true);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+      setVehicleSyncResult(null);
+
+      const response = await fetch(
+        "/api/dashboard/integrations/autocab/vehicles/sync",
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload =
+        (await response.json()) as VehicleSyncResponse;
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.result
+      ) {
+        throw new Error(
+          payload.message ??
+            "Autocab vehicles could not be synchronized.",
+        );
+      }
+
+      setVehicleSyncResult(payload.result);
+      setSuccessMessage(
+        `Vehicle sync completed: ${payload.result.recordsCreated.toLocaleString(
+          "en-GB",
+        )} created, ${payload.result.recordsUpdated.toLocaleString(
+          "en-GB",
+        )} updated.`,
+      );
+
+      await loadConfiguration();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to synchronize Autocab vehicles.",
+      );
+    } finally {
+      setSyncingVehicles(false);
     }
   }
 
@@ -660,7 +723,114 @@ export default function AutocabApiConfigurationForm() {
           ) : null}
         </div>
 
-        <div className="grid gap-3 border-t border-slate-800 pt-5 sm:grid-cols-3">
+        <div className="rounded-2xl border border-cyan-500/20 bg-cyan-950/10 p-4 sm:p-5">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-cyan-400">
+            Vehicle Synchronization
+          </p>
+
+          <h3 className="mt-2 text-lg font-semibold text-white">
+            Import active vehicles
+          </h3>
+
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+            Imports Autocab vehicle master data into TaxiCRM.
+            Driver allocation, shift state and live vehicle
+            status continue to be reconciled from operational
+            events and webhooks.
+          </p>
+        </div>
+
+        <button
+          type="button"
+          onClick={syncVehicles}
+          disabled={
+            syncingVehicles ||
+            syncingDrivers ||
+            saving ||
+            testing ||
+            !hasStoredKey ||
+            !configuration?.isEnabled
+          }
+          className="inline-flex min-w-40 items-center justify-center rounded-xl bg-cyan-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-cyan-500 disabled:cursor-not-allowed disabled:opacity-50"
+        >
+          {syncingVehicles
+            ? "Synchronizing…"
+            : "Sync Vehicles Now"}
+        </button>
+      </div>
+
+      {!configuration?.isEnabled ? (
+        <p className="mt-4 rounded-xl border border-amber-500/20 bg-amber-950/10 px-4 py-3 text-xs text-amber-300">
+          Enable and save the Autocab REST integration
+          before running a vehicle synchronization.
+        </p>
+      ) : null}
+
+      {vehicleSyncResult ? (
+        <div className="mt-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="text-sm font-semibold text-emerald-300">
+                Synchronization {vehicleSyncResult.status.toLowerCase()}
+              </p>
+
+              <p className="mt-1 text-xs text-slate-500">
+                Job {vehicleSyncResult.jobId}
+              </p>
+            </div>
+
+            <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-300">
+              {vehicleSyncResult.durationMs.toLocaleString(
+                "en-GB",
+              )}{" "}
+              ms
+            </span>
+          </div>
+
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+            <SyncMetric
+              label="Received"
+              value={vehicleSyncResult.recordsReceived}
+            />
+            <SyncMetric
+              label="Eligible"
+              value={vehicleSyncResult.recordsEligible}
+            />
+            <SyncMetric
+              label="Created"
+              value={vehicleSyncResult.recordsCreated}
+            />
+            <SyncMetric
+              label="Updated"
+              value={vehicleSyncResult.recordsUpdated}
+            />
+            <SyncMetric
+              label="Skipped"
+              value={vehicleSyncResult.recordsSkipped}
+            />
+            <SyncMetric
+              label="Disabled"
+              value={vehicleSyncResult.recordsDisabled}
+            />
+            <SyncMetric
+              label="Failed"
+              value={vehicleSyncResult.recordsFailed}
+            />
+          </div>
+
+          <p className="mt-4 text-xs text-slate-500">
+            Next scheduled sync:{" "}
+            <span className="font-medium text-slate-300">
+              {formatDate(vehicleSyncResult.nextSyncAt)}
+            </span>
+          </p>
+        </div>
+      ) : null}
+    </div>
+
+    <div className="grid gap-3 border-t border-slate-800 pt-5 sm:grid-cols-3">
           <StatusMetric
             label="Key status"
             value={
