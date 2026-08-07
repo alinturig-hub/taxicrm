@@ -206,8 +206,6 @@ export async function processVehicleTracksChangedWebhook(
                 licenceNumber: normaliseString(
                   driverPayload.LicenceNumber,
                 ),
-                rawPayload:
-                  driverPayload as Prisma.InputJsonObject,
               },
             });
 
@@ -282,8 +280,6 @@ export async function processVehicleTracksChangedWebhook(
             registration: normaliseString(
               vehiclePayload.Registration,
             ),
-            rawPayload:
-              vehiclePayload as Prisma.InputJsonObject,
             currentDriverId: driverId,
             currentStatus: vehicleStatus,
             currentBookingId: bookingId,
@@ -317,6 +313,43 @@ export async function processVehicleTracksChangedWebhook(
             lastSeenAt: snapshotAt,
           },
         });
+
+        const latestSnapshot =
+          await tx.vehicleSnapshot.findFirst({
+            where: {
+              vehicleId: vehicle.id,
+            },
+            orderBy: {
+              snapshotAt: "desc",
+            },
+            select: {
+              snapshotAt: true,
+            },
+          });
+
+        const shouldCreateSnapshot =
+          !latestSnapshot ||
+          snapshotAt.getTime() -
+            latestSnapshot.snapshotAt.getTime() >=
+            30 * 1000;
+
+        if (shouldCreateSnapshot) {
+          await tx.vehicleSnapshot.create({
+            data: {
+              provider: "AUTOCAB",
+              vehicleId: vehicle.id,
+              driverId,
+              bookingId,
+              vehicleStatus,
+              latitude,
+              longitude,
+              snapshotAt,
+              sourceWebhookId: webhookEvent.id,
+              rawPayload:
+                track as Prisma.InputJsonObject,
+            },
+          });
+        }
 
         realtimeUpdates.push({
           id: vehicle.id,
