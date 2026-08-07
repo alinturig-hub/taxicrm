@@ -23,6 +23,28 @@ function revenueValue(
   return p > 0 ? p : c;
 }
 
+function parseLondonDate(value: string | null) {
+  if (!value) {
+    return null;
+  }
+
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const probe = new Date(
+    Date.UTC(year, month - 1, day, 12, 0, 0),
+  );
+
+  return startOfLondonDay(probe);
+}
+
 function hoursBetween(
   start: Date,
   end: Date,
@@ -237,23 +259,54 @@ export async function GET(
   }
 
   const now = new Date();
+  const url = new URL(request.url);
+
   const todayFrom =
     startOfLondonDay(now);
   const todayTo =
     addLondonDays(todayFrom, 1);
 
+  const yesterdayFrom =
+    addLondonDays(todayFrom, -1);
+  const yesterdayTo =
+    todayFrom;
+
+  // Business week:
+  // Monday 00:00:00 -> Sunday 23:59:59 Europe/London.
+  // Internally represented as [Monday 00:00, next Monday 00:00).
   const weekFrom =
     startOfLondonWeek(now);
   const weekTo =
     addLondonDays(weekFrom, 7);
 
+  const customFrom =
+    parseLondonDate(url.searchParams.get("from"));
+  const customToStart =
+    parseLondonDate(url.searchParams.get("to"));
+
+  const customTo =
+    customToStart
+      ? addLondonDays(customToStart, 1)
+      : null;
+
+  const hasCustomRange =
+    customFrom !== null &&
+    customTo !== null &&
+    customFrom < customTo;
+
   const [
     todayHours,
+    yesterdayHours,
     weekHours,
+    customHours,
     todayBookings,
+    yesterdayBookings,
     weekBookings,
+    customBookings,
     todayRejections,
+    yesterdayRejections,
     weekRejections,
+    customRejections,
     assignedVehicles,
   ] = await Promise.all([
     calculateShiftHours(
@@ -264,10 +317,24 @@ export async function GET(
     ),
     calculateShiftHours(
       driver.id,
+      yesterdayFrom,
+      yesterdayTo,
+      now,
+    ),
+    calculateShiftHours(
+      driver.id,
       weekFrom,
       weekTo,
       now,
     ),
+    hasCustomRange
+      ? calculateShiftHours(
+          driver.id,
+          customFrom,
+          customTo,
+          now,
+        )
+      : Promise.resolve(0),
     calculateBookingMetrics(
       driver.externalId,
       todayFrom,
@@ -275,9 +342,27 @@ export async function GET(
     ),
     calculateBookingMetrics(
       driver.externalId,
+      yesterdayFrom,
+      yesterdayTo,
+    ),
+    calculateBookingMetrics(
+      driver.externalId,
       weekFrom,
       weekTo,
     ),
+    hasCustomRange
+      ? calculateBookingMetrics(
+          driver.externalId,
+          customFrom,
+          customTo,
+        )
+      : Promise.resolve({
+          jobs: 0,
+          completed: 0,
+          noFare: 0,
+          cancelled: 0,
+          revenue: 0,
+        }),
     calculateRejections(
       driver.externalId,
       todayFrom,
@@ -285,9 +370,21 @@ export async function GET(
     ),
     calculateRejections(
       driver.externalId,
+      yesterdayFrom,
+      yesterdayTo,
+    ),
+    calculateRejections(
+      driver.externalId,
       weekFrom,
       weekTo,
     ),
+    hasCustomRange
+      ? calculateRejections(
+          driver.externalId,
+          customFrom,
+          customTo,
+        )
+      : Promise.resolve(0),
     prisma.vehicle.findMany({
       where: {
         provider: "AUTOCAB",
@@ -358,6 +455,14 @@ export async function GET(
         rejections:
           todayRejections,
       },
+      yesterday: {
+        hours:
+          Math.round(yesterdayHours * 100) /
+          100,
+        ...yesterdayBookings,
+        rejections:
+          yesterdayRejections,
+      },
       week: {
         hours:
           Math.round(weekHours * 100) /
@@ -365,6 +470,23 @@ export async function GET(
         ...weekBookings,
         rejections:
           weekRejections,
+      },
+      custom: hasCustomRange
+        ? {
+            from: url.searchParams.get("from"),
+            to: url.searchParams.get("to"),
+            hours:
+              Math.round(customHours * 100) /
+              100,
+            ...customBookings,
+            rejections:
+              customRejections,
+          }
+        : null,
+      weekRule: {
+        timezone: "Europe/London",
+        starts: "Monday 00:00:00",
+        ends: "Sunday 23:59:59",
       },
     },
   });
