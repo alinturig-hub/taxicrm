@@ -800,12 +800,6 @@ export default function LiveOperationsDashboard() {
                       operations.bookings.passengerOnBoard,
                     tone: "violet" as const,
                   },
-                  {
-                    label: "Completed today",
-                    value:
-                      operations.bookings.completedToday,
-                    tone: "emerald" as const,
-                  },
                 ];
 
                 const maximum = Math.max(
