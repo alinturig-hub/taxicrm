@@ -383,7 +383,11 @@ export async function getLiveOperations(
       where: {
         status: "ACTIVE",
       },
+      orderBy: {
+        startedAt: "desc",
+      },
       select: {
+        driverId: true,
         vehicleId: true,
       },
     }),
@@ -461,12 +465,22 @@ export async function getLiveOperations(
     },
   );
 
-  const driversWithVehicle = activeShifts.filter(
+  const uniqueActiveShifts = Array.from(
+    activeShifts.reduce((byDriver, shift) => {
+      if (!byDriver.has(shift.driverId)) {
+        byDriver.set(shift.driverId, shift);
+      }
+      return byDriver;
+    }, new Map<string, (typeof activeShifts)[number]>()),
+    ([, shift]) => shift,
+  );
+
+  const driversWithVehicle = uniqueActiveShifts.filter(
     (shift) => shift.vehicleId !== null,
   ).length;
 
   const driversWithoutVehicle =
-    activeShifts.length - driversWithVehicle;
+    uniqueActiveShifts.length - driversWithVehicle;
 
   const activeBookings =
     created +
@@ -569,7 +583,7 @@ export async function getLiveOperations(
     fleet,
 
     drivers: {
-      onShift: activeShifts.length,
+      onShift: uniqueActiveShifts.length,
       withVehicle: driversWithVehicle,
       withoutVehicle: driversWithoutVehicle,
     },
