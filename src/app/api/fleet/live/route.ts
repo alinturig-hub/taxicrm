@@ -6,6 +6,36 @@ import { prisma } from "@/lib/prisma";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
+function getOperationalStatus(
+  vehicleStatus: string | null,
+  bookingStatus: string | undefined,
+): "CLEAR" | "DOW" | "DAP" | "POB" {
+  if (bookingStatus === "POB") {
+    return "POB";
+  }
+
+  if (bookingStatus === "ARRIVED") {
+    return "DAP";
+  }
+
+  if (
+    vehicleStatus === "BusyMeterOnFromClear" ||
+    vehicleStatus === "BusyMeterOnFromMeterOffCash" ||
+    vehicleStatus === "BusyMeterOnFromMeterOffAccount"
+  ) {
+    return "POB";
+  }
+
+  if (
+    vehicleStatus === "BusyMeterOff" ||
+    vehicleStatus === "BusyMeterOffAccount"
+  ) {
+    return "DOW";
+  }
+
+  return "CLEAR";
+}
+
 function toNumber(value: unknown): number | null {
   if (value === null || value === undefined) {
     return null;
@@ -43,6 +73,9 @@ export async function GET() {
         lastSeenAt: {
           not: null,
         },
+        currentStatus: {
+          not: "NotWorking",
+        },
       },
       orderBy: [
         {
@@ -76,6 +109,41 @@ export async function GET() {
         },
       },
     });
+
+    const currentBookingIds = Array.from(
+      new Set(
+        vehicles
+          .map((vehicle) => vehicle.currentBookingId)
+          .filter(
+            (bookingId): bookingId is number =>
+              bookingId !== null && bookingId > 0,
+          )
+          .map(String),
+      ),
+    );
+
+    const currentBookings =
+      currentBookingIds.length > 0
+        ? await prisma.booking.findMany({
+            where: {
+              provider: "AUTOCAB",
+              externalId: {
+                in: currentBookingIds,
+              },
+            },
+            select: {
+              externalId: true,
+              status: true,
+            },
+          })
+        : [];
+
+    const bookingStatusByExternalId = new Map(
+      currentBookings.map((booking) => [
+        booking.externalId,
+        booking.status,
+      ]),
+    );
 
     const now = Date.now();
 
@@ -118,6 +186,15 @@ export async function GET() {
           registration:
             vehicle.registration || vehicle.plateNumber || null,
           status: vehicle.currentStatus || "Unknown",
+          operationalStatus: getOperationalStatus(
+            vehicle.currentStatus,
+            vehicle.currentBookingId &&
+              vehicle.currentBookingId > 0
+              ? bookingStatusByExternalId.get(
+                  String(vehicle.currentBookingId),
+                )
+              : undefined,
+          ),
           bookingId:
             vehicle.currentBookingId &&
             vehicle.currentBookingId > 0
