@@ -148,12 +148,23 @@ async function calculateBookingMetrics(
         booking.status === "CANCELLED",
     ).length,
     revenue: bookings.reduce(
-      (total, booking) =>
-        total +
-        revenueValue(
-          booking.price,
-          booking.cost,
-        ),
+      (total, booking) => {
+        const isCompleted =
+          booking.completedAt !== null ||
+          booking.status === "COMPLETED";
+
+        if (!isCompleted) {
+          return total;
+        }
+
+        return (
+          total +
+          revenueValue(
+            booking.price,
+            booking.cost,
+          )
+        );
+      },
       0,
     ),
   };
