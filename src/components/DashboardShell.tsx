@@ -17,7 +17,6 @@ type IconName =
   | "drivers"
   | "fleet"
   | "customers"
-  | "dispatch"
   | "executive"
   | "performance"
   | "revenue"
@@ -93,12 +92,6 @@ const navigationGroups: NavigationGroup[] = [
         label: "Customers",
         href: "/dashboard/customers",
         icon: "customers",
-        available: false,
-      },
-      {
-        label: "Dispatch",
-        href: "/dashboard/dispatch",
-        icon: "dispatch",
         available: false,
       },
     ],
@@ -699,14 +692,6 @@ function NavigationIcon({
         <circle cx="9" cy="8" r="3" />
         <circle cx="17" cy="9" r="2.5" />
         <path d="M3 20a6 6 0 0 1 12 0M14 15a5 5 0 0 1 7 5" />
-      </>
-    ),
-    dispatch: (
-      <>
-        <path d="M4 19V8M4 8l8-4v11M12 15l8-4v9" />
-        <circle cx="4" cy="20" r="1" />
-        <circle cx="12" cy="16" r="1" />
-        <circle cx="20" cy="20" r="1" />
       </>
     ),
     executive: (
