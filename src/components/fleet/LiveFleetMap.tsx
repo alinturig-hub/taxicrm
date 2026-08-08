@@ -676,6 +676,10 @@ export default function LiveFleetMap() {
       .toLowerCase();
 
     return vehiclesWithCurrentAge.filter((vehicle) => {
+        if (!vehicle.isLive) {
+          return false;
+        }
+
       const matchesStatus =
         statusFilter === "ALL" ||
         (statusFilter === "LIVE" && vehicle.isLive) ||
