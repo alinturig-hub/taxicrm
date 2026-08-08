@@ -132,9 +132,15 @@ export async function GET() {
               },
             },
             select: {
-              externalId: true,
-              status: true,
+          externalId: true,
+          status: true,
+          locations: {
+            select: {
+              type: true,
+              address: true,
             },
+          },
+        },
           })
         : [];
 
@@ -142,6 +148,13 @@ export async function GET() {
       currentBookings.map((booking) => [
         booking.externalId,
         booking.status,
+      ]),
+    );
+
+    const bookingByExternalId = new Map(
+      currentBookings.map((booking) => [
+        booking.externalId,
+        booking,
       ]),
     );
 
@@ -199,6 +212,24 @@ export async function GET() {
             vehicle.currentBookingId &&
             vehicle.currentBookingId > 0
               ? vehicle.currentBookingId
+              : null,
+          pickupAddress:
+            vehicle.currentBookingId &&
+            vehicle.currentBookingId > 0
+              ? bookingByExternalId
+                  .get(String(vehicle.currentBookingId))
+                  ?.locations.find(
+                    (location) => location.type === "PICKUP",
+                  )?.address ?? null
+              : null,
+          destinationAddress:
+            vehicle.currentBookingId &&
+            vehicle.currentBookingId > 0
+              ? bookingByExternalId
+                  .get(String(vehicle.currentBookingId))
+                  ?.locations.find(
+                    (location) => location.type === "DESTINATION",
+                  )?.address ?? null
               : null,
           latitude,
           longitude,

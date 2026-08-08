@@ -4,7 +4,7 @@ import "leaflet/dist/leaflet.css";
 
 import L from "leaflet";
 import {
-  CircleMarker,
+  Marker,
   MapContainer,
   Popup,
   TileLayer,
@@ -36,6 +36,8 @@ type LiveVehicle = {
   status: string;
   operationalStatus: "CLEAR" | "DOW" | "DAP" | "POB";
   bookingId: number | null;
+  pickupAddress: string | null;
+  destinationAddress: string | null;
   latitude: number;
   longitude: number;
   lastSeenAt: string | null;
@@ -43,6 +45,31 @@ type LiveVehicle = {
   isLive: boolean;
   driver: Driver | null;
 };
+
+function vehicleIcon(colour: string) {
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="
+        width:32px;
+        height:32px;
+        border-radius:10px;
+        background:${colour};
+        border:2px solid #ffffff;
+        display:flex;
+        align-items:center;
+        justify-content:center;
+        box-shadow:0 2px 8px rgba(15,23,42,.45);
+        font-size:18px;
+        line-height:1;
+      ">🚕</div>
+    `,
+    iconSize: [32, 32],
+    iconAnchor: [16, 16],
+    popupAnchor: [0, -18],
+    tooltipAnchor: [0, -18],
+  });
+}
 
 function operationalStatusFromVehicleStatus(
   status: string,
@@ -422,6 +449,8 @@ export default function LiveFleetMap() {
             operationalStatusFromVehicleStatus(
               incomingVehicle.status,
             ),
+          pickupAddress: null,
+          destinationAddress: null,
           ageSeconds: 0,
           isLive: true,
         };
@@ -822,19 +851,13 @@ export default function LiveFleetMap() {
             );
 
             return (
-              <CircleMarker
+              <Marker
                 key={vehicle.id}
-                center={[
+                position={[
                   vehicle.latitude,
                   vehicle.longitude,
                 ]}
-                radius={9}
-                pathOptions={{
-                  color: "#ffffff",
-                  weight: 2,
-                  fillColor: colour,
-                  fillOpacity: 0.95,
-                }}
+                icon={vehicleIcon(colour)}
               >
                 <Tooltip
                   permanent
@@ -875,8 +898,29 @@ export default function LiveFleetMap() {
 
                       <p>
                         <strong>Status:</strong>{" "}
-                        {vehicle.status}
+                        {vehicle.operationalStatus === "CLEAR"
+                          ? "CLEAR - Available"
+                          : vehicle.operationalStatus === "DOW"
+                            ? "DOW - Driver On The Way"
+                            : vehicle.operationalStatus === "DAP"
+                              ? "DAP - Driver At Pickup"
+                              : "POB - Passenger On Board"}
                       </p>
+
+                      {(vehicle.operationalStatus === "DOW" ||
+                        vehicle.operationalStatus === "DAP") ? (
+                        <p>
+                          <strong>Pickup:</strong>{" "}
+                          {vehicle.pickupAddress || "Not available"}
+                        </p>
+                      ) : null}
+
+                      {vehicle.operationalStatus === "POB" ? (
+                        <p>
+                          <strong>Destination:</strong>{" "}
+                          {vehicle.destinationAddress || "Not available"}
+                        </p>
+                      ) : null}
 
                       <p>
                         <strong>Booking:</strong>{" "}
@@ -897,7 +941,7 @@ export default function LiveFleetMap() {
                     </div>
                   </div>
                 </Popup>
-              </CircleMarker>
+              </Marker>
             );
           })}
         </MapContainer>
