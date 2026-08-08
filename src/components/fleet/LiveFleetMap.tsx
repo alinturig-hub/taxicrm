@@ -443,14 +443,32 @@ export default function LiveFleetMap() {
           return currentData;
         }
 
+        const existingVehicle = currentData.vehicles.find(
+          (item) => item.id === incomingVehicle.id,
+        );
+
+        const sameBooking =
+          existingVehicle?.bookingId === incomingVehicle.bookingId;
+
+        const trackedStatus =
+          operationalStatusFromVehicleStatus(
+            incomingVehicle.status,
+          );
+
         const vehicle: LiveVehicle = {
           ...incomingVehicle,
           operationalStatus:
-            operationalStatusFromVehicleStatus(
-              incomingVehicle.status,
-            ),
-          pickupAddress: null,
-          destinationAddress: null,
+            sameBooking &&
+            (existingVehicle?.operationalStatus === "DAP" ||
+              existingVehicle?.operationalStatus === "POB")
+              ? existingVehicle.operationalStatus
+              : trackedStatus,
+          pickupAddress: sameBooking
+            ? existingVehicle?.pickupAddress ?? null
+            : null,
+          destinationAddress: sameBooking
+            ? existingVehicle?.destinationAddress ?? null
+            : null,
           ageSeconds: 0,
           isLive: true,
         };
