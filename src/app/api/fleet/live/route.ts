@@ -2,6 +2,10 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import {
+  addLondonDays,
+  startOfLondonDay,
+} from "@/lib/time/london-calendar";
 
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
@@ -158,7 +162,69 @@ export async function GET() {
       ]),
     );
 
-    const now = Date.now();
+    const nowDate = new Date();
+    const todayFrom = startOfLondonDay(nowDate);
+    const todayTo = addLondonDays(todayFrom, 1);
+
+    const liveDriverExternalIds = Array.from(
+      new Set(
+        vehicles
+          .map((vehicle) => vehicle.currentDriver?.externalId)
+          .filter(
+            (externalId): externalId is string =>
+              Boolean(externalId),
+          ),
+      ),
+    );
+
+    const todayCompletedBookings =
+      liveDriverExternalIds.length > 0
+        ? await prisma.booking.findMany({
+            where: {
+              driverId: {
+                in: liveDriverExternalIds,
+              },
+              pickupDueTime: {
+                gte: todayFrom,
+                lt: todayTo,
+              },
+              OR: [
+                {
+                  completedAt: {
+                    not: null,
+                  },
+                },
+                {
+                  status: "COMPLETED",
+                },
+              ],
+            },
+            select: {
+              driverId: true,
+              price: true,
+              cost: true,
+            },
+          })
+        : [];
+
+    const todayRevenueByDriver = new Map<string, number>();
+
+    for (const booking of todayCompletedBookings) {
+      if (!booking.driverId) {
+        continue;
+      }
+
+      const price = Number(booking.price ?? 0);
+      const cost = Number(booking.cost ?? 0);
+      const value = price > 0 ? price : cost;
+
+      todayRevenueByDriver.set(
+        booking.driverId,
+        (todayRevenueByDriver.get(booking.driverId) ?? 0) + value,
+      );
+    }
+
+    const now = nowDate.getTime();
 
     const liveVehicles = vehicles
       .map((vehicle) => {

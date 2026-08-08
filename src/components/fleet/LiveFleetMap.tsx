@@ -25,6 +25,7 @@ type Driver = {
   callsign: string | null;
   name: string | null;
   badgeNumber: string | null;
+  todayRevenue: number;
 };
 
 type LiveVehicle = {
@@ -910,6 +911,11 @@ export default function LiveFleetMap() {
                         {vehicle.driver?.name ||
                           "Not available"}
                       </p>
+
+                        <p>
+                          <strong>Today Revenue:</strong>{" "}
+                          £{(vehicle.driver?.todayRevenue ?? 0).toFixed(2)}
+                        </p>
 
                       <p>
                         <strong>Vehicle:</strong>{" "}
