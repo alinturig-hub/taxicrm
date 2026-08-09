@@ -180,38 +180,119 @@ export async function processDriverShiftStartedEndedWebhook(
         }
       }
 
-      await tx.driverShift.upsert({
-        where: {
-          provider_driverId_startedAt: {
+      if (isEnded) {
+        const toleranceMs = 2_000;
+
+        const matchingActiveShift = await tx.driverShift.findFirst({
+          where: {
             provider: "AUTOCAB",
             driverId: driver.id,
-            startedAt,
+            status: "ACTIVE",
+            startedAt: {
+              gte: new Date(startedAt.getTime() - toleranceMs),
+              lte: new Date(startedAt.getTime() + toleranceMs),
+            },
           },
-        },
-        create: {
-          provider: "AUTOCAB",
-          driverId: driver.id,
-          vehicleId,
-          status: isEnded ? "ENDED" : "ACTIVE",
-          subEventType,
-          startedAt,
-          endedAt: isEnded ? endedAt : null,
-          modifiedAt,
-          durationSeconds,
-          sourceWebhookEvent: webhookEvent.id,
-          rawPayload: payload as Prisma.InputJsonObject,
-        },
-        update: {
-          vehicleId,
-          status: isEnded ? "ENDED" : "ACTIVE",
-          subEventType,
-          endedAt: isEnded ? endedAt : null,
-          modifiedAt,
-          durationSeconds,
-          sourceWebhookEvent: webhookEvent.id,
-          rawPayload: payload as Prisma.InputJsonObject,
-        },
-      });
+          orderBy: {
+            startedAt: "desc",
+          },
+        });
+
+        if (matchingActiveShift) {
+          const matchedDurationSeconds = endedAt
+            ? Math.max(
+                0,
+                Math.floor(
+                  (endedAt.getTime() -
+                    matchingActiveShift.startedAt.getTime()) /
+                    1000,
+                ),
+              )
+            : null;
+
+          await tx.driverShift.update({
+            where: {
+              id: matchingActiveShift.id,
+            },
+            data: {
+              vehicleId,
+              status: "ENDED",
+              subEventType,
+              endedAt,
+              modifiedAt,
+              durationSeconds: matchedDurationSeconds,
+              sourceWebhookEvent: webhookEvent.id,
+              rawPayload: payload as Prisma.InputJsonObject,
+            },
+          });
+        } else {
+          await tx.driverShift.upsert({
+            where: {
+              provider_driverId_startedAt: {
+                provider: "AUTOCAB",
+                driverId: driver.id,
+                startedAt,
+              },
+            },
+            create: {
+              provider: "AUTOCAB",
+              driverId: driver.id,
+              vehicleId,
+              status: "ENDED",
+              subEventType,
+              startedAt,
+              endedAt,
+              modifiedAt,
+              durationSeconds,
+              sourceWebhookEvent: webhookEvent.id,
+              rawPayload: payload as Prisma.InputJsonObject,
+            },
+            update: {
+              vehicleId,
+              status: "ENDED",
+              subEventType,
+              endedAt,
+              modifiedAt,
+              durationSeconds,
+              sourceWebhookEvent: webhookEvent.id,
+              rawPayload: payload as Prisma.InputJsonObject,
+            },
+          });
+        }
+      } else {
+        await tx.driverShift.upsert({
+          where: {
+            provider_driverId_startedAt: {
+              provider: "AUTOCAB",
+              driverId: driver.id,
+              startedAt,
+            },
+          },
+          create: {
+            provider: "AUTOCAB",
+            driverId: driver.id,
+            vehicleId,
+            status: "ACTIVE",
+            subEventType,
+            startedAt,
+            endedAt: null,
+            modifiedAt,
+            durationSeconds: null,
+            sourceWebhookEvent: webhookEvent.id,
+            rawPayload: payload as Prisma.InputJsonObject,
+          },
+          update: {
+            vehicleId,
+            status: "ACTIVE",
+            subEventType,
+            endedAt: null,
+            modifiedAt,
+            durationSeconds: null,
+            sourceWebhookEvent: webhookEvent.id,
+            rawPayload: payload as Prisma.InputJsonObject,
+          },
+        });
+      }
 
       await tx.webhookEvent.update({
         where: {
