@@ -458,6 +458,19 @@ export default function LiveFleetMap() {
 
         const vehicle: LiveVehicle = {
           ...incomingVehicle,
+          driver: incomingVehicle.driver
+            ? {
+                ...incomingVehicle.driver,
+                todayRevenue:
+                  incomingVehicle.driver.todayRevenue ??
+                  (
+                    existingVehicle?.driver?.externalId ===
+                    incomingVehicle.driver.externalId
+                      ? existingVehicle.driver.todayRevenue
+                      : 0
+                  ),
+              }
+            : null,
           operationalStatus:
             sameBooking &&
             (existingVehicle?.operationalStatus === "DAP" ||
