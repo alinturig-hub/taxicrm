@@ -184,20 +184,10 @@ export async function GET() {
               driverId: {
                 in: liveDriverExternalIds,
               },
-              pickupDueTime: {
+              completedAt: {
                 gte: todayFrom,
                 lt: todayTo,
               },
-              OR: [
-                {
-                  completedAt: {
-                    not: null,
-                  },
-                },
-                {
-                  status: "COMPLETED",
-                },
-              ],
             },
             select: {
               driverId: true,
