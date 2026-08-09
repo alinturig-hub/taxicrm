@@ -309,6 +309,10 @@ export async function GET() {
                 callsign: vehicle.currentDriver.callsign,
                 name: driverName || null,
                 badgeNumber: vehicle.currentDriver.badgeNumber,
+                todayRevenue:
+                  todayRevenueByDriver.get(
+                    vehicle.currentDriver.externalId,
+                  ) ?? 0,
               }
             : null,
         };
