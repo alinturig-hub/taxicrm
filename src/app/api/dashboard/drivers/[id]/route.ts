@@ -85,26 +85,70 @@ async function calculateShiftHours(
     },
   });
 
-  return shifts.reduce((total, shift) => {
-    const start =
-      shift.startedAt > from
-        ? shift.startedAt
-        : from;
+  const intervals = shifts
+    .map((shift) => {
+      const start =
+        shift.startedAt > from
+          ? shift.startedAt
+          : from;
 
-    const rawEnd =
-      shift.endedAt ?? now;
+      const rawEnd =
+        shift.endedAt ?? now;
 
-    const end =
-      rawEnd < to
-        ? rawEnd
-        : to;
+      const end =
+        rawEnd < to
+          ? rawEnd
+          : to;
 
-    if (end <= start) {
-      return total;
+      return {
+        start,
+        end,
+      };
+    })
+    .filter((interval) => interval.end > interval.start)
+    .sort(
+      (a, b) =>
+        a.start.getTime() - b.start.getTime(),
+    );
+
+  if (intervals.length === 0) {
+    return 0;
+  }
+
+  const merged: Array<{
+    start: Date;
+    end: Date;
+  }> = [];
+
+  for (const interval of intervals) {
+    const previous =
+      merged[merged.length - 1];
+
+    if (
+      !previous ||
+      interval.start > previous.end
+    ) {
+      merged.push({
+        start: interval.start,
+        end: interval.end,
+      });
+      continue;
     }
 
-    return total + hoursBetween(start, end);
-  }, 0);
+    if (interval.end > previous.end) {
+      previous.end = interval.end;
+    }
+  }
+
+  return merged.reduce(
+    (total, interval) =>
+      total +
+      hoursBetween(
+        interval.start,
+        interval.end,
+      ),
+    0,
+  );
 }
 
 async function calculateBookingMetrics(
