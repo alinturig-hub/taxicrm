@@ -58,6 +58,9 @@ type Metrics = {
   cancelled: number;
   revenue: number;
   rejections: number;
+  accepted: number;
+  acceptanceRate: number;
+  rejectionRate: number;
 };
 
 function money(value: number) {
@@ -302,7 +305,7 @@ export default function DriverProfile({
         </h2>
 
         {selectedMetrics ? (
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-7">
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 xl:grid-cols-5">
             <MetricCard
               label="Hours"
               value={selectedMetrics.hours}
@@ -328,8 +331,20 @@ export default function DriverProfile({
               value={selectedMetrics.cancelled}
             />
             <MetricCard
+              label="Accepted"
+              value={selectedMetrics.accepted}
+            />
+            <MetricCard
               label="Rejections"
               value={selectedMetrics.rejections}
+            />
+            <MetricCard
+              label="Acceptance Rate"
+              value={`${selectedMetrics.acceptanceRate.toFixed(2)}%`}
+            />
+            <MetricCard
+              label="Rejection Rate"
+              value={`${selectedMetrics.rejectionRate.toFixed(2)}%`}
             />
           </div>
         ) : (

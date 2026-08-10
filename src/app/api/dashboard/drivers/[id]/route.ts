@@ -214,6 +214,49 @@ async function calculateBookingMetrics(
   };
 }
 
+async function calculateAcceptedOffers(
+  externalDriverId: string,
+  from: Date,
+  to: Date,
+) {
+  const rows = await prisma.$queryRaw<
+    Array<{ total: bigint }>
+  >`
+    SELECT COUNT(*)::bigint AS total
+    FROM "WebhookEvent" accepted
+    WHERE accepted."eventType" = 'BookingDispatchAccepted'
+      AND accepted.status = 'PROCESSED'
+      AND accepted."receivedAt" >= ${from}
+      AND accepted."receivedAt" < ${to}
+      AND EXISTS (
+        SELECT 1
+        FROM "WebhookEvent" modified
+        WHERE modified."externalBookingId" =
+              accepted."externalBookingId"
+          AND modified."eventType" =
+              'BookingModified'
+          AND modified."receivedAt" <
+              accepted."receivedAt"
+          AND modified.payload->'Driver'->>'Id' =
+              ${externalDriverId}
+          AND modified."receivedAt" = (
+            SELECT MAX(previous."receivedAt")
+            FROM "WebhookEvent" previous
+            WHERE previous."externalBookingId" =
+                  accepted."externalBookingId"
+              AND previous."eventType" =
+                  'BookingModified'
+              AND previous."receivedAt" <
+                  accepted."receivedAt"
+              AND previous.payload->'Driver'->>'Id'
+                  IS NOT NULL
+          )
+      )
+  `;
+
+  return Number(rows[0]?.total ?? 0);
+}
+
 async function calculateRejections(
   externalDriverId: string,
   from: Date,
@@ -362,6 +405,10 @@ export async function GET(
     yesterdayRejections,
     weekRejections,
     customRejections,
+    todayAccepted,
+    yesterdayAccepted,
+    weekAccepted,
+    customAccepted,
     assignedVehicles,
   ] = await Promise.all([
     calculateShiftHours(
@@ -440,6 +487,30 @@ export async function GET(
           customTo,
         )
       : Promise.resolve(0),
+
+    calculateAcceptedOffers(
+      driver.externalId,
+      todayFrom,
+      todayTo,
+    ),
+    calculateAcceptedOffers(
+      driver.externalId,
+      yesterdayFrom,
+      yesterdayTo,
+    ),
+    calculateAcceptedOffers(
+      driver.externalId,
+      weekFrom,
+      weekTo,
+    ),
+    hasCustomRange
+      ? calculateAcceptedOffers(
+          driver.externalId,
+          customFrom,
+          customTo,
+        )
+      : Promise.resolve(0),
+
     prisma.vehicle.findMany({
       where: {
         provider: "AUTOCAB",
@@ -475,6 +546,36 @@ export async function GET(
     }),
   ]);
 
+  const offerRates = (
+    accepted: number,
+    rejected: number,
+  ) => {
+    const total = accepted + rejected;
+
+    if (total === 0) {
+      return {
+        acceptanceRate: 0,
+        rejectionRate: 0,
+      };
+    }
+
+    return {
+      acceptanceRate:
+        Math.round((accepted / total) * 10000) / 100,
+      rejectionRate:
+        Math.round((rejected / total) * 10000) / 100,
+    };
+  };
+
+  const todayOfferRates =
+    offerRates(todayAccepted, todayRejections);
+  const yesterdayOfferRates =
+    offerRates(yesterdayAccepted, yesterdayRejections);
+  const weekOfferRates =
+    offerRates(weekAccepted, weekRejections);
+  const customOfferRates =
+    offerRates(customAccepted, customRejections);
+
   const currentShift =
     driver.shifts[0] ?? null;
 
@@ -509,6 +610,9 @@ export async function GET(
         ...todayBookings,
         rejections:
           todayRejections,
+        accepted:
+          todayAccepted,
+        ...todayOfferRates,
       },
       yesterday: {
         hours:
@@ -517,6 +621,9 @@ export async function GET(
         ...yesterdayBookings,
         rejections:
           yesterdayRejections,
+        accepted:
+          yesterdayAccepted,
+        ...yesterdayOfferRates,
       },
       week: {
         hours:
@@ -525,6 +632,9 @@ export async function GET(
         ...weekBookings,
         rejections:
           weekRejections,
+        accepted:
+          weekAccepted,
+        ...weekOfferRates,
       },
       custom: hasCustomRange
         ? {
@@ -536,6 +646,9 @@ export async function GET(
             ...customBookings,
             rejections:
               customRejections,
+            accepted:
+              customAccepted,
+            ...customOfferRates,
           }
         : null,
       weekRule: {
