@@ -408,6 +408,8 @@ export default function LiveOperationsDashboard() {
 
   const [selectedBooking, setSelectedBooking] =
     useState<BookingDrawerData | null>(null);
+  const [mapVisible, setMapVisible] = useState(true);
+  const [mapFullscreen, setMapFullscreen] = useState(false);
 
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(
     null,
@@ -693,8 +695,43 @@ export default function LiveOperationsDashboard() {
           />
         </section>
 
-        <section id="live-map" className="mt-4 scroll-mt-6">
-          <LiveFleetMap />
+        <section
+          id="live-map"
+          className={
+            mapFullscreen
+              ? "fixed inset-0 z-[100] overflow-y-auto bg-slate-950 p-4 sm:p-6"
+              : "mt-4 scroll-mt-6"
+          }
+        >
+          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3">
+            <p className="text-sm font-semibold text-white">
+              Live Fleet Map
+            </p>
+
+            <div className="flex gap-2">
+              {!mapFullscreen && (
+                <button
+                  type="button"
+                  onClick={() => setMapVisible((v) => !v)}
+                  className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200"
+                >
+                  {mapVisible ? "Hide Map" : "Show Map"}
+                </button>
+              )}
+
+              {mapVisible && (
+                <button
+                  type="button"
+                  onClick={() => setMapFullscreen((v) => !v)}
+                  className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300"
+                >
+                  {mapFullscreen ? "Exit Full Screen" : "Full Screen"}
+                </button>
+              )}
+            </div>
+          </div>
+
+          {mapVisible && <LiveFleetMap />}
         </section>
 
         <section className="mt-4 grid gap-4 xl:grid-cols-2">
