@@ -16,6 +16,13 @@ const configurationModules = [
     status: "Active",
   },
   {
+    title: "Accounts",
+    description:
+      "Configure revenue and waiting-time rules for Autocab account bookings.",
+    href: "/dashboard/configuration/accounts",
+    status: "Active",
+  },
+  {
     title: "API Keys",
     description:
       "Manage credentials used by approved external services and internal applications.",

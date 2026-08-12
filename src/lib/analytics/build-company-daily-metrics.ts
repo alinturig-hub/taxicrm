@@ -1,5 +1,11 @@
 import { prisma } from "@/lib/prisma";
 import {
+  accountRevenueRuleKey,
+  calculateBookingRevenue,
+  isAccountNoFareBooking,
+  loadAccountRevenueRuleMap,
+} from "@/lib/revenue/booking-revenue";
+import {
   addLondonDays,
   londonDateKey,
   startOfLondonDay,
@@ -91,9 +97,16 @@ export async function buildCompanyDailyMetrics(
         },
       },
       select: {
+        status: true,
+        completedAt: true,
+        noFareAt: true,
+        arrivedAt: true,
         fare: true,
+        cost: true,
         price: true,
         estimatedPrice: true,
+        accountId: true,
+        accountCode: true,
       },
     }),
 
@@ -160,6 +173,33 @@ export async function buildCompanyDailyMetrics(
     },
   );
 
+  const accountRevenueRules =
+    await loadAccountRevenueRuleMap(
+      noFareBookings,
+    );
+
+  for (const booking of noFareBookings) {
+    if (!isAccountNoFareBooking(booking)) {
+      continue;
+    }
+
+    const ruleKey =
+      accountRevenueRuleKey(booking);
+
+    const rule = ruleKey
+      ? accountRevenueRules.get(ruleKey)
+      : undefined;
+
+    const bookingRevenue =
+      calculateBookingRevenue(
+        booking,
+        rule,
+      );
+
+    revenueBreakdown.revenue += bookingRevenue;
+    revenueBreakdown.accountRevenue += bookingRevenue;
+  }
+
   const revenue = revenueBreakdown.revenue;
 
   const cancelledRevenueLost =
@@ -176,13 +216,20 @@ export async function buildCompanyDailyMetrics(
 
   const noFareRevenueLost =
     noFareBookings.reduce(
-      (total, booking) =>
-        total +
-        toNumber(
-          booking.price ??
-            booking.fare ??
-            booking.estimatedPrice,
-        ),
+      (total, booking) => {
+        if (isAccountNoFareBooking(booking)) {
+          return total;
+        }
+
+        return (
+          total +
+          toNumber(
+            booking.price ??
+              booking.fare ??
+              booking.estimatedPrice,
+          )
+        );
+      },
       0,
     );
 

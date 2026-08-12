@@ -3,6 +3,11 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  accountRevenueRuleKey,
+  calculateBookingRevenue,
+  loadAccountRevenueRuleMap,
+} from "@/lib/revenue/booking-revenue";
+import {
   addLondonDays,
   startOfLondonDay,
 } from "@/lib/time/london-calendar";
@@ -177,40 +182,77 @@ export async function GET() {
       ),
     );
 
-    const todayCompletedBookings =
+    const todayRevenueBookings =
       liveDriverExternalIds.length > 0
         ? await prisma.booking.findMany({
             where: {
               driverId: {
                 in: liveDriverExternalIds,
               },
-              completedAt: {
-                gte: todayFrom,
-                lt: todayTo,
-              },
+              OR: [
+                {
+                  completedAt: {
+                    gte: todayFrom,
+                    lt: todayTo,
+                  },
+                },
+                {
+                  noFareAt: {
+                    gte: todayFrom,
+                    lt: todayTo,
+                  },
+                  accountId: {
+                    not: null,
+                  },
+                  accountCode: {
+                    not: null,
+                  },
+                },
+              ],
             },
             select: {
               driverId: true,
+              status: true,
+              completedAt: true,
+              noFareAt: true,
+              arrivedAt: true,
               price: true,
               cost: true,
+              accountId: true,
+              accountCode: true,
             },
           })
         : [];
 
+    const accountRevenueRules =
+      await loadAccountRevenueRuleMap(
+        todayRevenueBookings,
+      );
+
     const todayRevenueByDriver = new Map<string, number>();
 
-    for (const booking of todayCompletedBookings) {
+    for (const booking of todayRevenueBookings) {
       if (!booking.driverId) {
         continue;
       }
 
-      const price = Number(booking.price ?? 0);
-      const cost = Number(booking.cost ?? 0);
-      const value = price > 0 ? price : cost;
+      const ruleKey =
+        accountRevenueRuleKey(booking);
+
+      const rule = ruleKey
+        ? accountRevenueRules.get(ruleKey)
+        : undefined;
+
+      const value =
+        calculateBookingRevenue(
+          booking,
+          rule,
+        );
 
       todayRevenueByDriver.set(
         booking.driverId,
-        (todayRevenueByDriver.get(booking.driverId) ?? 0) + value,
+        (todayRevenueByDriver.get(booking.driverId) ?? 0) +
+          value,
       );
     }
 

@@ -4,6 +4,11 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  accountRevenueRuleKey,
+  calculateBookingRevenue,
+  loadAccountRevenueRuleMap,
+} from "@/lib/revenue/booking-revenue";
+import {
   addLondonDays,
   startOfLondonDay,
   startOfLondonWeek,
@@ -13,15 +18,6 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function revenueValue(
-  price: unknown,
-  cost: unknown,
-) {
-  const p = Number(price ?? 0);
-  const c = Number(cost ?? 0);
-
-  return p > 0 ? p : c;
-}
 
 function parseLondonDate(value: string | null) {
   if (!value) {
@@ -168,11 +164,17 @@ async function calculateBookingMetrics(
       status: true,
       completedAt: true,
       noFareAt: true,
+      arrivedAt: true,
       cancelledAt: true,
       price: true,
       cost: true,
+      accountId: true,
+      accountCode: true,
     },
   });
+
+  const accountRevenueRules =
+    await loadAccountRevenueRuleMap(bookings);
 
   return {
     jobs: bookings.length,
@@ -193,19 +195,18 @@ async function calculateBookingMetrics(
     ).length,
     revenue: bookings.reduce(
       (total, booking) => {
-        const isCompleted =
-          booking.completedAt !== null ||
-          booking.status === "COMPLETED";
+        const ruleKey =
+          accountRevenueRuleKey(booking);
 
-        if (!isCompleted) {
-          return total;
-        }
+        const rule = ruleKey
+          ? accountRevenueRules.get(ruleKey)
+          : undefined;
 
         return (
           total +
-          revenueValue(
-            booking.price,
-            booking.cost,
+          calculateBookingRevenue(
+            booking,
+            rule,
           )
         );
       },

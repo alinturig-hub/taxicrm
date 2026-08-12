@@ -259,6 +259,9 @@ export function buildBookingCreateData(
     paymentType: normaliseString(payload.PaymentType),
     accountType: normaliseString(payload.AccountType),
     accountId: account ? normaliseString(account.Id) : null,
+    accountCode: account
+      ? normaliseString(account.AccountCode)
+      : null,
     accountName: account
       ? normaliseString(account.DisplayName) ??
         normaliseString(account.Name) ??
@@ -521,6 +524,9 @@ export function buildBookingUpdateData(
     const account = getObject(payload, "Account");
 
     data.accountId = account ? normaliseString(account.Id) : null;
+    data.accountCode = account
+      ? normaliseString(account.AccountCode)
+      : null;
     data.accountName = account
       ? normaliseString(account.DisplayName) ??
         normaliseString(account.Name) ??

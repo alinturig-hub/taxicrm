@@ -106,6 +106,7 @@ model Booking {
   paymentType String?
   accountType String?
   accountId   String?
+  accountCode String?
   accountName String?
 
   companyId           String?
@@ -339,6 +340,7 @@ enum IntegrationSyncEntity {
   COMPANIES
   ZONES
   CAPABILITIES
+  ACCOUNTS
 }
 
 enum DriverShiftStatus {
@@ -586,6 +588,47 @@ model IntegrationSyncJob {
   @@index([provider, entity, startedAt])
   @@index([status])
   @@index([startedAt])
+}
+
+model AutocabAccount {
+  id              String   @id @default(cuid())
+  provider        String   @default("AUTOCAB")
+  externalId      String
+  accountCode     String
+  displayName     String?
+  accountType     String?
+  active          Boolean  @default(true)
+  suspended       Boolean  @default(false)
+  suspendedReason String?
+  companyId       String?
+  companyName     String?
+  contactName     String?
+  telephone       String?
+  email           String?
+  rawPayload      Json?
+  lastSyncedAt    DateTime @default(now())
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@unique([provider, externalId])
+  @@index([accountCode])
+  @@index([active])
+}
+
+model AccountRevenueRule {
+  id                   String   @id @default(cuid())
+  provider             String   @default("AUTOCAB")
+  accountId            String
+  accountCode          String
+  displayName          String?
+  waitingChargeable    Boolean  @default(false)
+  waitingRatePerMinute Decimal  @default(0.30) @db.Decimal(8, 2)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  @@unique([provider, accountCode])
+  @@index([accountCode])
+  @@index([waitingChargeable])
 }
 
 model CompanyDailyMetric {
