@@ -92,7 +92,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Customers",
         href: "/dashboard/customers",
         icon: "customers",
-        available: false,
+        available: true,
       },
     ],
   },

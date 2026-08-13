@@ -70,6 +70,14 @@ type VehicleSyncResponse = {
   result?: VehicleSyncResult;
 };
 
+type CustomerSyncResult = DriverSyncResult;
+
+type CustomerSyncResponse = {
+  success: boolean;
+  message?: string;
+  result?: CustomerSyncResult;
+};
+
 const DEFAULT_BASE_URL =
   "https://autocab-api.azure-api.net";
 
@@ -103,12 +111,17 @@ export default function AutocabApiConfigurationForm() {
   const [vehicleSyncResult, setVehicleSyncResult] =
     useState<VehicleSyncResult | null>(null);
 
+  const [customerSyncResult, setCustomerSyncResult] =
+    useState<CustomerSyncResult | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [syncingDrivers, setSyncingDrivers] =
     useState(false);
   const [syncingVehicles, setSyncingVehicles] =
+    useState(false);
+  const [syncingCustomers, setSyncingCustomers] =
     useState(false);
 
   const [successMessage, setSuccessMessage] =
@@ -369,6 +382,56 @@ export default function AutocabApiConfigurationForm() {
       );
     } finally {
       setSyncingVehicles(false);
+    }
+  }
+
+  async function syncCustomers() {
+    try {
+      setSyncingCustomers(true);
+      setSuccessMessage(null);
+      setErrorMessage(null);
+      setCustomerSyncResult(null);
+
+      const response = await fetch(
+        "/api/dashboard/integrations/autocab/accounts/sync",
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload =
+        (await response.json()) as CustomerSyncResponse;
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.result
+      ) {
+        throw new Error(
+          payload.message ??
+            "Autocab customers could not be synchronized.",
+        );
+      }
+
+      setCustomerSyncResult(payload.result);
+      setSuccessMessage(
+        `Customer sync completed: ${payload.result.recordsCreated.toLocaleString(
+          "en-GB",
+        )} created, ${payload.result.recordsUpdated.toLocaleString(
+          "en-GB",
+        )} updated.`,
+      );
+
+      await loadConfiguration();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : "Unable to synchronize Autocab customers.",
+      );
+    } finally {
+      setSyncingCustomers(false);
     }
   }
 
@@ -867,6 +930,102 @@ export default function AutocabApiConfigurationForm() {
             </p>
           </div>
         ) : null}
+        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-emerald-400">
+                Customer Synchronization
+              </p>
+
+              <h3 className="mt-2 text-lg font-semibold text-white">
+                Import active account customers
+              </h3>
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                Imports active Autocab account customers into TaxiCRM.
+                Full Autocab customer configuration is retained in raw data.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={syncCustomers}
+              disabled={
+                syncingCustomers ||
+                syncingDrivers ||
+                syncingVehicles ||
+                saving ||
+                testing ||
+                !hasStoredKey ||
+                !configuration?.isEnabled
+              }
+              className="inline-flex min-w-40 items-center justify-center rounded-xl bg-emerald-600 px-4 py-3 text-sm font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {syncingCustomers
+                ? "Synchronizing…"
+                : "Sync Customers Now"}
+            </button>
+          </div>
+
+          {customerSyncResult ? (
+            <div className="mt-5">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-emerald-300">
+                    Synchronization {customerSyncResult.status.toLowerCase()}
+                  </p>
+
+                  <p className="mt-1 text-xs text-slate-500">
+                    Job {customerSyncResult.jobId}
+                  </p>
+                </div>
+
+                <span className="rounded-full border border-slate-700 bg-slate-950/60 px-3 py-1 text-xs font-semibold text-slate-300">
+                  {customerSyncResult.durationMs.toLocaleString("en-GB")} ms
+                </span>
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-7">
+                <SyncMetric
+                  label="Received"
+                  value={customerSyncResult.recordsReceived}
+                />
+                <SyncMetric
+                  label="Eligible"
+                  value={customerSyncResult.recordsEligible}
+                />
+                <SyncMetric
+                  label="Created"
+                  value={customerSyncResult.recordsCreated}
+                />
+                <SyncMetric
+                  label="Updated"
+                  value={customerSyncResult.recordsUpdated}
+                />
+                <SyncMetric
+                  label="Skipped"
+                  value={customerSyncResult.recordsSkipped}
+                />
+                <SyncMetric
+                  label="Disabled"
+                  value={customerSyncResult.recordsDisabled}
+                />
+                <SyncMetric
+                  label="Failed"
+                  value={customerSyncResult.recordsFailed}
+                />
+              </div>
+
+              <p className="mt-4 text-xs text-slate-500">
+                Next scheduled sync:{" "}
+                <span className="font-medium text-slate-300">
+                  {formatDate(customerSyncResult.nextSyncAt)}
+                </span>
+              </p>
+            </div>
+          ) : null}
+        </div>
+
       </div>
     </section>
   );
