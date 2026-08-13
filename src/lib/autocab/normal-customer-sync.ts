@@ -99,13 +99,16 @@ export async function synchroniseNormalCustomer(
       },
     });
 
-  await tx.booking.update({
+  await tx.booking.updateMany({
     where: {
-      id: bookingId,
+      telephoneNumber: displayTelephone,
+      normalCustomerId: null,
+      accountId: null,
+      accountCode: null,
+      accountName: null,
     },
     data: {
-      normalCustomerId:
-        customer.id,
+      normalCustomerId: customer.id,
     },
   });
 }
