@@ -103,6 +103,9 @@ model Booking {
   telephoneNumber String?
   customerEmail   String?
 
+  normalCustomerId String?
+  normalCustomer   NormalCustomer? @relation(fields: [normalCustomerId], references: [id], onDelete: SetNull)
+
   paymentType String?
   accountType String?
   accountId   String?
@@ -589,6 +592,24 @@ model IntegrationSyncJob {
   @@index([provider, entity, startedAt])
   @@index([status])
   @@index([startedAt])
+}
+
+model NormalCustomer {
+  id                  String   @id @default(cuid())
+  normalizedTelephone String   @unique
+  telephoneNumber     String
+  displayName         String?
+  email               String?
+  firstBookingAt      DateTime?
+  lastBookingAt       DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  bookings Booking[]
+
+  @@index([telephoneNumber])
+  @@index([email])
+  @@index([lastBookingAt])
 }
 
 model AutocabAccount {

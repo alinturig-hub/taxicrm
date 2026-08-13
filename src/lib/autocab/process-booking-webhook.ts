@@ -13,6 +13,54 @@ import { prisma } from "@/lib/prisma";
 import { broadcastDashboardMetricUpdate } from "@/lib/realtime/dashboard-broadcast";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
+import { syncAutocabAccounts } from "@/lib/integrations/autocab/account-sync/sync";
+
+async function reconcileUnknownAutocabAccount(
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const accountPayload = payload.Account;
+
+  if (!isObject(accountPayload)) {
+    return;
+  }
+
+  const accountExternalId =
+    normaliseString(accountPayload.Id);
+
+  if (!accountExternalId) {
+    return;
+  }
+
+  const existing =
+    await prisma.autocabAccount.findUnique({
+      where: {
+        provider_externalId: {
+          provider: "AUTOCAB",
+          externalId: accountExternalId,
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  if (existing) {
+    return;
+  }
+
+  try {
+    console.info(
+      `Unknown Autocab account ${accountExternalId} detected from booking webhook. Starting account reconciliation.`,
+    );
+
+    await syncAutocabAccounts("WEBHOOK");
+  } catch (error) {
+    console.error(
+      `Autocab account reconciliation failed for account ${accountExternalId}:`,
+      error,
+    );
+  }
+}
 
 type ProcessBookingWebhookOptions = {
   title: string;
@@ -147,6 +195,10 @@ export async function processBookingWebhook(
 
       return id;
     });
+
+    await reconcileUnknownAutocabAccount(
+      payload,
+    );
 
     await createBookingSnapshot({
       bookingId,

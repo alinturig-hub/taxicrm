@@ -9,6 +9,7 @@ import {
   synchroniseLocation,
   synchroniseVias,
 } from "@/lib/autocab/booking-synchronisers";
+import { synchroniseNormalCustomer } from "@/lib/autocab/normal-customer-sync";
 
 export async function upsertBooking(
   tx: Prisma.TransactionClient,
@@ -46,6 +47,12 @@ export async function upsertBooking(
   );
 
   await synchroniseVias(
+    tx,
+    booking.id,
+    payload,
+  );
+
+  await synchroniseNormalCustomer(
     tx,
     booking.id,
     payload,
