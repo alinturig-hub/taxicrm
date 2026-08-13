@@ -564,6 +564,26 @@ model AutocabApiConfiguration {
   @@index([driverSyncEnabled, nextDriverSyncAt])
 }
 
+model ApiEndpointConfiguration {
+  id                 String   @id @default(cuid())
+  provider           String
+  name               String
+  method             String   @default("GET")
+  url                String   @unique
+  path               String?
+  isEnabled          Boolean  @default(true)
+  lastTestedAt       DateTime?
+  lastStatusCode     Int?
+  lastResponseTimeMs Int?
+  lastError          String?  @db.Text
+  sampleResponse     Json?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  @@index([provider])
+  @@index([isEnabled])
+}
+
 model IntegrationSyncJob {
   id       String                @id @default(cuid())
   provider String                @default("AUTOCAB")

@@ -23,11 +23,11 @@ const configurationModules = [
     status: "Active",
   },
   {
-    title: "API Keys",
+    title: "API Endpoints",
     description:
-      "Manage credentials used by approved external services and internal applications.",
-    href: "/dashboard/configuration/api-keys",
-    status: "Planned",
+      "Add and test external API endpoints by URL using configured integration credentials.",
+    href: "/dashboard/configuration/api-endpoints",
+    status: "Active",
   },
   {
     title: "Organizations",
