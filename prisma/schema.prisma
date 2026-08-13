@@ -262,6 +262,7 @@ model WebhookEvent {
   idempotencyKey         String                  @unique
   status                 WebhookProcessingStatus @default(RECEIVED)
   payload                Json
+  rawBody                String?
   headers                Json?
   processingError        String?
   attemptCount           Int                     @default(0)

@@ -254,6 +254,7 @@ export async function POST(
           idempotencyKey,
           status: "RECEIVED",
           payload: payload as Prisma.InputJsonObject,
+          rawBody,
           headers: headersToJson(request),
           webhookConfigurationId: webhookConfiguration?.id,
         },
