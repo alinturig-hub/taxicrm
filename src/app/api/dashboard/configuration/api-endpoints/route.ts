@@ -194,6 +194,31 @@ export async function POST(
       };
     }
 
+    if (
+      endpointUrl.pathname === "/booking/v1/zones" &&
+      Array.isArray(parsed)
+    ) {
+      parsed = parsed.filter((item) => {
+        if (
+          !item ||
+          typeof item !== "object" ||
+          Array.isArray(item)
+        ) {
+          return false;
+        }
+
+        const zone = item as {
+          active?: unknown;
+          companyId?: unknown;
+        };
+
+        return (
+          zone.active === true &&
+          zone.companyId === 1
+        );
+      });
+    }
+
     if (!response.ok) {
       throw new Error(
         `Autocab API returned HTTP ${response.status}.`,
