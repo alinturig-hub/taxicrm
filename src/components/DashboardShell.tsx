@@ -94,6 +94,12 @@ const navigationGroups: NavigationGroup[] = [
         icon: "customers",
         available: true,
       },
+      {
+        label: "Zones",
+        href: "/dashboard/zones",
+        icon: "fleet",
+        available: true,
+      },
     ],
   },
   {
