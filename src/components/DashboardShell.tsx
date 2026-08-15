@@ -197,6 +197,12 @@ const navigationGroups: NavigationGroup[] = [
     label: "Administration",
     items: [
       {
+        label: "Configuration",
+        href: "/dashboard/configuration",
+        icon: "system",
+        available: true,
+      },
+      {
         label: "Users",
         href: "/dashboard/administration/users",
         icon: "users",
