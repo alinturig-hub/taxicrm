@@ -63,7 +63,9 @@ function vehicleLabel(vehicle: DriverVehicle | null) {
 export default function DriversDashboard() {
   const [drivers, setDrivers] = useState<DriverRecord[]>([]);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
 
   const loadDrivers = useCallback(async () => {
@@ -103,6 +105,44 @@ export default function DriversDashboard() {
   useEffect(() => {
     void loadDrivers();
   }, [loadDrivers]);
+
+  async function syncDrivers() {
+    try {
+      setSyncing(true);
+      setError(null);
+      setMessage(null);
+
+      const response = await fetch(
+        "/api/dashboard/integrations/autocab/drivers/sync",
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success || !payload.result) {
+        throw new Error(
+          payload.message ?? "Unable to synchronize drivers.",
+        );
+      }
+
+      setMessage(
+        `Sync complete: ${payload.result.recordsCreated} created, ${payload.result.recordsUpdated} updated, ${payload.result.recordsDisabled} disabled, ${payload.result.recordsFailed} failed.`,
+      );
+
+      await loadDrivers();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to synchronize drivers.",
+      );
+    } finally {
+      setSyncing(false);
+    }
+  }
 
   const filteredDrivers = useMemo(() => {
     const term = search.trim().toLowerCase();
@@ -154,15 +194,38 @@ export default function DriversDashboard() {
           </p>
         </div>
 
-        <button
-          type="button"
-          onClick={() => void loadDrivers()}
-          disabled={loading}
-          className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
-        >
-          {loading ? "Refreshing…" : "Refresh"}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => void syncDrivers()}
+            disabled={syncing || loading}
+            className="rounded-xl bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {syncing ? "Synchronizing…" : "Sync Drivers Now"}
+          </button>
+
+          <button
+            type="button"
+            onClick={() => void loadDrivers()}
+            disabled={loading || syncing}
+            className="rounded-xl border border-slate-700 bg-slate-900 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:opacity-50"
+          >
+            {loading ? "Refreshing…" : "Refresh"}
+          </button>
+        </div>
       </div>
+
+      {message ? (
+        <div className="rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">
+          {message}
+        </div>
+      ) : null}
+
+      {error ? (
+        <div className="rounded-xl border border-red-500/30 bg-red-950/20 px-4 py-3 text-sm text-red-300">
+          {error}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">

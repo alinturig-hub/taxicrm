@@ -86,7 +86,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Fleet",
         href: "/dashboard/fleet",
         icon: "fleet",
-        available: false,
+        available: true,
       },
       {
         label: "Customers",
@@ -167,12 +167,6 @@ const navigationGroups: NavigationGroup[] = [
     label: "Integrations",
     items: [
       {
-        label: "Autocab",
-        href: "/dashboard/integrations/autocab",
-        icon: "autocab",
-        available: true,
-      },
-      {
         label: "Webhooks",
         href: "/dashboard/integrations/autocab/webhooks",
         icon: "webhooks",
@@ -200,6 +194,12 @@ const navigationGroups: NavigationGroup[] = [
         label: "Configuration",
         href: "/dashboard/configuration",
         icon: "system",
+        available: true,
+      },
+      {
+        label: "Autocab",
+        href: "/dashboard/integrations/autocab",
+        icon: "autocab",
         available: true,
       },
       {

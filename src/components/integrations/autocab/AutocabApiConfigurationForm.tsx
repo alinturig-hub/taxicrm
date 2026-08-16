@@ -458,14 +458,14 @@ export default function AutocabApiConfigurationForm() {
             </p>
 
             <h2 className="mt-2 text-xl font-bold text-white">
-              Master data import
+              Connection configuration
             </h2>
 
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              REST is used only to import and reconcile
-              drivers, vehicles and configuration data.
-              Live operational state continues to come
-              from Autocab webhooks.
+              Configure the Autocab REST connection used by
+              TaxiCRM API endpoints and synchronization services.
+              Operational synchronization is managed from the
+              corresponding Operations modules.
             </p>
           </div>
 
@@ -528,9 +528,9 @@ export default function AutocabApiConfigurationForm() {
           />
 
           <p className="mt-2 text-xs text-slate-500">
-            The driver import endpoint will be{" "}
+            API endpoints are managed separately under{" "}
             <code className="text-slate-400">
-              /driver/v1/drivers
+              Configuration → API Endpoints
             </code>
           </p>
         </div>
@@ -592,7 +592,7 @@ export default function AutocabApiConfigurationForm() {
 
           <span>
             <span className="block text-sm font-medium text-white">
-              Enable Autocab REST imports
+              Enable Autocab REST integration
             </span>
 
             <span className="mt-1 block text-xs leading-5 text-slate-500">
