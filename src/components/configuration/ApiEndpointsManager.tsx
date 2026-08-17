@@ -650,6 +650,15 @@ export default function ApiEndpointsManager() {
                               : "Sync Now"}
                           </button>
 
+                          {endpoint.storeRecords ? (
+                            <a
+                              href={`/dashboard/configuration/api-endpoints/${endpoint.id}`}
+                              className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
+                            >
+                              View Saved Data
+                            </a>
+                          ) : null}
+
                           <button
                             type="button"
                             onClick={() =>
