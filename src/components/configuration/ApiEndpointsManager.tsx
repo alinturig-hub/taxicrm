@@ -29,6 +29,12 @@ type ApiResponse = {
   message?: string;
   endpoints?: ApiEndpoint[];
   endpoint?: ApiEndpoint;
+  preview?: {
+    statusCode: number;
+    responseTimeMs: number;
+    responseType: string;
+    data: unknown;
+  };
 };
 
 function extractParameterNames(url: string) {
@@ -65,6 +71,9 @@ export default function ApiEndpointsManager() {
   const [syncingId, setSyncingId] = useState<string | null>(null);
   const [testParameters, setTestParameters] =
     useState<Record<string, string>>({});
+  const [testing, setTesting] = useState(false);
+  const [preview, setPreview] =
+    useState<ApiResponse["preview"] | null>(null);
   const [endpoints, setEndpoints] =
     useState<ApiEndpoint[]>([]);
   const [loading, setLoading] =
@@ -120,6 +129,57 @@ export default function ApiEndpointsManager() {
     void loadEndpoints();
   }, [loadEndpoints]);
 
+  async function tryEndpoint() {
+    try {
+      setTesting(true);
+      setError(null);
+      setSuccess(null);
+      setPreview(null);
+
+      const response = await fetch(
+        "/api/dashboard/configuration/api-endpoints",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            url: url.trim(),
+            parameters: testParameters,
+            previewOnly: true,
+          }),
+        },
+      );
+
+      const payload =
+        (await response.json()) as ApiResponse;
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.preview
+      ) {
+        throw new Error(
+          payload.message ??
+            "API endpoint test failed.",
+        );
+      }
+
+      setPreview(payload.preview);
+      setSuccess(
+        `HTTP ${payload.preview.statusCode} in ${payload.preview.responseTimeMs} ms.`,
+      );
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to test API endpoint.",
+      );
+    } finally {
+      setTesting(false);
+    }
+  }
+
   async function addEndpoint() {
     try {
       setAdding(true);
@@ -164,6 +224,7 @@ export default function ApiEndpointsManager() {
       }
 
       setUrl("");
+      setPreview(null);
       setRecordKey("id");
       setStoreRecords(false);
       setJsonSchema("");
@@ -405,23 +466,68 @@ export default function ApiEndpointsManager() {
             </div>
           </div>
 
-          <button
-            type="button"
-            onClick={() => void addEndpoint()}
-            disabled={
-              adding ||
-              url.trim().length === 0
-            }
-            className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            {adding ? "Testing API…" : "Save & Test API"}
-          </button>
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              onClick={() => void tryEndpoint()}
+              disabled={
+                testing ||
+                url.trim().length === 0
+              }
+              className="rounded-xl border border-blue-500/40 bg-blue-500/10 px-5 py-3 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {testing ? "Testing…" : "Try API"}
+            </button>
+
+            <button
+              type="button"
+              onClick={() => void addEndpoint()}
+              disabled={
+                adding ||
+                url.trim().length === 0 ||
+                !preview
+              }
+              className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              {adding ? "Saving…" : "Save API"}
+            </button>
+          </div>
         </div>
 
         <p className="mt-3 text-xs text-slate-500">
           GET and Autocab authentication are applied
           automatically.
         </p>
+
+        {preview ? (
+          <div className="mt-4 overflow-hidden rounded-xl border border-emerald-500/20 bg-slate-950">
+            <div className="flex flex-wrap items-center gap-4 border-b border-slate-800 px-4 py-3 text-xs">
+              <span className="font-semibold text-emerald-300">
+                HTTP {preview.statusCode}
+              </span>
+              <span className="text-slate-400">
+                {preview.responseTimeMs} ms
+              </span>
+              <span className="text-slate-400">
+                {preview.responseType}
+              </span>
+            </div>
+
+            <div className="p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
+                Response JSON
+              </p>
+
+              <pre className="max-h-[520px] overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-900 p-4 font-mono text-xs leading-6 text-slate-200">
+                {JSON.stringify(
+                  preview.data,
+                  null,
+                  2,
+                )}
+              </pre>
+            </div>
+          </div>
+        ) : null}
 
         {success ? (
           <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-950/20 px-4 py-3 text-sm text-emerald-300">
@@ -533,6 +639,8 @@ export default function ApiEndpointsManager() {
                             disabled={
                               !endpoint.storeRecords ||
                               !endpoint.recordKey ||
+                              endpoint.url.includes("{") ||
+                              endpoint.responseType !== "array" ||
                               syncingId === endpoint.id
                             }
                             className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"

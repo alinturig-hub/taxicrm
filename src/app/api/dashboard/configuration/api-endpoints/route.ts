@@ -119,6 +119,7 @@ export async function POST(
         recordKey?: unknown;
         storeRecords?: unknown;
         parameters?: Record<string, unknown>;
+        previewOnly?: unknown;
       };
 
     if (
@@ -299,6 +300,18 @@ export async function POST(
             typeof parsed === "object"
           ? "object"
           : typeof parsed;
+
+    if (body.previewOnly === true) {
+      return NextResponse.json({
+        success: true,
+        preview: {
+          statusCode: response.status,
+          responseTimeMs,
+          responseType,
+          data: parsed,
+        },
+      });
+    }
 
     const endpoint =
       await prisma.apiEndpointConfiguration.upsert({
