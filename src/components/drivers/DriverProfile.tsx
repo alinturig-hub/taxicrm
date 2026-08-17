@@ -12,7 +12,11 @@ type Vehicle = {
   make: string | null;
   model: string | null;
   ownerDriverId?: number | null;
-  capabilities?: unknown;
+  capabilities?: Array<{
+    id: string;
+    shortCode: string;
+    name: string;
+  }>;
 };
 
 type DriverProfileResponse = {
@@ -408,10 +412,11 @@ export default function DriverProfile({
                     <div className="mt-2 flex flex-wrap gap-1">
                       {vehicle.capabilities.map((capability) => (
                         <span
-                          key={String(capability)}
-                          className="rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-slate-400"
+                          key={capability.id}
+                          title={capability.name}
+                          className="cursor-help rounded-md border border-slate-700 bg-slate-900 px-1.5 py-0.5 text-[10px] font-medium text-slate-400"
                         >
-                          {String(capability)}
+                          {capability.shortCode}
                         </span>
                       ))}
                     </div>

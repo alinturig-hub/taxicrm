@@ -571,7 +571,13 @@ export async function GET(
       })
     : [];
 
-  const capabilityCodeById = new Map<string, string>();
+  const capabilityById = new Map<
+    string,
+    {
+      shortCode: string;
+      name: string;
+    }
+  >();
 
   for (const capability of capabilityRecords) {
     const data = capability.data;
@@ -581,17 +587,26 @@ export async function GET(
       typeof data === "object" &&
       !Array.isArray(data)
     ) {
-      const value = (
-        data as Record<string, unknown>
-      ).shortCode;
+      const record =
+        data as Record<string, unknown>;
+
+      const shortCode = record.shortCode;
+      const name = record.name;
 
       if (
-        typeof value === "string" &&
-        value.trim().length > 0
+        typeof shortCode === "string" &&
+        shortCode.trim().length > 0
       ) {
-        capabilityCodeById.set(
+        capabilityById.set(
           capability.externalId,
-          value,
+          {
+            shortCode,
+            name:
+              typeof name === "string" &&
+              name.trim().length > 0
+                ? name
+                : shortCode,
+          },
         );
       }
     }
@@ -603,13 +618,20 @@ export async function GET(
       capabilities: Array.isArray(vehicle.capabilities)
         ? vehicle.capabilities.map((capability) => {
             const capabilityId = String(capability);
+            const resolved =
+              capabilityById.get(capabilityId);
 
-            return (
-              capabilityCodeById.get(capabilityId) ??
-              capabilityId
-            );
+            return {
+              id: capabilityId,
+              shortCode:
+                resolved?.shortCode ??
+                capabilityId,
+              name:
+                resolved?.name ??
+                `Capability ${capabilityId}`,
+            };
           })
-        : vehicle.capabilities,
+        : [],
     }));
 
   const offerRates = (
