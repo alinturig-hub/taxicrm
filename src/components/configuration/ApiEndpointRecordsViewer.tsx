@@ -110,23 +110,6 @@ export default function ApiEndpointRecordsViewer({
   const records =
     payload?.records ?? [];
 
-  const columns = useMemo(() => {
-    const keys: string[] = [];
-
-    for (const record of records.slice(0, 25)) {
-      for (const key of Object.keys(record.data)) {
-        if (
-          !keys.includes(key) &&
-          keys.length < 8
-        ) {
-          keys.push(key);
-        }
-      }
-    }
-
-    return keys;
-  }, [records]);
-
   const filteredRecords =
     useMemo(() => {
       const value =
@@ -251,25 +234,13 @@ export default function ApiEndpointRecordsViewer({
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-slate-800 bg-slate-950/40 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">
-                  ID
-                </th>
-
-                {columns.map((column) => (
-                  <th
-                    key={column}
-                    className="px-4 py-3"
-                  >
-                    {column}
-                  </th>
-                ))}
-
-                <th className="px-4 py-3">
-                  Status
-                </th>
-                <th className="px-4 py-3">
-                  Action
-                </th>
+                <th className="px-4 py-3">Name</th>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Enabled</th>
+                <th className="px-4 py-3">Short Code</th>
+                <th className="px-4 py-3">Requirement</th>
+                <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Action</th>
               </tr>
             </thead>
 
@@ -277,20 +248,29 @@ export default function ApiEndpointRecordsViewer({
               {filteredRecords.map((record) => (
                 <>
                   <tr key={record.id}>
+                    <td className="px-4 py-3 font-semibold text-white">
+                      {displayValue(record.data.name)}
+                    </td>
+
                     <td className="px-4 py-3 font-mono text-slate-300">
                       {record.externalId}
                     </td>
 
-                    {columns.map((column) => (
-                      <td
-                        key={column}
-                        className="max-w-xs truncate px-4 py-3 text-slate-300"
-                      >
-                        {displayValue(
-                          record.data[column],
-                        )}
-                      </td>
-                    ))}
+                    <td className="px-4 py-3">
+                      {record.data.enabled === true ? (
+                        <span className="text-emerald-300">Yes</span>
+                      ) : (
+                        <span className="text-slate-500">No</span>
+                      )}
+                    </td>
+
+                    <td className="px-4 py-3 font-mono text-slate-300">
+                      {displayValue(record.data.shortCode)}
+                    </td>
+
+                    <td className="px-4 py-3 text-slate-300">
+                      {displayValue(record.data.requirement)}
+                    </td>
 
                     <td className="px-4 py-3">
                       {record.isActive ? (
@@ -326,7 +306,7 @@ export default function ApiEndpointRecordsViewer({
                   {expandedId === record.id ? (
                     <tr key={`${record.id}-json`}>
                       <td
-                        colSpan={columns.length + 3}
+                        colSpan={7}
                         className="bg-slate-950 px-4 py-4"
                       >
                         <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-6 text-slate-300">
