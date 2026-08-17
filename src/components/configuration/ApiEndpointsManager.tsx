@@ -14,6 +14,9 @@ type ApiEndpoint = {
   url: string;
   path: string | null;
   isEnabled: boolean;
+  responseType: string | null;
+  recordKey: string | null;
+  storeRecords: boolean;
   lastTestedAt: string | null;
   lastStatusCode: number | null;
   lastResponseTimeMs: number | null;
@@ -41,6 +44,11 @@ function formatDate(value: string | null) {
 
 export default function ApiEndpointsManager() {
   const [url, setUrl] = useState("");
+  const [recordKey, setRecordKey] = useState("id");
+  const [storeRecords, setStoreRecords] = useState(false);
+  const [jsonSchema, setJsonSchema] = useState("");
+  const [exampleResponse, setExampleResponse] = useState("");
+  const [syncingId, setSyncingId] = useState<string | null>(null);
   const [endpoints, setEndpoints] =
     useState<ApiEndpoint[]>([]);
   const [loading, setLoading] =
@@ -112,6 +120,14 @@ export default function ApiEndpointsManager() {
           },
           body: JSON.stringify({
             url: url.trim(),
+            recordKey: recordKey.trim() || undefined,
+            storeRecords,
+            jsonSchema: jsonSchema.trim()
+              ? JSON.parse(jsonSchema)
+              : undefined,
+            exampleResponse: exampleResponse.trim()
+              ? JSON.parse(exampleResponse)
+              : undefined,
           }),
         },
       );
@@ -131,6 +147,10 @@ export default function ApiEndpointsManager() {
       }
 
       setUrl("");
+      setRecordKey("id");
+      setStoreRecords(false);
+      setJsonSchema("");
+      setExampleResponse("");
       setSuccess(
         `${payload.endpoint.name} connected successfully.`,
       );
@@ -144,6 +164,83 @@ export default function ApiEndpointsManager() {
       );
     } finally {
       setAdding(false);
+    }
+  }
+
+  async function deleteEndpoint(endpoint: ApiEndpoint) {
+    if (
+      !window.confirm(
+        `Delete ${endpoint.name}? Stored generic records for this endpoint will also be deleted.`,
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setError(null);
+      setSuccess(null);
+
+      const response = await fetch(
+        `/api/dashboard/configuration/api-endpoints/${endpoint.id}`,
+        {
+          method: "DELETE",
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success) {
+        throw new Error(
+          payload.message ?? "API endpoint could not be deleted.",
+        );
+      }
+
+      setSuccess(`${endpoint.name} deleted.`);
+      await loadEndpoints();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to delete API endpoint.",
+      );
+    }
+  }
+
+  async function syncEndpoint(endpoint: ApiEndpoint) {
+    try {
+      setSyncingId(endpoint.id);
+      setError(null);
+      setSuccess(null);
+
+      const response = await fetch(
+        `/api/dashboard/configuration/api-endpoints/${endpoint.id}/sync`,
+        {
+          method: "POST",
+          cache: "no-store",
+        },
+      );
+
+      const payload = await response.json();
+
+      if (!response.ok || !payload.success || !payload.result) {
+        throw new Error(
+          payload.message ?? "API endpoint synchronization failed.",
+        );
+      }
+
+      setSuccess(
+        `${endpoint.name}: ${payload.result.created} created, ${payload.result.updated} updated, ${payload.result.disabled} disabled, ${payload.result.failed} failed.`,
+      );
+
+      await loadEndpoints();
+    } catch (error) {
+      setError(
+        error instanceof Error
+          ? error.message
+          : "Unable to synchronize API endpoint.",
+      );
+    } finally {
+      setSyncingId(null);
     }
   }
 
@@ -171,31 +268,94 @@ export default function ApiEndpointsManager() {
           Add API
         </p>
 
-        <div className="mt-4 flex flex-col gap-3 lg:flex-row">
+        <div className="mt-4 space-y-4">
           <input
             type="url"
             value={url}
             onChange={(event) =>
               setUrl(event.target.value)
             }
-            placeholder="https://autocab-api.azure-api.net/booking/v1/zones"
-            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+            placeholder="https://autocab-api.azure-api.net/booking/v1/capabilities"
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
           />
+
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Record Key
+              </label>
+              <input
+                type="text"
+                value={recordKey}
+                onChange={(event) =>
+                  setRecordKey(event.target.value)
+                }
+                placeholder="id"
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+              />
+            </div>
+
+            <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/50 px-4 py-3">
+              <input
+                type="checkbox"
+                checked={storeRecords}
+                onChange={(event) =>
+                  setStoreRecords(event.target.checked)
+                }
+              />
+              <span>
+                <span className="block text-sm font-semibold text-white">
+                  Store Records
+                </span>
+                <span className="block text-xs text-slate-500">
+                  Save each item into the generic API record store.
+                </span>
+              </span>
+            </label>
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                JSON Schema
+              </label>
+              <textarea
+                value={jsonSchema}
+                onChange={(event) =>
+                  setJsonSchema(event.target.value)
+                }
+                rows={12}
+                placeholder='{"type":"array","items":{"type":"object"}}'
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Example Response
+              </label>
+              <textarea
+                value={exampleResponse}
+                onChange={(event) =>
+                  setExampleResponse(event.target.value)
+                }
+                rows={12}
+                placeholder='[{"id":5,"name":"Account Priority"}]'
+                className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-xs text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+              />
+            </div>
+          </div>
 
           <button
             type="button"
-            onClick={() =>
-              void addEndpoint()
-            }
+            onClick={() => void addEndpoint()}
             disabled={
               adding ||
               url.trim().length === 0
             }
             className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {adding
-              ? "Testing API…"
-              : "Add API"}
+            {adding ? "Testing API…" : "Save & Test API"}
           </button>
         </div>
 
@@ -248,6 +408,12 @@ export default function ApiEndpointsManager() {
                   <th className="px-5 py-3">
                     Last Test
                   </th>
+                  <th className="px-5 py-3">
+                    Records
+                  </th>
+                  <th className="px-5 py-3">
+                    Action
+                  </th>
                 </tr>
               </thead>
 
@@ -291,6 +457,43 @@ export default function ApiEndpointsManager() {
                           endpoint.lastTestedAt,
                         )}
                       </td>
+
+                      <td className="px-5 py-4 text-slate-300">
+                        {endpoint.storeRecords
+                          ? `Key: ${endpoint.recordKey ?? "—"}`
+                          : "Raw only"}
+                      </td>
+
+                      <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void syncEndpoint(endpoint)
+                            }
+                            disabled={
+                              !endpoint.storeRecords ||
+                              !endpoint.recordKey ||
+                              syncingId === endpoint.id
+                            }
+                            className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+                          >
+                            {syncingId === endpoint.id
+                              ? "Syncing…"
+                              : "Sync Now"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void deleteEndpoint(endpoint)
+                            }
+                            className="rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-300 transition hover:bg-red-500/20"
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      </td>
                     </tr>
                   ),
                 )}
@@ -298,7 +501,7 @@ export default function ApiEndpointsManager() {
                 {endpoints.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       className="px-5 py-10 text-center text-slate-500"
                     >
                       No API endpoints configured.

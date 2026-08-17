@@ -114,6 +114,10 @@ export async function POST(
     const body =
       (await request.json()) as {
         url?: unknown;
+        jsonSchema?: unknown;
+        exampleResponse?: unknown;
+        recordKey?: unknown;
+        storeRecords?: unknown;
       };
 
     if (
@@ -157,6 +161,29 @@ export async function POST(
     ) {
       throw new Error(
         "This endpoint does not belong to the configured Autocab API host.",
+      );
+    }
+
+    const recordKey =
+      typeof body.recordKey === "string" &&
+      body.recordKey.trim().length > 0
+        ? body.recordKey.trim()
+        : null;
+
+    const storeRecords =
+      body.storeRecords === true;
+
+    if (storeRecords && !recordKey) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "RECORD_KEY_REQUIRED",
+          message:
+            "Record Key is required when Store Records is enabled.",
+        },
+        {
+          status: 400,
+        },
       );
     }
 
@@ -225,6 +252,14 @@ export async function POST(
       );
     }
 
+    const responseType =
+      Array.isArray(parsed)
+        ? "array"
+        : parsed !== null &&
+            typeof parsed === "object"
+          ? "object"
+          : typeof parsed;
+
     const endpoint =
       await prisma.apiEndpointConfiguration.upsert({
         where: {
@@ -237,6 +272,18 @@ export async function POST(
           url: endpointUrl.toString(),
           path: endpointUrl.pathname,
           isEnabled: true,
+          responseType,
+          recordKey,
+          jsonSchema:
+            body.jsonSchema &&
+            typeof body.jsonSchema === "object"
+              ? (body.jsonSchema as object)
+              : undefined,
+          exampleResponse:
+            body.exampleResponse !== undefined
+              ? (body.exampleResponse as object)
+              : undefined,
+          storeRecords,
           lastTestedAt: new Date(),
           lastStatusCode:
             response.status,
@@ -252,6 +299,18 @@ export async function POST(
           method: "GET",
           path: endpointUrl.pathname,
           isEnabled: true,
+          responseType,
+          recordKey,
+          jsonSchema:
+            body.jsonSchema &&
+            typeof body.jsonSchema === "object"
+              ? (body.jsonSchema as object)
+              : undefined,
+          exampleResponse:
+            body.exampleResponse !== undefined
+              ? (body.exampleResponse as object)
+              : undefined,
+          storeRecords,
           lastTestedAt: new Date(),
           lastStatusCode:
             response.status,

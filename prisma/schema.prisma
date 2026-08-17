@@ -565,40 +565,69 @@ model AutocabApiConfiguration {
 }
 
 model ApiEndpointConfiguration {
-  id                 String   @id @default(cuid())
-  provider           String
-  name               String
-  method             String   @default("GET")
-  url                String   @unique
-  path               String?
-  isEnabled          Boolean  @default(true)
+  id        String  @id @default(cuid())
+  provider  String
+  name      String
+  method    String  @default("GET")
+  url       String  @unique
+  path      String?
+  isEnabled Boolean @default(true)
+
+  responseType        String?
+  recordKey           String?
+  jsonSchema          Json?
+  exampleResponse     Json?
+  filterConfiguration Json?
+  storeRecords        Boolean @default(false)
+
   lastTestedAt       DateTime?
   lastStatusCode     Int?
   lastResponseTimeMs Int?
-  lastError          String?  @db.Text
+  lastError          String?   @db.Text
   sampleResponse     Json?
-  createdAt          DateTime @default(now())
-  updatedAt          DateTime @updatedAt
+
+  records ApiEndpointRecord[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   @@index([provider])
   @@index([isEnabled])
 }
 
+model ApiEndpointRecord {
+  id            String   @id @default(cuid())
+  endpointId    String
+  externalId    String
+  data          Json
+  isActive      Boolean  @default(true)
+  sourceVersion String?
+  lastSyncedAt  DateTime @default(now())
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  endpoint ApiEndpointConfiguration @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@unique([endpointId, externalId])
+  @@index([endpointId])
+  @@index([isActive])
+}
+
 model Zone {
-  id          String   @id @default(cuid())
-  provider    String   @default("AUTOCAB")
-  externalId  String
-  companyId   Int
-  mdtZoneId   Int?
-  name        String
-  descriptor  String?
-  latitude    Decimal? @db.Decimal(10, 7)
-  longitude   Decimal? @db.Decimal(10, 7)
-  active      Boolean  @default(true)
-  rawPayload  Json?
+  id           String   @id @default(cuid())
+  provider     String   @default("AUTOCAB")
+  externalId   String
+  companyId    Int
+  mdtZoneId    Int?
+  name         String
+  descriptor   String?
+  latitude     Decimal? @db.Decimal(10, 7)
+  longitude    Decimal? @db.Decimal(10, 7)
+  active       Boolean  @default(true)
+  rawPayload   Json?
   lastSyncedAt DateTime @default(now())
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
   @@unique([provider, externalId])
   @@index([companyId])
@@ -637,15 +666,15 @@ model IntegrationSyncJob {
 }
 
 model NormalCustomer {
-  id                  String   @id @default(cuid())
-  normalizedTelephone String   @unique
+  id                  String    @id @default(cuid())
+  normalizedTelephone String    @unique
   telephoneNumber     String
   displayName         String?
   email               String?
   firstBookingAt      DateTime?
   lastBookingAt       DateTime?
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
   bookings Booking[]
 
