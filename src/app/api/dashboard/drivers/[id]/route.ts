@@ -547,6 +547,71 @@ export async function GET(
     }),
   ]);
 
+  const capabilitiesEndpoint =
+    await prisma.apiEndpointConfiguration.findFirst({
+      where: {
+        provider: "AUTOCAB",
+        name: "Capabilities",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+  const capabilityRecords = capabilitiesEndpoint
+    ? await prisma.apiEndpointRecord.findMany({
+        where: {
+          endpointId: capabilitiesEndpoint.id,
+          isActive: true,
+        },
+        select: {
+          externalId: true,
+          data: true,
+        },
+      })
+    : [];
+
+  const capabilityCodeById = new Map<string, string>();
+
+  for (const capability of capabilityRecords) {
+    const data = capability.data;
+
+    if (
+      data &&
+      typeof data === "object" &&
+      !Array.isArray(data)
+    ) {
+      const value = (
+        data as Record<string, unknown>
+      ).shortCode;
+
+      if (
+        typeof value === "string" &&
+        value.trim().length > 0
+      ) {
+        capabilityCodeById.set(
+          capability.externalId,
+          value,
+        );
+      }
+    }
+  }
+
+  const assignedVehiclesWithCapabilityCodes =
+    assignedVehicles.map((vehicle) => ({
+      ...vehicle,
+      capabilities: Array.isArray(vehicle.capabilities)
+        ? vehicle.capabilities.map((capability) => {
+            const capabilityId = String(capability);
+
+            return (
+              capabilityCodeById.get(capabilityId) ??
+              capabilityId
+            );
+          })
+        : vehicle.capabilities,
+    }));
+
   const offerRates = (
     accepted: number,
     rejected: number,
@@ -601,7 +666,8 @@ export async function GET(
               currentShift.vehicle,
           }
         : null,
-      assignedVehicles,
+      assignedVehicles:
+        assignedVehiclesWithCapabilityCodes,
     },
     analytics: {
       today: {
