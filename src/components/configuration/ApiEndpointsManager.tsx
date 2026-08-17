@@ -31,6 +31,20 @@ type ApiResponse = {
   endpoint?: ApiEndpoint;
 };
 
+function extractParameterNames(url: string) {
+  const names: string[] = [];
+  const pattern = /\{([^}]+)\}/g;
+  let match: RegExpExecArray | null;
+
+  while ((match = pattern.exec(url)) !== null) {
+    if (!names.includes(match[1])) {
+      names.push(match[1]);
+    }
+  }
+
+  return names;
+}
+
 function formatDate(value: string | null) {
   if (!value) {
     return "Never";
@@ -49,6 +63,8 @@ export default function ApiEndpointsManager() {
   const [jsonSchema, setJsonSchema] = useState("");
   const [exampleResponse, setExampleResponse] = useState("");
   const [syncingId, setSyncingId] = useState<string | null>(null);
+  const [testParameters, setTestParameters] =
+    useState<Record<string, string>>({});
   const [endpoints, setEndpoints] =
     useState<ApiEndpoint[]>([]);
   const [loading, setLoading] =
@@ -128,6 +144,7 @@ export default function ApiEndpointsManager() {
             exampleResponse: exampleResponse.trim()
               ? JSON.parse(exampleResponse)
               : undefined,
+            parameters: testParameters,
           }),
         },
       );
@@ -244,6 +261,9 @@ export default function ApiEndpointsManager() {
     }
   }
 
+  const parameterNames =
+    extractParameterNames(url);
+
   return (
     <div className="space-y-6">
       <div>
@@ -278,6 +298,45 @@ export default function ApiEndpointsManager() {
             placeholder="https://autocab-api.azure-api.net/booking/v1/capabilities"
             className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
           />
+
+          {parameterNames.length > 0 ? (
+            <div className="rounded-xl border border-blue-500/20 bg-blue-950/10 p-4">
+              <div className="mb-4">
+                <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
+                  Try API
+                </p>
+                <p className="mt-1 text-xs text-slate-500">
+                  Enter test values for the parameters detected in the URL.
+                </p>
+              </div>
+
+              <div className="grid gap-4 lg:grid-cols-2">
+                {parameterNames.map((parameterName) => (
+                  <div key={parameterName}>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      {parameterName}
+                    </label>
+
+                    <input
+                      type="text"
+                      value={
+                        testParameters[parameterName] ?? ""
+                      }
+                      onChange={(event) =>
+                        setTestParameters((current) => ({
+                          ...current,
+                          [parameterName]:
+                            event.target.value,
+                        }))
+                      }
+                      placeholder={`Enter ${parameterName}`}
+                      className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
 
           <div className="grid gap-4 lg:grid-cols-2">
             <div>

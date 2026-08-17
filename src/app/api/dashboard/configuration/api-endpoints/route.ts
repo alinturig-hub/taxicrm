@@ -118,6 +118,7 @@ export async function POST(
         exampleResponse?: unknown;
         recordKey?: unknown;
         storeRecords?: unknown;
+        parameters?: Record<string, unknown>;
       };
 
     if (
@@ -137,6 +138,45 @@ export async function POST(
       );
     }
 
+    const configuredUrl = body.url.trim();
+    let resolvedUrl = configuredUrl;
+
+    const placeholders: string[] = [];
+    const placeholderPattern = /\{([^}]+)\}/g;
+    let placeholderMatch: RegExpExecArray | null;
+
+    while (
+      (placeholderMatch =
+        placeholderPattern.exec(resolvedUrl)) !== null
+    ) {
+      placeholders.push(placeholderMatch[1]);
+    }
+
+    for (const parameterName of placeholders) {
+      const value = body.parameters?.[parameterName];
+
+      if (
+        typeof value !== "string" ||
+        value.trim().length === 0
+      ) {
+        return NextResponse.json(
+          {
+            success: false,
+            error: "PARAMETER_REQUIRED",
+            message: `Parameter "${parameterName}" is required to test this API.`,
+          },
+          {
+            status: 400,
+          },
+        );
+      }
+
+      resolvedUrl = resolvedUrl.replaceAll(
+        `{${parameterName}}`,
+        encodeURIComponent(value.trim()),
+      );
+    }
+
     const credentials =
       await getAutocabApiCredentials();
 
@@ -144,7 +184,7 @@ export async function POST(
       new URL(credentials.baseUrl);
 
     const endpointUrl =
-      new URL(body.url.trim());
+      new URL(resolvedUrl);
 
     if (
       endpointUrl.protocol !== "https:" &&
@@ -263,13 +303,13 @@ export async function POST(
     const endpoint =
       await prisma.apiEndpointConfiguration.upsert({
         where: {
-          url: endpointUrl.toString(),
+          url: configuredUrl,
         },
         create: {
           provider: "AUTOCAB",
           name: deriveName(endpointUrl),
           method: "GET",
-          url: endpointUrl.toString(),
+          url: configuredUrl,
           path: endpointUrl.pathname,
           isEnabled: true,
           responseType,
