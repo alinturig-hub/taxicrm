@@ -207,11 +207,6 @@ export async function GET(request: Request) {
             position: "asc",
           },
         },
-        timelineEvents: {
-          orderBy: {
-            occurredAt: "desc",
-          },
-        },
       },
     });
 
@@ -304,7 +299,6 @@ export async function GET(request: Request) {
           createdAt: booking.createdAt,
           updatedAt: booking.updatedAt,
 
-          timeline: booking.timelineEvents,
         };
       }),
     });
