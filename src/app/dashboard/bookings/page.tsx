@@ -340,41 +340,34 @@ export default function BookingsPage() {
     const now = new Date();
 
     const terminalStatuses = new Set([
-      "completed",
-      "cancelled",
-      "rejected",
-      "no-show",
+      "COMPLETED",
+      "CANCELLED",
+      "REJECTED",
+      "NO_FARE",
     ]);
 
-    const isToday = (value: string | null) => {
-      if (!value) {
-        return false;
-      }
-
-      const date = new Date(value);
-
-      return (
-        date.getFullYear() === now.getFullYear() &&
-        date.getMonth() === now.getMonth() &&
-        date.getDate() === now.getDate()
-      );
-    };
-
     const live = activeBookings.filter(
-      (booking) => !terminalStatuses.has(booking.status),
+      (booking) =>
+        !terminalStatuses.has(booking.status.toUpperCase()),
     ).length;
 
-    const waitingDispatch = activeBookings.filter(
-      (booking) =>
-        booking.status === "created" ||
-        booking.status === "on-hold",
-    ).length;
+    const waitingDispatch = activeBookings.filter((booking) => {
+      const status = booking.status.toUpperCase();
+
+      return status === "CREATED" || status === "ACTIVE";
+    }).length;
 
     const completedToday = activeBookings.filter(
-      (booking) =>
-        booking.status === "completed" &&
-        isToday(booking.updatedAt),
+      (booking) => booking.status.toUpperCase() === "COMPLETED",
     );
+
+    const cancelledToday = activeBookings.filter(
+      (booking) => booking.status.toUpperCase() === "CANCELLED",
+    ).length;
+
+    const noFareToday = activeBookings.filter(
+      (booking) => booking.status.toUpperCase() === "NO_FARE",
+    ).length;
 
     const revenueToday = completedToday.reduce(
       (sum, booking) =>
@@ -388,8 +381,10 @@ export default function BookingsPage() {
         : 0;
 
     const delayed = activeBookings.filter((booking) => {
+      const status = booking.status.toUpperCase();
+
       if (
-        terminalStatuses.has(booking.status) ||
+        terminalStatuses.has(status) ||
         !booking.pickupDueTime
       ) {
         return false;
@@ -402,6 +397,8 @@ export default function BookingsPage() {
       live,
       waitingDispatch,
       completedToday: completedToday.length,
+      cancelledToday,
+      noFareToday,
       revenueToday,
       averageJobValue,
       delayed,
@@ -633,31 +630,31 @@ export default function BookingsPage() {
           <KpiCard
             title="Waiting Dispatch"
             value={bookingStats.waitingDispatch.toString()}
-            description="Created or on-hold bookings"
+            description="Created or active bookings"
           />
 
           <KpiCard
             title="Completed Today"
             value={bookingStats.completedToday.toString()}
-            description="Bookings completed today"
+            description="Completed bookings today"
+          />
+
+          <KpiCard
+            title="Cancelled Today"
+            value={bookingStats.cancelledToday.toString()}
+            description="Cancelled bookings today"
+          />
+
+          <KpiCard
+            title="No Fare Today"
+            value={bookingStats.noFareToday.toString()}
+            description="No-fare bookings today"
           />
 
           <KpiCard
             title="Revenue Today"
             value={`£${bookingStats.revenueToday.toFixed(2)}`}
             description="Revenue from completed bookings"
-          />
-
-          <KpiCard
-            title="Average Job Value"
-            value={`£${bookingStats.averageJobValue.toFixed(2)}`}
-            description="Average completed booking value"
-          />
-
-          <KpiCard
-            title="Jobs Delayed"
-            value={bookingStats.delayed.toString()}
-            description="Active bookings past pickup time"
           />
         </div>
 

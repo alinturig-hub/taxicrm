@@ -4,9 +4,97 @@ import { prisma } from "@/lib/prisma";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const OPERATIONAL_TIME_ZONE = "Europe/London";
+
+function getLondonDateParts(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: OPERATIONAL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  return {
+    year: value("year"),
+    month: value("month"),
+    day: value("day"),
+  };
+}
+
+function getTimeZoneOffset(date: Date) {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: OPERATIONAL_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(parts.find((part) => part.type === type)?.value);
+
+  const representedAsUtc = Date.UTC(
+    value("year"),
+    value("month") - 1,
+    value("day"),
+    value("hour"),
+    value("minute"),
+    value("second"),
+  );
+
+  return representedAsUtc - date.getTime();
+}
+
+function londonMidnightUtc(
+  year: number,
+  month: number,
+  day: number,
+) {
+  const utcGuess = new Date(Date.UTC(year, month - 1, day));
+  const offset = getTimeZoneOffset(utcGuess);
+
+  return new Date(utcGuess.getTime() - offset);
+}
+
+function getCurrentLondonDayRange() {
+  const now = new Date();
+  const current = getLondonDateParts(now);
+
+  const nextCalendarDay = new Date(
+    Date.UTC(current.year, current.month - 1, current.day + 1),
+  );
+
+  return {
+    start: londonMidnightUtc(
+      current.year,
+      current.month,
+      current.day,
+    ),
+    end: londonMidnightUtc(
+      nextCalendarDay.getUTCFullYear(),
+      nextCalendarDay.getUTCMonth() + 1,
+      nextCalendarDay.getUTCDate(),
+    ),
+  };
+}
+
 export async function GET() {
   try {
+    const { start, end } = getCurrentLondonDayRange();
+
     const bookings = await prisma.booking.findMany({
+      where: {
+        pickupDueTime: {
+          gte: start,
+          lt: end,
+        },
+      },
       orderBy: [
         {
           pickupDueTime: {
@@ -35,7 +123,6 @@ export async function GET() {
           },
         },
       },
-      take: 250,
     });
 
     return NextResponse.json({
