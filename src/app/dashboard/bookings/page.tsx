@@ -653,7 +653,7 @@ export default function BookingsPage() {
 
           <KpiCard
             title="Revenue Today"
-            value={`£${bookingStats.revenueToday.toFixed(2)}`}
+            value={`£${Number(bookingStats.revenueToday).toFixed(2)}`}
             description="Revenue from completed bookings"
           />
         </div>
