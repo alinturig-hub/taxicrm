@@ -84,9 +84,99 @@ function getCurrentLondonDayRange() {
   };
 }
 
-export async function GET() {
+function parseLondonDate(value: string) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+
+  if (!match) {
+    return null;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+
+  const testDate = new Date(
+    Date.UTC(year, month - 1, day),
+  );
+
+  if (
+    testDate.getUTCFullYear() !== year ||
+    testDate.getUTCMonth() + 1 !== month ||
+    testDate.getUTCDate() !== day
+  ) {
+    return null;
+  }
+
+  return {
+    year,
+    month,
+    day,
+  };
+}
+
+function getRequestedLondonDayRange(
+  fromValue: string | null,
+  toValue: string | null,
+) {
+  if (!fromValue && !toValue) {
+    return getCurrentLondonDayRange();
+  }
+
+  const from = parseLondonDate(
+    fromValue ?? toValue ?? "",
+  );
+
+  const to = parseLondonDate(
+    toValue ?? fromValue ?? "",
+  );
+
+  if (!from || !to) {
+    throw new Error(
+      "Invalid booking date range. Expected YYYY-MM-DD.",
+    );
+  }
+
+  const start = londonMidnightUtc(
+    from.year,
+    from.month,
+    from.day,
+  );
+
+  const nextDay = new Date(
+    Date.UTC(
+      to.year,
+      to.month - 1,
+      to.day + 1,
+    ),
+  );
+
+  const end = londonMidnightUtc(
+    nextDay.getUTCFullYear(),
+    nextDay.getUTCMonth() + 1,
+    nextDay.getUTCDate(),
+  );
+
+  if (start >= end) {
+    throw new Error(
+      "From date must be before or equal to To date.",
+    );
+  }
+
+  return {
+    start,
+    end,
+  };
+}
+
+export async function GET(request: Request) {
   try {
-    const { start, end } = getCurrentLondonDayRange();
+    const url = new URL(request.url);
+
+    const { start, end } =
+      getRequestedLondonDayRange(
+        url.searchParams.get("from"),
+        url.searchParams.get("to"),
+      );
 
     const bookings = await prisma.booking.findMany({
       where: {

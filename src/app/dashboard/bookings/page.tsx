@@ -72,12 +72,30 @@ export default function BookingsPage() {
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
 
+  const buildBookingsUrl = useCallback(() => {
+    const params = new URLSearchParams();
+
+    if (fromDate) {
+      params.set("from", fromDate);
+    }
+
+    if (toDate) {
+      params.set("to", toDate);
+    }
+
+    const query = params.toString();
+
+    return query
+      ? `/api/bookings?${query}`
+      : "/api/bookings";
+  }, [fromDate, toDate]);
+
   const loadBookings = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await fetch("/api/bookings", {
+      const response = await fetch(buildBookingsUrl(), {
         cache: "no-store",
       });
 
@@ -103,11 +121,97 @@ export default function BookingsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [buildBookingsUrl]);
 
   useEffect(() => {
+    setPage(1);
     void loadBookings();
   }, [loadBookings]);
+
+  useEffect(() => {
+    let socket: WebSocket | null = null;
+    let refreshTimer: number | null = null;
+
+    const refreshSilently = async () => {
+      try {
+        const response = await fetch(buildBookingsUrl(), {
+          cache: "no-store",
+        });
+
+        const payload =
+          (await response.json()) as BookingsApiResponse;
+
+        if (
+          response.ok &&
+          payload.success
+        ) {
+          setBookingsData(payload.bookings);
+        }
+      } catch {
+        // Keep the currently displayed data if a realtime refresh fails.
+      }
+    };
+
+    const scheduleRefresh = () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      refreshTimer = window.setTimeout(() => {
+        void refreshSilently();
+        refreshTimer = null;
+      }, 300);
+    };
+
+    const protocol =
+      window.location.protocol === "https:"
+        ? "wss:"
+        : "ws:";
+
+    try {
+      socket = new WebSocket(
+        `${protocol}//${window.location.host}/ws/fleet`,
+      );
+
+      socket.addEventListener("message", (event) => {
+        try {
+          const message = JSON.parse(
+            String(event.data),
+          ) as {
+            type?: string;
+          };
+
+          if (
+            message.type ===
+            "dashboard.metrics.updated"
+          ) {
+            scheduleRefresh();
+          }
+        } catch {
+          // Ignore malformed realtime messages.
+        }
+      });
+    } catch {
+      socket = null;
+    }
+
+    const fallbackInterval =
+      window.setInterval(() => {
+        void refreshSilently();
+      }, 30_000);
+
+    return () => {
+      if (refreshTimer !== null) {
+        window.clearTimeout(refreshTimer);
+      }
+
+      window.clearInterval(
+        fallbackInterval,
+      );
+
+      socket?.close();
+    };
+  }, [buildBookingsUrl]);
 
   useEffect(() => {
     const routeStatus = pathname.split("/").filter(Boolean).at(-1);
@@ -370,8 +474,21 @@ export default function BookingsPage() {
     ).length;
 
     const revenueToday = completedToday.reduce(
-      (sum, booking) =>
-        sum + (booking.price ?? booking.fare ?? 0),
+      (sum, booking) => {
+        const value =
+          booking.price ??
+          booking.fare ??
+          0;
+
+        const numericValue = Number(value);
+
+        return (
+          sum +
+          (Number.isFinite(numericValue)
+            ? numericValue
+            : 0)
+        );
+      },
       0,
     );
 
