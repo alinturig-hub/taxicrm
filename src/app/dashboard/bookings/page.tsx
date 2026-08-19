@@ -480,13 +480,49 @@ export default function BookingsPage() {
       (booking) => booking.status.toUpperCase() === "COMPLETED",
     );
 
-    const cancelledToday = activeBookings.filter(
+    const cancelledBookings = activeBookings.filter(
       (booking) => booking.status.toUpperCase() === "CANCELLED",
-    ).length;
+    );
 
-    const noFareToday = activeBookings.filter(
+    const noFareBookings = activeBookings.filter(
       (booking) => booking.status.toUpperCase() === "NO_FARE",
-    ).length;
+    );
+
+    const getEstimatedRevenue = (
+      booking: BookingWorkspaceData,
+    ) => {
+      const candidates = [
+        booking.price,
+        booking.estimatedPrice,
+        booking.fare,
+      ];
+
+      for (const candidate of candidates) {
+        const numericValue = Number(candidate);
+
+        if (
+          Number.isFinite(numericValue) &&
+          numericValue > 0
+        ) {
+          return numericValue;
+        }
+      }
+
+      return 0;
+    };
+
+    const cancelledLostRevenue = cancelledBookings.reduce(
+      (sum, booking) => sum + getEstimatedRevenue(booking),
+      0,
+    );
+
+    const noFareLostRevenue = noFareBookings.reduce(
+      (sum, booking) => sum + getEstimatedRevenue(booking),
+      0,
+    );
+
+    const cancelledToday = cancelledBookings.length;
+    const noFareToday = noFareBookings.length;
 
     const revenueToday = completedToday.reduce(
       (sum, booking) => {
@@ -562,6 +598,8 @@ export default function BookingsPage() {
       completedToday: completedToday.length,
       cancelledToday,
       noFareToday,
+      cancelledLostRevenue,
+      noFareLostRevenue,
       revenueToday,
       averageJobValue,
       delayed,
@@ -965,7 +1003,7 @@ export default function BookingsPage() {
               onClick={() => applyCardFilter("CANCELLED")}
               active={cardFilter === "CANCELLED"}
               value={bookingStats.cancelledToday.toString()}
-              description="Cancelled in selected period"
+              description={`Estimated lost revenue: £${bookingStats.cancelledLostRevenue.toFixed(2)}`}
             />
             <KpiCard
               title="Rejected"
@@ -986,7 +1024,7 @@ export default function BookingsPage() {
               onClick={() => applyCardFilter("NO_FARE")}
               active={cardFilter === "NO_FARE"}
               value={bookingStats.noFareToday.toString()}
-              description="No-fare bookings in selected period"
+              description={`Estimated lost revenue: £${bookingStats.noFareLostRevenue.toFixed(2)}`}
             />
             <KpiCard
               title="Revenue"
@@ -1005,14 +1043,14 @@ export default function BookingsPage() {
               onClick={() => applyCardFilter("NO_FARE")}
               active={cardFilter === "NO_FARE"}
               value={bookingStats.noFareToday.toString()}
-              description="Potential revenue loss"
+              description={`Estimated lost revenue: £${bookingStats.noFareLostRevenue.toFixed(2)}`}
             />
             <KpiCard
               title="Cancelled"
               onClick={() => applyCardFilter("CANCELLED")}
               active={cardFilter === "CANCELLED"}
               value={bookingStats.cancelledToday.toString()}
-              description="Cancelled bookings to review"
+              description={`Estimated lost revenue: £${bookingStats.cancelledLostRevenue.toFixed(2)}`}
             />
             <KpiCard
               title="Rejected"
