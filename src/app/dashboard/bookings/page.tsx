@@ -52,8 +52,12 @@ const workspaceTabs: WorkspaceTab[] = [
 
 export default function BookingsPage() {
   const pathname = usePathname();
+  const [bookingView, setBookingView] = useState<
+    "live" | "history" | "exceptions" | "saved"
+  >("live");
   const [searchValue, setSearchValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [cardFilter, setCardFilter] = useState("all");
   const [sourceFilter, setSourceFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
@@ -461,6 +465,17 @@ export default function BookingsPage() {
       return status === "CREATED" || status === "ACTIVE";
     }).length;
 
+    const countStatus = (targetStatus: string) =>
+      activeBookings.filter(
+        (booking) =>
+          booking.status.toUpperCase() === targetStatus,
+      ).length;
+
+    const dispatched = countStatus("DISPATCHED");
+    const accepted = countStatus("ACCEPTED");
+    const arrived = countStatus("ARRIVED");
+    const passengerOnBoard = countStatus("POB");
+
     const completedToday = activeBookings.filter(
       (booking) => booking.status.toUpperCase() === "COMPLETED",
     );
@@ -510,9 +525,40 @@ export default function BookingsPage() {
       return new Date(booking.pickupDueTime).getTime() < now.getTime();
     }).length;
 
+    const atRisk = activeBookings.filter((booking) => {
+      const status = booking.status.toUpperCase();
+
+      if (
+        status !== "CREATED" &&
+        status !== "ACTIVE"
+      ) {
+        return false;
+      }
+
+      if (!booking.pickupDueTime) {
+        return false;
+      }
+
+      const minutesUntilPickup =
+        (new Date(booking.pickupDueTime).getTime() -
+          now.getTime()) /
+        60_000;
+
+      return (
+        minutesUntilPickup >= 0 &&
+        minutesUntilPickup <= 15
+      );
+    }).length;
+
     return {
       live,
       waitingDispatch,
+      dispatched,
+      accepted,
+      arrived,
+      passengerOnBoard,
+      runningLate: delayed,
+      atRisk,
       completedToday: completedToday.length,
       cancelledToday,
       noFareToday,
@@ -549,6 +595,14 @@ export default function BookingsPage() {
     ];
   }, [activeBookings]);
 
+
+  const applyCardFilter = (filter: string) => {
+    setStatusFilter("all");
+    setCardFilter((current) =>
+      current === filter ? "all" : filter,
+    );
+    setPage(1);
+  };
 
   const filteredBookings = useMemo(() => {
     const normalizedSearch = searchValue.trim().toLowerCase();
@@ -598,6 +652,61 @@ export default function BookingsPage() {
           statusFilter === "all" ||
           normalizedStatus === statusFilter.toUpperCase();
 
+        const pickupDueTime = booking.pickupDueTime
+          ? new Date(booking.pickupDueTime).getTime()
+          : null;
+
+        const now = Date.now();
+
+        const matchesCardFilter = (() => {
+          if (cardFilter === "all") {
+            return true;
+          }
+
+          if (cardFilter === "WAITING_DISPATCH") {
+            return (
+              normalizedStatus === "CREATED" ||
+              normalizedStatus === "ACTIVE"
+            );
+          }
+
+          if (cardFilter === "RUNNING_LATE") {
+            return (
+              ![
+                "COMPLETED",
+                "CANCELLED",
+                "REJECTED",
+                "NO_FARE",
+              ].includes(normalizedStatus) &&
+              pickupDueTime !== null &&
+              pickupDueTime < now
+            );
+          }
+
+          if (cardFilter === "AT_RISK") {
+            if (
+              normalizedStatus !== "CREATED" &&
+              normalizedStatus !== "ACTIVE"
+            ) {
+              return false;
+            }
+
+            if (pickupDueTime === null) {
+              return false;
+            }
+
+            const minutesUntilPickup =
+              (pickupDueTime - now) / 60_000;
+
+            return (
+              minutesUntilPickup >= 0 &&
+              minutesUntilPickup <= 15
+            );
+          }
+
+          return normalizedStatus === cardFilter;
+        })();
+
         const matchesSource =
           sourceFilter === "all" ||
           booking.bookingSource === sourceFilter;
@@ -629,6 +738,7 @@ export default function BookingsPage() {
         return (
           matchesSearch &&
           matchesStatus &&
+          matchesCardFilter &&
           matchesSource &&
           matchesPayment &&
           matchesFrom &&
@@ -659,6 +769,7 @@ export default function BookingsPage() {
       });
   }, [
     activeBookings,
+    cardFilter,
     fromDate,
     paymentFilter,
     searchValue,
@@ -699,6 +810,7 @@ export default function BookingsPage() {
     setFromDate("");
     setToDate("");
     setStatusFilter("all");
+    setCardFilter("all");
     setSourceFilter("all");
     setPaymentFilter("all");
     setPage(1);
@@ -737,68 +849,208 @@ export default function BookingsPage() {
           }
         />
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
-          <KpiCard
-            title={fromDate || toDate ? "Total Bookings" : "Live Bookings"}
-            value={
-              fromDate || toDate
-                ? activeBookings.length.toString()
-                : bookingStats.live.toString()
-            }
-            description={
-              fromDate || toDate
-                ? "Bookings in selected period"
-                : "Active operational bookings"
-            }
-          />
+        <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-slate-800 bg-slate-900/70 p-2">
+          {[
+            { id: "live", label: "Live Operations" },
+            { id: "history", label: "Booking History" },
+            { id: "exceptions", label: "Exceptions" },
+            { id: "saved", label: "Saved Views" },
+          ].map((view) => (
+            <button
+              key={view.id}
+              type="button"
+              onClick={() => {
+                setBookingView(
+                  view.id as
+                    | "live"
+                    | "history"
+                    | "exceptions"
+                    | "saved",
+                );
+                setStatusFilter("all");
+                setCardFilter("all");
 
-          <KpiCard
-            title="Waiting Dispatch"
-            value={bookingStats.waitingDispatch.toString()}
-            description="Created or active bookings"
-          />
+                if (view.id === "live") {
+                  setFromDate("");
+                  setToDate("");
+                  setSourceFilter("all");
+                  setPaymentFilter("all");
+                }
 
-          <KpiCard
-            title={fromDate || toDate ? "Completed" : "Completed Today"}
-            value={bookingStats.completedToday.toString()}
-            description={
-              fromDate || toDate
-                ? "Completed in selected period"
-                : "Completed bookings today"
-            }
-          />
-
-          <KpiCard
-            title={fromDate || toDate ? "Cancelled" : "Cancelled Today"}
-            value={bookingStats.cancelledToday.toString()}
-            description={
-              fromDate || toDate
-                ? "Cancelled in selected period"
-                : "Cancelled bookings today"
-            }
-          />
-
-          <KpiCard
-            title={fromDate || toDate ? "No Fare" : "No Fare Today"}
-            value={bookingStats.noFareToday.toString()}
-            description={
-              fromDate || toDate
-                ? "No-fare bookings in selected period"
-                : "No-fare bookings today"
-            }
-          />
-
-          <KpiCard
-            title={fromDate || toDate ? "Revenue" : "Revenue Today"}
-            value={`£${Number(bookingStats.revenueToday).toFixed(2)}`}
-            description={
-              fromDate || toDate
-                ? "Revenue from completed bookings in period"
-                : "Revenue from completed bookings"
-            }
-          />
+                setPage(1);
+              }}
+              className={`rounded-xl px-4 py-2.5 text-sm font-semibold transition ${
+                bookingView === view.id
+                  ? "bg-blue-600 text-white shadow-lg shadow-blue-950/30"
+                  : "text-slate-400 hover:bg-slate-800 hover:text-white"
+              }`}
+            >
+              {view.label}
+            </button>
+          ))}
         </div>
 
+        {bookingView === "live" ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              title="Waiting Dispatch"
+              onClick={() => applyCardFilter("WAITING_DISPATCH")}
+              active={cardFilter === "WAITING_DISPATCH"}
+              value={bookingStats.waitingDispatch.toString()}
+              description="Created or active bookings"
+            />
+            <KpiCard
+              title="Dispatched"
+              onClick={() => applyCardFilter("DISPATCHED")}
+              active={cardFilter === "DISPATCHED"}
+              value={bookingStats.dispatched.toString()}
+              description="Sent to a driver"
+            />
+            <KpiCard
+              title="Driver Accepted"
+              onClick={() => applyCardFilter("ACCEPTED")}
+              active={cardFilter === "ACCEPTED"}
+              value={bookingStats.accepted.toString()}
+              description="Accepted by a driver"
+            />
+            <KpiCard
+              title="Arrived"
+              onClick={() => applyCardFilter("ARRIVED")}
+              active={cardFilter === "ARRIVED"}
+              value={bookingStats.arrived.toString()}
+              description="Driver at pickup"
+            />
+            <KpiCard
+              title="Passenger On Board"
+              onClick={() => applyCardFilter("POB")}
+              active={cardFilter === "POB"}
+              value={bookingStats.passengerOnBoard.toString()}
+              description="Active passenger journeys"
+            />
+            <KpiCard
+              title="Running Late"
+              onClick={() => applyCardFilter("RUNNING_LATE")}
+              active={cardFilter === "RUNNING_LATE"}
+              value={bookingStats.runningLate.toString()}
+              description="Pickup time has passed"
+            />
+            <KpiCard
+              title="At Risk"
+              onClick={() => applyCardFilter("AT_RISK")}
+              active={cardFilter === "AT_RISK"}
+              value={bookingStats.atRisk.toString()}
+              description="Unassigned and due within 15 minutes"
+            />
+          </div>
+        ) : null}
+
+        {bookingView === "history" ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
+            <KpiCard
+              title="Total Bookings"
+              onClick={() => applyCardFilter("all")}
+              active={cardFilter === "all"}
+              value={activeBookings.length.toString()}
+              description="Bookings in selected period"
+            />
+            <KpiCard
+              title="Completed"
+              onClick={() => applyCardFilter("COMPLETED")}
+              active={cardFilter === "COMPLETED"}
+              value={bookingStats.completedToday.toString()}
+              description="Completed in selected period"
+            />
+            <KpiCard
+              title="Cancelled"
+              onClick={() => applyCardFilter("CANCELLED")}
+              active={cardFilter === "CANCELLED"}
+              value={bookingStats.cancelledToday.toString()}
+              description="Cancelled in selected period"
+            />
+            <KpiCard
+              title="Rejected"
+              onClick={() => applyCardFilter("REJECTED")}
+              active={cardFilter === "REJECTED"}
+              value={
+                activeBookings
+                  .filter(
+                    (booking) =>
+                      booking.status.toUpperCase() === "REJECTED",
+                  )
+                  .length.toString()
+              }
+              description="Rejected in selected period"
+            />
+            <KpiCard
+              title="No Fare"
+              onClick={() => applyCardFilter("NO_FARE")}
+              active={cardFilter === "NO_FARE"}
+              value={bookingStats.noFareToday.toString()}
+              description="No-fare bookings in selected period"
+            />
+            <KpiCard
+              title="Revenue"
+              onClick={() => applyCardFilter("COMPLETED")}
+              active={cardFilter === "COMPLETED"}
+              value={`£${Number(bookingStats.revenueToday).toFixed(2)}`}
+              description="Revenue from completed bookings"
+            />
+          </div>
+        ) : null}
+
+        {bookingView === "exceptions" ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <KpiCard
+              title="No Fare"
+              onClick={() => applyCardFilter("NO_FARE")}
+              active={cardFilter === "NO_FARE"}
+              value={bookingStats.noFareToday.toString()}
+              description="Potential revenue loss"
+            />
+            <KpiCard
+              title="Cancelled"
+              onClick={() => applyCardFilter("CANCELLED")}
+              active={cardFilter === "CANCELLED"}
+              value={bookingStats.cancelledToday.toString()}
+              description="Cancelled bookings to review"
+            />
+            <KpiCard
+              title="Rejected"
+              onClick={() => applyCardFilter("REJECTED")}
+              active={cardFilter === "REJECTED"}
+              value={
+                activeBookings
+                  .filter(
+                    (booking) =>
+                      booking.status.toUpperCase() === "REJECTED",
+                  )
+                  .length.toString()
+              }
+              description="Rejected bookings to review"
+            />
+            <KpiCard
+              title="Stuck or Late"
+              onClick={() => applyCardFilter("RUNNING_LATE")}
+              active={cardFilter === "RUNNING_LATE"}
+              value={bookingStats.runningLate.toString()}
+              description="Operational exceptions"
+            />
+          </div>
+        ) : null}
+
+        {bookingView === "saved" ? (
+          <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 p-8">
+            <h2 className="text-lg font-semibold text-white">
+              Saved Views
+            </h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Save frequently used combinations of booking filters for quick access.
+            </p>
+          </div>
+        ) : null}
+
+        {bookingView !== "saved" ? (
+          <>
         <TableToolbar
           searchValue={searchValue}
           onSearchChange={(value) => {
@@ -812,6 +1064,8 @@ export default function BookingsPage() {
           onExport={() => undefined}
           filters={
             <>
+              {bookingView !== "live" ? (
+                <>
               <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
                 <span className="text-xs font-semibold text-slate-500">
                   From
@@ -842,11 +1096,14 @@ export default function BookingsPage() {
                   className="min-w-[132px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
                 />
               </label>
+                </>
+              ) : null}
 
               <select
                 value={statusFilter}
                 onChange={(event) => {
                   setStatusFilter(event.target.value);
+                  setCardFilter("all");
                   setPage(1);
                 }}
                 className="h-11 rounded-xl border border-slate-800 bg-slate-950 px-4 text-sm text-slate-300 outline-none transition focus:border-blue-500"
@@ -864,6 +1121,8 @@ export default function BookingsPage() {
                 <option value="NO_FARE">No Fare</option>
               </select>
 
+              {bookingView !== "live" ? (
+                <>
               <select
                 value={sourceFilter}
                 onChange={(event) => {
@@ -893,6 +1152,8 @@ export default function BookingsPage() {
                   </option>
                 ))}
               </select>
+                </>
+              ) : null}
 <button
                 type="button"
                 onClick={handleResetFilters}
@@ -933,6 +1194,8 @@ export default function BookingsPage() {
           onPageChange={setPage}
           onPageSizeChange={handlePageSizeChange}
         />
+          </>
+        ) : null}
       </div>
 
       <WorkspacePanel

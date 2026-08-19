@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { KeyboardEvent, ReactNode } from "react";
 
 type KpiTrend = {
   value: string;
@@ -11,6 +11,8 @@ type KpiCardProps = {
   description?: string;
   icon?: ReactNode;
   trend?: KpiTrend;
+  onClick?: () => void;
+  active?: boolean;
 };
 
 const trendStyles: Record<KpiTrend["direction"], string> = {
@@ -31,9 +33,38 @@ export default function KpiCard({
   description,
   icon,
   trend,
+  onClick,
+  active = false,
 }: KpiCardProps) {
+  const handleKeyDown = (
+    event: KeyboardEvent<HTMLElement>,
+  ) => {
+    if (!onClick) {
+      return;
+    }
+
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onClick();
+    }
+  };
   return (
-    <article className="rounded-appLg border border-app-border bg-white p-5 shadow-card transition hover:border-app-border-strong">
+    <article
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      aria-pressed={onClick ? active : undefined}
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      className={[
+        "rounded-appLg border bg-white p-5 text-left shadow-card transition",
+        onClick
+          ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500/50"
+          : "hover:border-app-border-strong",
+        active
+          ? "border-blue-500 ring-2 ring-blue-500/20"
+          : "border-app-border",
+      ].join(" ")}
+    >
       <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
           <p className="text-sm font-medium text-app-muted">
