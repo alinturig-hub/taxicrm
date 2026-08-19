@@ -686,20 +686,28 @@ export default function BookingsPage() {
     const cancelledToday = cancelledBookings.length;
     const noFareToday = noFareBookings.length;
 
+    const completedWithPrice = completedToday.filter(
+      (booking) => {
+        const price = Number(booking.price);
+
+        return Number.isFinite(price) && price > 0;
+      },
+    ).length;
+
+    const completedWithoutPrice =
+      completedToday.length - completedWithPrice;
+
     const revenueToday = completedToday.reduce(
       (sum, booking) => {
-        const value =
-          booking.price ??
-          booking.fare ??
-          0;
-
-        const numericValue = Number(value);
+        const price = Number(booking.price);
 
         return (
           sum +
-          (Number.isFinite(numericValue)
-            ? numericValue
-            : 0)
+          (
+            Number.isFinite(price) && price > 0
+              ? price
+              : 0
+          )
         );
       },
       0,
@@ -763,6 +771,8 @@ export default function BookingsPage() {
       cancelledLostRevenue,
       noFareLostRevenue,
       revenueToday,
+      completedWithPrice,
+      completedWithoutPrice,
       averageJobValue,
       delayed,
     };
@@ -1271,11 +1281,20 @@ export default function BookingsPage() {
               description={`Estimated lost revenue: £${bookingStats.noFareLostRevenue.toFixed(2)}`}
             />
             <KpiCard
-              title="Revenue"
+              title="Gross Booking Revenue"
               onClick={() => applyCardFilter("COMPLETED")}
               active={cardFilter === "COMPLETED"}
-              value={`£${Number(bookingStats.revenueToday).toFixed(2)}`}
-              description="Revenue from completed bookings"
+              value={`£${Number(
+                bookingStats.revenueToday,
+              ).toLocaleString("en-GB", {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}`}
+              description={`${bookingStats.completedWithPrice.toLocaleString(
+                "en-GB",
+              )} priced · ${bookingStats.completedWithoutPrice.toLocaleString(
+                "en-GB",
+              )} unpriced`}
             />
           </div>
         ) : null}
