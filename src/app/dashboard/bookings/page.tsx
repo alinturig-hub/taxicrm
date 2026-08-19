@@ -739,9 +739,17 @@ export default function BookingsPage() {
 
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-6">
           <KpiCard
-            title="Live Bookings"
-            value={bookingStats.live.toString()}
-            description="Active operational bookings"
+            title={fromDate || toDate ? "Total Bookings" : "Live Bookings"}
+            value={
+              fromDate || toDate
+                ? activeBookings.length.toString()
+                : bookingStats.live.toString()
+            }
+            description={
+              fromDate || toDate
+                ? "Bookings in selected period"
+                : "Active operational bookings"
+            }
           />
 
           <KpiCard
@@ -751,27 +759,43 @@ export default function BookingsPage() {
           />
 
           <KpiCard
-            title="Completed Today"
+            title={fromDate || toDate ? "Completed" : "Completed Today"}
             value={bookingStats.completedToday.toString()}
-            description="Completed bookings today"
+            description={
+              fromDate || toDate
+                ? "Completed in selected period"
+                : "Completed bookings today"
+            }
           />
 
           <KpiCard
-            title="Cancelled Today"
+            title={fromDate || toDate ? "Cancelled" : "Cancelled Today"}
             value={bookingStats.cancelledToday.toString()}
-            description="Cancelled bookings today"
+            description={
+              fromDate || toDate
+                ? "Cancelled in selected period"
+                : "Cancelled bookings today"
+            }
           />
 
           <KpiCard
-            title="No Fare Today"
+            title={fromDate || toDate ? "No Fare" : "No Fare Today"}
             value={bookingStats.noFareToday.toString()}
-            description="No-fare bookings today"
+            description={
+              fromDate || toDate
+                ? "No-fare bookings in selected period"
+                : "No-fare bookings today"
+            }
           />
 
           <KpiCard
-            title="Revenue Today"
+            title={fromDate || toDate ? "Revenue" : "Revenue Today"}
             value={`£${Number(bookingStats.revenueToday).toFixed(2)}`}
-            description="Revenue from completed bookings"
+            description={
+              fromDate || toDate
+                ? "Revenue from completed bookings in period"
+                : "Revenue from completed bookings"
+            }
           />
         </div>
 
@@ -833,11 +857,11 @@ export default function BookingsPage() {
                 <option value="dispatched">Dispatched</option>
                 <option value="accepted">Accepted</option>
                 <option value="arrived">Arrived</option>
-                <option value="on-board">Passenger On Board</option>
+                <option value="POB">Passenger On Board</option>
                 <option value="completed">Completed</option>
                 <option value="cancelled">Cancelled</option>
                 <option value="rejected">Rejected</option>
-                <option value="no-show">No Show</option>
+                <option value="NO_FARE">No Fare</option>
               </select>
 
               <select
