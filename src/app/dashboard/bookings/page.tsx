@@ -28,6 +28,25 @@ type BookingsApiResponse = {
   message?: string;
 };
 
+type RejectionRankingEntry = {
+  rank: number;
+  driverId: string;
+  callsign: string | null;
+  driverName: string;
+  rejectedJobs: number;
+  estimatedLostRevenue: number;
+};
+
+type RejectionRankingResponse = {
+  success: boolean;
+  totalRejections: number;
+  attributedRejections: number;
+  attributionPercent: number;
+  ranking: RejectionRankingEntry[];
+  error?: string;
+  message?: string;
+};
+
 type BookingDetailsApiResponse = {
   success: boolean;
   booking?: BookingWorkspaceData;
@@ -75,6 +94,12 @@ export default function BookingsPage() {
   const [bookingsData, setBookingsData] = useState<BookingWorkspaceData[]>([]);
   const [workspaceLoading, setWorkspaceLoading] = useState(false);
   const [workspaceError, setWorkspaceError] = useState<string | null>(null);
+  const [rejectionRanking, setRejectionRanking] =
+    useState<RejectionRankingResponse | null>(null);
+  const [rejectionRankingLoading, setRejectionRankingLoading] =
+    useState(false);
+  const [rejectionRankingError, setRejectionRankingError] =
+    useState<string | null>(null);
 
   const buildBookingsUrl = useCallback(() => {
     const params = new URLSearchParams();
@@ -126,6 +151,76 @@ export default function BookingsPage() {
       setLoading(false);
     }
   }, [buildBookingsUrl]);
+
+  useEffect(() => {
+    if (bookingView !== "exceptions") {
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadRejectionRanking = async () => {
+      setRejectionRankingLoading(true);
+      setRejectionRankingError(null);
+
+      try {
+        const params = new URLSearchParams();
+
+        if (fromDate) {
+          params.set("from", fromDate);
+        }
+
+        if (toDate) {
+          params.set("to", toDate);
+        }
+
+        const query = params.toString();
+
+        const response = await fetch(
+          query
+            ? `/api/bookings/rejections/ranking?${query}`
+            : "/api/bookings/rejections/ranking",
+          {
+            cache: "no-store",
+          },
+        );
+
+        const payload =
+          (await response.json()) as RejectionRankingResponse;
+
+        if (!response.ok || !payload.success) {
+          throw new Error(
+            payload.message ??
+              payload.error ??
+              "Failed to load rejection ranking.",
+          );
+        }
+
+        if (!cancelled) {
+          setRejectionRanking(payload);
+        }
+      } catch (error) {
+        if (!cancelled) {
+          setRejectionRanking(null);
+          setRejectionRankingError(
+            error instanceof Error
+              ? error.message
+              : "Failed to load rejection ranking.",
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setRejectionRankingLoading(false);
+        }
+      }
+    };
+
+    void loadRejectionRanking();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookingView, fromDate, toDate]);
 
   useEffect(() => {
     setPage(1);
@@ -1074,6 +1169,101 @@ export default function BookingsPage() {
               description="Operational exceptions"
             />
           </div>
+        ) : null}
+
+        {bookingView === "exceptions" ? (
+          <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+            <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <h2 className="text-base font-semibold text-white">
+                  Rejected Driver Ranking
+                </h2>
+                <p className="mt-1 text-xs text-slate-400">
+                  Derived from the last driver assignment before each rejection.
+                </p>
+              </div>
+
+              {rejectionRanking ? (
+                <div className="text-xs text-slate-400">
+                  {rejectionRanking.attributedRejections.toLocaleString("en-GB")}
+                  {" of "}
+                  {rejectionRanking.totalRejections.toLocaleString("en-GB")}
+                  {" attributed · "}
+                  {rejectionRanking.attributionPercent.toFixed(2)}
+                  %
+                </div>
+              ) : null}
+            </div>
+
+            {rejectionRankingLoading ? (
+              <div className="p-8 text-center text-sm text-slate-400">
+                Loading rejection ranking...
+              </div>
+            ) : null}
+
+            {!rejectionRankingLoading && rejectionRankingError ? (
+              <div className="p-8 text-center text-sm text-red-400">
+                {rejectionRankingError}
+              </div>
+            ) : null}
+
+            {!rejectionRankingLoading &&
+            !rejectionRankingError &&
+            rejectionRanking ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[720px] text-left">
+                  <thead className="border-b border-slate-800 bg-slate-950/60 text-xs uppercase tracking-wider text-slate-500">
+                    <tr>
+                      <th className="px-5 py-3">Rank</th>
+                      <th className="px-5 py-3">Callsign</th>
+                      <th className="px-5 py-3">Driver</th>
+                      <th className="px-5 py-3 text-right">
+                        Rejected Jobs
+                      </th>
+                      <th className="px-5 py-3 text-right">
+                        Estimated Value
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-800">
+                    {rejectionRanking.ranking
+                      .slice(0, 20)
+                      .map((driver) => (
+                        <tr
+                          key={driver.driverId}
+                          className="transition hover:bg-slate-800/50"
+                        >
+                          <td className="px-5 py-4 text-sm font-semibold text-slate-300">
+                            #{driver.rank}
+                          </td>
+                          <td className="px-5 py-4 text-sm font-semibold text-blue-400">
+                            {driver.callsign
+                              ? `#${driver.callsign}`
+                              : "—"}
+                          </td>
+                          <td className="px-5 py-4 text-sm text-white">
+                            {driver.driverName}
+                          </td>
+                          <td className="px-5 py-4 text-right text-sm font-semibold text-white">
+                            {driver.rejectedJobs.toLocaleString("en-GB")}
+                          </td>
+                          <td className="px-5 py-4 text-right text-sm text-slate-300">
+                            £
+                            {driver.estimatedLostRevenue.toLocaleString(
+                              "en-GB",
+                              {
+                                minimumFractionDigits: 2,
+                                maximumFractionDigits: 2,
+                              },
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : null}
+          </section>
         ) : null}
 
         {bookingView === "saved" ? (
