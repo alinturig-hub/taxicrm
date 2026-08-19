@@ -69,6 +69,73 @@ const workspaceTabs: WorkspaceTab[] = [
   },
 ];
 
+type BookingDatePreset =
+  | "today"
+  | "yesterday"
+  | "last7"
+  | "last30"
+  | "thisMonth";
+
+function getLondonCalendarDate() {
+  const parts = new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+
+  const value = (type: Intl.DateTimeFormatPartTypes) =>
+    Number(
+      parts.find((part) => part.type === type)?.value,
+    );
+
+  return new Date(
+    Date.UTC(
+      value("year"),
+      value("month") - 1,
+      value("day"),
+    ),
+  );
+}
+
+function formatCalendarDate(date: Date) {
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
+}
+
+function getBookingDatePreset(
+  preset: BookingDatePreset,
+) {
+  const today = getLondonCalendarDate();
+  const from = new Date(today);
+  const to = new Date(today);
+
+  if (preset === "yesterday") {
+    from.setUTCDate(from.getUTCDate() - 1);
+    to.setUTCDate(to.getUTCDate() - 1);
+  }
+
+  if (preset === "last7") {
+    from.setUTCDate(from.getUTCDate() - 6);
+  }
+
+  if (preset === "last30") {
+    from.setUTCDate(from.getUTCDate() - 29);
+  }
+
+  if (preset === "thisMonth") {
+    from.setUTCDate(1);
+  }
+
+  return {
+    from: formatCalendarDate(from),
+    to: formatCalendarDate(to),
+  };
+}
+
 export default function BookingsPage() {
   const pathname = usePathname();
   const [bookingView, setBookingView] = useState<
@@ -1023,6 +1090,88 @@ export default function BookingsPage() {
           ))}
         </div>
 
+        {bookingView === "history" ||
+        bookingView === "exceptions" ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-semibold uppercase tracking-wider text-slate-500">
+              Period
+            </span>
+
+            <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
+              <span className="text-xs font-semibold text-slate-500">
+                From
+              </span>
+              <input
+                type="date"
+                value={fromDate}
+                onChange={(event) => {
+                  setFromDate(event.target.value);
+                  setCardFilter("all");
+                  setStatusFilter("all");
+                  setPage(1);
+                }}
+                className="min-w-[125px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
+              />
+            </label>
+
+            <label className="flex h-10 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
+              <span className="text-xs font-semibold text-slate-500">
+                To
+              </span>
+              <input
+                type="date"
+                value={toDate}
+                min={fromDate || undefined}
+                onChange={(event) => {
+                  setToDate(event.target.value);
+                  setCardFilter("all");
+                  setStatusFilter("all");
+                  setPage(1);
+                }}
+                className="min-w-[125px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
+              />
+            </label>
+
+            {[
+              { id: "today", label: "Today" },
+              { id: "yesterday", label: "Yesterday" },
+              { id: "last7", label: "Last 7 Days" },
+              { id: "last30", label: "Last 30 Days" },
+              { id: "thisMonth", label: "This Month" },
+            ].map((preset) => {
+              const range = getBookingDatePreset(
+                preset.id as BookingDatePreset,
+              );
+
+              const active =
+                fromDate === range.from &&
+                toDate === range.to;
+
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-pressed={active}
+                  onClick={() => {
+                    setFromDate(range.from);
+                    setToDate(range.to);
+                    setCardFilter("all");
+                    setStatusFilter("all");
+                    setPage(1);
+                  }}
+                  className={`rounded-xl border px-3 py-2 text-sm font-semibold transition ${
+                    active
+                      ? "border-blue-500 bg-blue-500/15 text-blue-300"
+                      : "border-slate-800 bg-slate-900 text-slate-400 hover:border-slate-700 hover:text-white"
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+
         {bookingView === "live" ? (
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
@@ -1292,41 +1441,6 @@ export default function BookingsPage() {
           onExport={() => undefined}
           filters={
             <>
-              {bookingView !== "live" ? (
-                <>
-              <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
-                <span className="text-xs font-semibold text-slate-500">
-                  From
-                </span>
-                <input
-                  type="date"
-                  value={fromDate}
-                  onChange={(event) => {
-                    setFromDate(event.target.value);
-                    setPage(1);
-                  }}
-                  className="min-w-[132px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
-                />
-              </label>
-
-              <label className="flex h-11 items-center gap-2 rounded-xl border border-slate-800 bg-slate-950 px-3">
-                <span className="text-xs font-semibold text-slate-500">
-                  To
-                </span>
-                <input
-                  type="date"
-                  value={toDate}
-                  min={fromDate || undefined}
-                  onChange={(event) => {
-                    setToDate(event.target.value);
-                    setPage(1);
-                  }}
-                  className="min-w-[132px] bg-transparent text-sm text-slate-300 outline-none [color-scheme:dark]"
-                />
-              </label>
-                </>
-              ) : null}
-
               <select
                 value={statusFilter}
                 onChange={(event) => {
