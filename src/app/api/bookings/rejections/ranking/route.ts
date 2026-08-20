@@ -14,6 +14,7 @@ type RankingRow = {
   surname: string | null;
   rejectedJobs: bigint;
   estimatedLostRevenue: unknown;
+  rejections: unknown;
 };
 
 type CoverageRow = {
@@ -97,6 +98,8 @@ export async function GET(request: Request) {
           modified.callsign,
           modified.forename,
           modified.surname,
+          rejected."externalBookingId" AS booking_id,
+          rejected."receivedAt" AS rejected_at,
           COALESCE(
             NULLIF(rejected.payload->'Pricing'->>'Price', '')::numeric,
             NULLIF(
@@ -145,7 +148,19 @@ export async function GET(request: Request) {
             WHEN estimated_value > 0 THEN estimated_value
             ELSE 0
           END
-        ) AS "estimatedLostRevenue"
+        ) AS "estimatedLostRevenue",
+        jsonb_agg(
+          jsonb_build_object(
+            'bookingId', booking_id,
+            'rejectedAt', rejected_at,
+            'estimatedValue',
+              CASE
+                WHEN estimated_value > 0 THEN estimated_value
+                ELSE 0
+              END
+          )
+          ORDER BY rejected_at DESC
+        ) AS rejections
       FROM attributed_rejections
       GROUP BY
         "driverId",
@@ -219,6 +234,23 @@ export async function GET(request: Request) {
         rejectedJobs: Number(row.rejectedJobs),
         estimatedLostRevenue:
           Number(row.estimatedLostRevenue ?? 0),
+        rejections: Array.isArray(row.rejections)
+          ? row.rejections.map((rejection) => {
+              const value =
+                rejection &&
+                typeof rejection === "object"
+                  ? rejection as Record<string, unknown>
+                  : {};
+
+              return {
+                bookingId: String(value.bookingId ?? ""),
+                rejectedAt: String(value.rejectedAt ?? ""),
+                estimatedValue: Number(
+                  value.estimatedValue ?? 0,
+                ),
+              };
+            })
+          : [],
       })),
     });
   } catch (error) {

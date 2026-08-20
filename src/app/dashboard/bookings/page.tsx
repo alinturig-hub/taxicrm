@@ -1,7 +1,13 @@
 "use client";
 
 import { formatDateTime } from "@/lib/date";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  Fragment,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 import { usePathname } from "next/navigation";
 
 import ActionButton from "@/components/ui/ActionButton";
@@ -35,6 +41,11 @@ type RejectionRankingEntry = {
   driverName: string;
   rejectedJobs: number;
   estimatedLostRevenue: number;
+  rejections: Array<{
+    bookingId: string;
+    rejectedAt: string;
+    estimatedValue: number;
+  }>;
 };
 
 type RejectionRankingResponse = {
@@ -166,6 +177,8 @@ export default function BookingsPage() {
   const [rejectionRankingLoading, setRejectionRankingLoading] =
     useState(false);
   const [rejectionRankingError, setRejectionRankingError] =
+    useState<string | null>(null);
+  const [expandedRejectionDriverId, setExpandedRejectionDriverId] =
     useState<string | null>(null);
 
   const buildBookingsUrl = useCallback(() => {
@@ -1396,37 +1409,123 @@ export default function BookingsPage() {
                   <tbody className="divide-y divide-slate-800">
                     {rejectionRanking.ranking
                       .slice(0, 20)
-                      .map((driver) => (
-                        <tr
-                          key={driver.driverId}
-                          className="transition hover:bg-slate-800/50"
-                        >
-                          <td className="px-5 py-4 text-sm font-semibold text-slate-300">
-                            #{driver.rank}
-                          </td>
-                          <td className="px-5 py-4 text-sm font-semibold text-blue-400">
-                            {driver.callsign
-                              ? `#${driver.callsign}`
-                              : "—"}
-                          </td>
-                          <td className="px-5 py-4 text-sm text-white">
-                            {driver.driverName}
-                          </td>
-                          <td className="px-5 py-4 text-right text-sm font-semibold text-white">
-                            {driver.rejectedJobs.toLocaleString("en-GB")}
-                          </td>
-                          <td className="px-5 py-4 text-right text-sm text-slate-300">
-                            £
-                            {driver.estimatedLostRevenue.toLocaleString(
-                              "en-GB",
-                              {
-                                minimumFractionDigits: 2,
-                                maximumFractionDigits: 2,
-                              },
-                            )}
-                          </td>
-                        </tr>
-                      ))}
+                      .map((driver) => {
+                        const expanded =
+                          expandedRejectionDriverId ===
+                          driver.driverId;
+
+                        return (
+                          <Fragment key={driver.driverId}>
+                            <tr className="transition hover:bg-slate-800/50">
+                              <td className="px-5 py-4 text-sm font-semibold text-slate-300">
+                                #{driver.rank}
+                              </td>
+                              <td className="px-5 py-4 text-sm font-semibold text-blue-400">
+                                {driver.callsign
+                                  ? `#${driver.callsign}`
+                                  : "—"}
+                              </td>
+                              <td className="px-5 py-4 text-sm text-white">
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setExpandedRejectionDriverId(
+                                      expanded
+                                        ? null
+                                        : driver.driverId,
+                                    )
+                                  }
+                                  className="inline-flex items-center gap-2 text-left font-medium text-white transition hover:text-blue-400"
+                                >
+                                  <span
+                                    className={[
+                                      "text-xs text-slate-500 transition-transform",
+                                      expanded ? "rotate-90" : "",
+                                    ].join(" ")}
+                                  >
+                                    ▶
+                                  </span>
+                                  <span>{driver.driverName}</span>
+                                </button>
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm font-semibold text-white">
+                                {driver.rejectedJobs.toLocaleString(
+                                  "en-GB",
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm text-slate-300">
+                                £
+                                {driver.estimatedLostRevenue.toLocaleString(
+                                  "en-GB",
+                                  {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  },
+                                )}
+                              </td>
+                            </tr>
+
+                            {expanded ? (
+                              <tr>
+                                <td
+                                  colSpan={5}
+                                  className="bg-slate-950/50 px-5 py-4"
+                                >
+                                  <div className="overflow-hidden rounded-xl border border-slate-800">
+                                    <div className="grid grid-cols-[1fr_1fr_auto] gap-4 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                      <span>Job ID</span>
+                                      <span>Rejected At</span>
+                                      <span className="text-right">
+                                        Estimated Value
+                                      </span>
+                                    </div>
+
+                                    <div className="divide-y divide-slate-800">
+                                      {driver.rejections.map(
+                                        (rejection, index) => (
+                                          <div
+                                            key={`${rejection.bookingId}-${rejection.rejectedAt}-${index}`}
+                                            className="grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-4 py-3 text-sm"
+                                          >
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                void openBookingWorkspace(
+                                                  rejection.bookingId,
+                                                )
+                                              }
+                                              className="w-fit font-semibold text-blue-400 transition hover:text-blue-300 hover:underline"
+                                            >
+                                              {rejection.bookingId}
+                                            </button>
+
+                                            <span className="text-slate-300">
+                                              {formatDateTime(
+                                                rejection.rejectedAt,
+                                              )}
+                                            </span>
+
+                                            <span className="text-right text-slate-300">
+                                              £
+                                              {rejection.estimatedValue.toLocaleString(
+                                                "en-GB",
+                                                {
+                                                  minimumFractionDigits: 2,
+                                                  maximumFractionDigits: 2,
+                                                },
+                                              )}
+                                            </span>
+                                          </div>
+                                        ),
+                                      )}
+                                    </div>
+                                  </div>
+                                </td>
+                              </tr>
+                            ) : null}
+                          </Fragment>
+                        );
+                      })}
                   </tbody>
                 </table>
               </div>
