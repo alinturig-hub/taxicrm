@@ -7,6 +7,7 @@ import {
   getDailyMetricsBetween,
   type StoredCompanyDailyMetric,
 } from "@/lib/analytics/repository";
+import { getDriverCompanyOverview } from "@/lib/analytics/driver-company-overview";
 import {
   addLondonDays,
   addLondonMonths,
@@ -15,6 +16,15 @@ import {
   startOfLondonMonth,
   startOfLondonWeek,
 } from "@/lib/time/london-calendar";
+
+export type ExecutiveDashboardMetrics =
+  CompanyMetrics & {
+    driverCompany: Awaited<
+      ReturnType<
+        typeof getDriverCompanyOverview
+      >
+    >;
+  };
 
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
@@ -154,7 +164,7 @@ function selectMetrics(
   });
 }
 
-export async function getExecutiveDashboard(): Promise<CompanyMetrics> {
+export async function getExecutiveDashboard(): Promise<ExecutiveDashboardMetrics> {
   const now = new Date();
   const tomorrow = addLondonDays(startOfLondonDay(now), 1);
 
@@ -167,10 +177,14 @@ export async function getExecutiveDashboard(): Promise<CompanyMetrics> {
   const monthFrom = startOfLondonMonth(now);
   const lastMonthFrom = addLondonMonths(monthFrom, -1);
 
-  const storedMetrics = await getDailyMetricsBetween(
-    lastMonthFrom,
-    tomorrow,
-  );
+  const [storedMetrics, driverCompany] =
+    await Promise.all([
+      getDailyMetricsBetween(
+        lastMonthFrom,
+        tomorrow,
+      ),
+      getDriverCompanyOverview(now),
+    ]);
 
   const today = aggregatePeriod(
     todayFrom,
@@ -228,6 +242,7 @@ export async function getExecutiveDashboard(): Promise<CompanyMetrics> {
     lastWeek,
     month,
     lastMonth,
+    driverCompany,
 
     trends: {
       revenueVsYesterday: createTrend(

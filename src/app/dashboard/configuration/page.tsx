@@ -23,6 +23,13 @@ const configurationModules = [
     status: "Active",
   },
   {
+    title: "Driver Rent",
+    description:
+      "Configure the global driver rent percentage and weekly maximum cap.",
+    href: "/dashboard/configuration/driver-rent",
+    status: "Active",
+  },
+  {
     title: "API Endpoints",
     description:
       "Add and test external API endpoints by URL using configured integration credentials.",

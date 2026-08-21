@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import BusinessHealthCard from "@/components/dashboard/BusinessHealthCard";
 import DashboardRealtimeHeader from "@/components/dashboard/DashboardRealtimeHeader";
+import DriverCompanyCard from "@/components/dashboard/DriverCompanyCard";
 import ExecutiveKpiCard from "@/components/dashboard/ExecutiveKpiCard";
 import ExecutiveSummary from "@/components/dashboard/ExecutiveSummary";
 import PeriodComparisonCard from "@/components/dashboard/PeriodComparisonCard";
@@ -114,6 +115,10 @@ export default async function DashboardPage() {
             inverseTrend
           />
         </section>
+
+        <DriverCompanyCard
+          overview={dashboard.driverCompany}
+        />
 
         <section className="mt-4 grid gap-4 xl:grid-cols-3">
           <PeriodComparisonCard

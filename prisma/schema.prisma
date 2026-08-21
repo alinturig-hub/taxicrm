@@ -724,6 +724,15 @@ model AccountRevenueRule {
   @@index([waitingChargeable])
 }
 
+model DriverRentConfiguration {
+  id             String   @id @default(cuid())
+  key            String   @unique @default("GLOBAL")
+  rentPercentage Decimal  @default(20.00) @db.Decimal(7, 2)
+  weeklyCap      Decimal  @default(160.00) @db.Decimal(12, 2)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}
+
 model CompanyDailyMetric {
   id   String   @id @default(cuid())
   date DateTime @unique @db.Date
