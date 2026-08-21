@@ -96,14 +96,90 @@ export async function GET() {
     },
   });
 
+  const permanentVehicles =
+    await prisma.vehicle.findMany({
+      where: {
+        provider: "AUTOCAB",
+      },
+      orderBy: [
+        {
+          isActive: "desc",
+        },
+        {
+          isSuspended: "asc",
+        },
+        {
+          callsign: "asc",
+        },
+      ],
+      select: {
+        id: true,
+        externalId: true,
+        callsign: true,
+        registration: true,
+        plateNumber: true,
+        make: true,
+        model: true,
+        currentStatus: true,
+        lastSeenAt: true,
+        ownerDriverId: true,
+      },
+    });
+
+  const ownerVehicleMap =
+    new Map<string, typeof permanentVehicles[number]>();
+
+  const callsignVehicleMap =
+    new Map<string, typeof permanentVehicles[number]>();
+
+  for (const vehicle of permanentVehicles) {
+    if (vehicle.ownerDriverId !== null) {
+      const ownerKey = String(
+        vehicle.ownerDriverId,
+      );
+
+      if (!ownerVehicleMap.has(ownerKey)) {
+        ownerVehicleMap.set(
+          ownerKey,
+          vehicle,
+        );
+      }
+    }
+
+    if (
+      vehicle.callsign &&
+      !callsignVehicleMap.has(
+        vehicle.callsign,
+      )
+    ) {
+      callsignVehicleMap.set(
+        vehicle.callsign,
+        vehicle,
+      );
+    }
+  }
+
   return NextResponse.json({
     success: true,
     drivers: drivers.map((driver) => {
       const activeShift = driver.shifts[0] ?? null;
+      const permanentVehicle =
+        ownerVehicleMap.get(
+          driver.externalId,
+        ) ??
+        (
+          driver.callsign
+            ? callsignVehicleMap.get(
+                driver.callsign,
+              )
+            : null
+        ) ??
+        null;
+
       const currentVehicle =
         activeShift?.vehicle ??
         driver.currentVehicles[0] ??
-        null;
+        permanentVehicle;
 
       return {
         id: driver.id,
