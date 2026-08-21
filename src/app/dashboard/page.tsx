@@ -38,7 +38,7 @@ export default async function DashboardPage() {
           <ExecutiveKpiCard
             label="Total Revenue"
             value={formatCurrency(dashboard.today.revenue)}
-            description="Company revenue from completed bookings"
+            description="Completed revenue plus real no-fare charges"
             trend={dashboard.trends.revenueVsYesterday}
           />
 
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
             value={formatCurrency(
               dashboard.today.accountRevenue,
             )}
-            description="Revenue from completed account bookings"
+            description="Completed account revenue plus no-fare charges"
           />
 
           <ExecutiveKpiCard
@@ -63,7 +63,7 @@ export default async function DashboardPage() {
             value={formatCurrency(
               dashboard.today.cardRevenue,
             )}
-            description="Revenue from completed card bookings"
+            description="Completed card revenue plus no-fare charges"
           />
 
           <ExecutiveKpiCard
@@ -107,7 +107,7 @@ export default async function DashboardPage() {
             value={formatCurrency(
               dashboard.today.estimatedRevenueLost,
             )}
-            description="Cancelled and no-fare value"
+            description="Cancelled estimates plus cash no-fare loss"
             trend={
               dashboard.trends.lostRevenueVsYesterday
             }

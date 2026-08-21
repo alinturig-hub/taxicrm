@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDateTime } from "@/lib/date";
+import { calculateNoFareFinancials } from "@/lib/revenue/no-fare-financials";
 import {
   Fragment,
   useCallback,
@@ -691,118 +692,9 @@ export default function BookingsPage() {
       0,
     );
 
-    const getNoFareFinancials = (
-      booking: BookingWorkspaceData,
-    ) => {
-      const paymentType =
-        (booking.paymentType ?? "").trim().toUpperCase();
-
-      const bookingSource =
-        (booking.bookingSource ?? "").trim().toUpperCase();
-
-      const accountName =
-        (booking.accountName ?? "").trim().toLowerCase();
-
-      if (paymentType === "CASH") {
-        return {
-          companyRevenue: 0,
-          driverCost: 0,
-          estimatedCashLoss: getEstimatedRevenue(booking),
-        };
-      }
-
-      const isCmac = accountName.includes("cmac");
-      const isArriva = accountName.includes("arriva");
-
-      const isFixedSix =
-        (
-          paymentType === "CARD" &&
-          bookingSource === "MOBILEAPP"
-        ) ||
-        accountName.includes("lynkpay") ||
-        accountName.includes("web booker card") ||
-        accountName === "ppa" ||
-        accountName.includes("papp");
-
-      if (isFixedSix) {
-        return {
-          companyRevenue: 6,
-          driverCost: 6,
-          estimatedCashLoss: 0,
-        };
-      }
-
-      const arrivedAt = booking.arrivedAt
-        ? new Date(booking.arrivedAt).getTime()
-        : Number.NaN;
-
-      const noFareAt = booking.noFareAt
-        ? new Date(booking.noFareAt).getTime()
-        : Number.NaN;
-
-      const waitingMilliseconds =
-        Number.isFinite(arrivedAt) &&
-        Number.isFinite(noFareAt) &&
-        noFareAt > arrivedAt
-          ? noFareAt - arrivedAt
-          : 0;
-
-      if (isCmac) {
-        const chargeableMinutes = Math.ceil(
-          waitingMilliseconds / 60_000,
-        );
-
-        return {
-          companyRevenue:
-            10.6 + chargeableMinutes * 0.5,
-          driverCost:
-            10 + chargeableMinutes * 0.4,
-          estimatedCashLoss: 0,
-        };
-      }
-
-      if (isArriva) {
-        const chargeableMinutes = Math.ceil(
-          Math.max(
-            waitingMilliseconds - 5 * 60_000,
-            0,
-          ) / 60_000,
-        );
-
-        return {
-          companyRevenue:
-            11 + chargeableMinutes * 0.6,
-          driverCost:
-            10 + chargeableMinutes * 0.6,
-          estimatedCashLoss: 0,
-        };
-      }
-
-      if (paymentType === "ACCOUNT") {
-        const chargeableMinutes = Math.ceil(
-          waitingMilliseconds / 60_000,
-        );
-
-        const value =
-          7 + chargeableMinutes * 0.4;
-
-        return {
-          companyRevenue: value,
-          driverCost: value,
-          estimatedCashLoss: 0,
-        };
-      }
-
-      return {
-        companyRevenue: 0,
-        driverCost: 0,
-        estimatedCashLoss: 0,
-      };
-    };
-
     const noFareFinancials = noFareBookings.reduce(
       (totals, booking) => {
-        const values = getNoFareFinancials(booking);
+        const values = calculateNoFareFinancials(booking);
 
         return {
           companyRevenue:

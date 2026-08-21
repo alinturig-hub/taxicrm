@@ -1,10 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import {
-  accountRevenueRuleKey,
-  calculateBookingRevenue,
-  isAccountNoFareBooking,
-  loadAccountRevenueRuleMap,
-} from "@/lib/revenue/booking-revenue";
+  calculateNoFareFinancials,
+  estimateLostRevenue,
+} from "@/lib/revenue/no-fare-financials";
 import {
   addLondonDays,
   londonDateKey,
@@ -66,12 +64,8 @@ export async function buildCompanyDailyMetrics(
         },
       },
       select: {
-        cost: true,
         price: true,
         paymentType: true,
-        accountAmount: true,
-        cashAmount: true,
-        cardAmount: true,
       },
     }),
 
@@ -105,8 +99,9 @@ export async function buildCompanyDailyMetrics(
         cost: true,
         price: true,
         estimatedPrice: true,
-        accountId: true,
-        accountCode: true,
+        paymentType: true,
+        bookingSource: true,
+        accountName: true,
       },
     }),
 
@@ -123,38 +118,20 @@ export async function buildCompanyDailyMetrics(
 
   const revenueBreakdown = completedBookings.reduce(
     (totals, booking) => {
-      const price = toNumber(booking.price);
-      const cost = toNumber(booking.cost);
-
-      const bookingRevenue =
-        price > 0 ? price : cost;
-
-      const explicitAccount =
-        toNumber(booking.accountAmount);
-      const explicitCash =
-        toNumber(booking.cashAmount);
-      const explicitCard =
-        toNumber(booking.cardAmount);
-
+      const bookingRevenue = toNumber(booking.price);
       const paymentType =
         booking.paymentType?.trim().toUpperCase() ?? "";
 
+      if (bookingRevenue <= 0) {
+        return totals;
+      }
+
       totals.revenue += bookingRevenue;
 
-      if (explicitAccount > 0) {
-        totals.accountRevenue += explicitAccount;
-      } else if (paymentType.includes("ACCOUNT")) {
+      if (paymentType.includes("ACCOUNT")) {
         totals.accountRevenue += bookingRevenue;
-      }
-
-      if (explicitCash > 0) {
-        totals.cashRevenue += explicitCash;
       } else if (paymentType.includes("CASH")) {
         totals.cashRevenue += bookingRevenue;
-      }
-
-      if (explicitCard > 0) {
-        totals.cardRevenue += explicitCard;
       } else if (
         paymentType.includes("CARD") ||
         paymentType.includes("CREDIT") ||
@@ -173,31 +150,24 @@ export async function buildCompanyDailyMetrics(
     },
   );
 
-  const accountRevenueRules =
-    await loadAccountRevenueRuleMap(
-      noFareBookings,
-    );
+  const completedRevenue = revenueBreakdown.revenue;
 
   for (const booking of noFareBookings) {
-    if (!isAccountNoFareBooking(booking)) {
-      continue;
+    const financials =
+      calculateNoFareFinancials(booking);
+
+    revenueBreakdown.revenue +=
+      financials.companyRevenue;
+
+    if (financials.revenueBucket === "ACCOUNT") {
+      revenueBreakdown.accountRevenue +=
+        financials.companyRevenue;
+    } else if (
+      financials.revenueBucket === "CARD"
+    ) {
+      revenueBreakdown.cardRevenue +=
+        financials.companyRevenue;
     }
-
-    const ruleKey =
-      accountRevenueRuleKey(booking);
-
-    const rule = ruleKey
-      ? accountRevenueRules.get(ruleKey)
-      : undefined;
-
-    const bookingRevenue =
-      calculateBookingRevenue(
-        booking,
-        rule,
-      );
-
-    revenueBreakdown.revenue += bookingRevenue;
-    revenueBreakdown.accountRevenue += bookingRevenue;
   }
 
   const revenue = revenueBreakdown.revenue;
@@ -206,30 +176,16 @@ export async function buildCompanyDailyMetrics(
     cancelledBookings.reduce(
       (total, booking) =>
         total +
-        toNumber(
-          booking.price ??
-            booking.fare ??
-            booking.estimatedPrice,
-        ),
+        estimateLostRevenue(booking),
       0,
     );
 
   const noFareRevenueLost =
     noFareBookings.reduce(
-      (total, booking) => {
-        if (isAccountNoFareBooking(booking)) {
-          return total;
-        }
-
-        return (
-          total +
-          toNumber(
-            booking.price ??
-              booking.fare ??
-              booking.estimatedPrice,
-          )
-        );
-      },
+      (total, booking) =>
+        total +
+        calculateNoFareFinancials(booking)
+          .estimatedCashLoss,
       0,
     );
 
@@ -263,7 +219,7 @@ export async function buildCompanyDailyMetrics(
       ),
       averageBookingValue:
         completed > 0
-          ? round(revenue / completed)
+          ? round(completedRevenue / completed)
           : 0,
       completionRate: percentage(
         completed,
@@ -300,7 +256,7 @@ export async function buildCompanyDailyMetrics(
       ),
       averageBookingValue:
         completed > 0
-          ? round(revenue / completed)
+          ? round(completedRevenue / completed)
           : 0,
       completionRate: percentage(
         completed,
