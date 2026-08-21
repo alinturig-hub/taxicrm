@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import CustomerProfileDrawer from "@/components/customers/CustomerProfileDrawer";
+
 type AccountCustomer = {
   id: string;
   externalId: string;
@@ -75,6 +77,10 @@ export default function CustomersDashboard() {
     useState<AccountCustomer[]>([]);
   const [normalCustomers, setNormalCustomers] =
     useState<NormalCustomer[]>([]);
+  const [
+    selectedCustomerId,
+    setSelectedCustomerId,
+  ] = useState<string | null>(null);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -332,9 +338,21 @@ export default function CustomersDashboard() {
             customers={
               filteredNormalCustomers
             }
+            onOpen={(customerId) =>
+              setSelectedCustomerId(customerId)
+            }
           />
         )}
       </div>
+
+      {selectedCustomerId ? (
+        <CustomerProfileDrawer
+          customerId={selectedCustomerId}
+          onClose={() =>
+            setSelectedCustomerId(null)
+          }
+        />
+      ) : null}
     </div>
   );
 }
@@ -491,8 +509,10 @@ function AccountCustomersTable({
 
 function NormalCustomersTable({
   customers,
+  onOpen,
 }: {
   customers: NormalCustomer[];
+  onOpen: (customerId: string) => void;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -523,9 +543,20 @@ function NormalCustomersTable({
               key={customer.key}
               className="hover:bg-slate-800/30"
             >
-              <td className="px-5 py-4 font-semibold text-white">
-                {customer.name ??
-                  "Unknown customer"}
+              <td className="px-5 py-4">
+                <button
+                  type="button"
+                  onClick={() =>
+                    onOpen(customer.key)
+                  }
+                  className="font-semibold text-white transition hover:text-blue-400"
+                >
+                  {customer.name ??
+                    "Unknown customer"}
+                </button>
+                <p className="mt-1 text-xs text-slate-600">
+                  Open intelligence profile
+                </p>
               </td>
 
               <td className="px-5 py-4 text-slate-300">
