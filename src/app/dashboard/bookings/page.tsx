@@ -691,10 +691,146 @@ export default function BookingsPage() {
       0,
     );
 
-    const noFareLostRevenue = noFareBookings.reduce(
-      (sum, booking) => sum + getEstimatedRevenue(booking),
-      0,
+    const getNoFareFinancials = (
+      booking: BookingWorkspaceData,
+    ) => {
+      const paymentType =
+        (booking.paymentType ?? "").trim().toUpperCase();
+
+      const bookingSource =
+        (booking.bookingSource ?? "").trim().toUpperCase();
+
+      const accountName =
+        (booking.accountName ?? "").trim().toLowerCase();
+
+      if (paymentType === "CASH") {
+        return {
+          companyRevenue: 0,
+          driverCost: 0,
+          estimatedCashLoss: getEstimatedRevenue(booking),
+        };
+      }
+
+      const isCmac = accountName.includes("cmac");
+      const isArriva = accountName.includes("arriva");
+
+      const isFixedSix =
+        (
+          paymentType === "CARD" &&
+          bookingSource === "MOBILEAPP"
+        ) ||
+        accountName.includes("lynkpay") ||
+        accountName.includes("web booker card") ||
+        accountName === "ppa" ||
+        accountName.includes("papp");
+
+      if (isFixedSix) {
+        return {
+          companyRevenue: 6,
+          driverCost: 6,
+          estimatedCashLoss: 0,
+        };
+      }
+
+      const arrivedAt = booking.arrivedAt
+        ? new Date(booking.arrivedAt).getTime()
+        : Number.NaN;
+
+      const noFareAt = booking.noFareAt
+        ? new Date(booking.noFareAt).getTime()
+        : Number.NaN;
+
+      const waitingMilliseconds =
+        Number.isFinite(arrivedAt) &&
+        Number.isFinite(noFareAt) &&
+        noFareAt > arrivedAt
+          ? noFareAt - arrivedAt
+          : 0;
+
+      if (isCmac) {
+        const chargeableMinutes = Math.ceil(
+          waitingMilliseconds / 60_000,
+        );
+
+        return {
+          companyRevenue:
+            10.6 + chargeableMinutes * 0.5,
+          driverCost:
+            10 + chargeableMinutes * 0.4,
+          estimatedCashLoss: 0,
+        };
+      }
+
+      if (isArriva) {
+        const chargeableMinutes = Math.ceil(
+          Math.max(
+            waitingMilliseconds - 5 * 60_000,
+            0,
+          ) / 60_000,
+        );
+
+        return {
+          companyRevenue:
+            11 + chargeableMinutes * 0.6,
+          driverCost:
+            10 + chargeableMinutes * 0.6,
+          estimatedCashLoss: 0,
+        };
+      }
+
+      if (paymentType === "ACCOUNT") {
+        const chargeableMinutes = Math.ceil(
+          waitingMilliseconds / 60_000,
+        );
+
+        const value =
+          7 + chargeableMinutes * 0.4;
+
+        return {
+          companyRevenue: value,
+          driverCost: value,
+          estimatedCashLoss: 0,
+        };
+      }
+
+      return {
+        companyRevenue: 0,
+        driverCost: 0,
+        estimatedCashLoss: 0,
+      };
+    };
+
+    const noFareFinancials = noFareBookings.reduce(
+      (totals, booking) => {
+        const values = getNoFareFinancials(booking);
+
+        return {
+          companyRevenue:
+            totals.companyRevenue +
+            values.companyRevenue,
+          driverCost:
+            totals.driverCost +
+            values.driverCost,
+          estimatedCashLoss:
+            totals.estimatedCashLoss +
+            values.estimatedCashLoss,
+        };
+      },
+      {
+        companyRevenue: 0,
+        driverCost: 0,
+        estimatedCashLoss: 0,
+      },
     );
+
+    const noFareCompanyRevenue =
+      noFareFinancials.companyRevenue;
+
+    const noFareDriverCost =
+      noFareFinancials.driverCost;
+
+    const noFareEstimatedCashLoss =
+      noFareFinancials.estimatedCashLoss;
 
     const cancelledToday = cancelledBookings.length;
     const noFareToday = noFareBookings.length;
@@ -710,7 +846,7 @@ export default function BookingsPage() {
     const completedWithoutPrice =
       completedToday.length - completedWithPrice;
 
-    const revenueToday = completedToday.reduce(
+    const completedRevenue = completedToday.reduce(
       (sum, booking) => {
         const price = Number(booking.price);
 
@@ -726,9 +862,12 @@ export default function BookingsPage() {
       0,
     );
 
+    const revenueToday =
+      completedRevenue + noFareCompanyRevenue;
+
     const averageJobValue =
       completedToday.length > 0
-        ? revenueToday / completedToday.length
+        ? completedRevenue / completedToday.length
         : 0;
 
     const delayed = activeBookings.filter((booking) => {
@@ -782,7 +921,10 @@ export default function BookingsPage() {
       cancelledToday,
       noFareToday,
       cancelledLostRevenue,
-      noFareLostRevenue,
+      noFareCompanyRevenue,
+      noFareDriverCost,
+      noFareEstimatedCashLoss,
+      completedRevenue,
       revenueToday,
       completedWithPrice,
       completedWithoutPrice,
@@ -1291,10 +1433,10 @@ export default function BookingsPage() {
               onClick={() => applyCardFilter("NO_FARE")}
               active={cardFilter === "NO_FARE"}
               value={bookingStats.noFareToday.toString()}
-              description={`Estimated lost revenue: £${bookingStats.noFareLostRevenue.toFixed(2)}`}
+              description={`No-fare revenue: £${bookingStats.noFareCompanyRevenue.toFixed(2)} · Estimated cash loss: £${bookingStats.noFareEstimatedCashLoss.toFixed(2)}`}
             />
             <KpiCard
-              title="Gross Booking Revenue"
+              title="Company Revenue"
               onClick={() => applyCardFilter("COMPLETED")}
               active={cardFilter === "COMPLETED"}
               value={`£${Number(
@@ -1303,11 +1445,19 @@ export default function BookingsPage() {
                 minimumFractionDigits: 2,
                 maximumFractionDigits: 2,
               })}`}
-              description={`${bookingStats.completedWithPrice.toLocaleString(
+              description={`Completed: £${bookingStats.completedRevenue.toLocaleString(
                 "en-GB",
-              )} priced · ${bookingStats.completedWithoutPrice.toLocaleString(
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                },
+              )} · No Fare: £${bookingStats.noFareCompanyRevenue.toLocaleString(
                 "en-GB",
-              )} unpriced`}
+                {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                },
+              )}`}
             />
           </div>
         ) : null}
@@ -1319,7 +1469,7 @@ export default function BookingsPage() {
               onClick={() => applyCardFilter("NO_FARE")}
               active={cardFilter === "NO_FARE"}
               value={bookingStats.noFareToday.toString()}
-              description={`Estimated lost revenue: £${bookingStats.noFareLostRevenue.toFixed(2)}`}
+              description={`No-fare revenue: £${bookingStats.noFareCompanyRevenue.toFixed(2)} · Estimated cash loss: £${bookingStats.noFareEstimatedCashLoss.toFixed(2)}`}
             />
             <KpiCard
               title="Cancelled"
