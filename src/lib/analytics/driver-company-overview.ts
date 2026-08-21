@@ -24,19 +24,19 @@ export type DriverCompanyOverview = {
   companyRevenue: number;
   companyGrossMargin: number;
   earningDrivers: number;
+  earningDriverWeeks: number;
   fullRentDrivers: number;
+  fullRentDriverWeeks: number;
   estimatedRent: number;
   rentPercentage: number;
   weeklyCap: number;
   fullRentThreshold: number;
 };
 
-export async function getDriverCompanyOverview(
-  date = new Date(),
+export async function getDriverCompanyOverviewForRange(
+  from: Date,
+  to: Date,
 ): Promise<DriverCompanyOverview> {
-  const from = startOfLondonWeek(date);
-  const to = addLondonDays(from, 7);
-
   const [
     configuration,
     completedBookings,
@@ -66,6 +66,7 @@ export async function getDriverCompanyOverview(
       },
       select: {
         driverId: true,
+        completedAt: true,
         cost: true,
         price: true,
       },
@@ -103,11 +104,47 @@ export async function getDriverCompanyOverview(
   );
 
   const driverTotals = new Map<string, number>();
+  const driverWeekTotals =
+    new Map<string, number>();
+
   let driverEarnings = 0;
   let companyRevenue = 0;
 
+  const addDriverEarnings = (
+    driverId: string,
+    occurredAt: Date,
+    amount: number,
+  ) => {
+    if (amount <= 0) {
+      return;
+    }
+
+    driverTotals.set(
+      driverId,
+      (driverTotals.get(driverId) ?? 0) +
+        amount,
+    );
+
+    const weekKey =
+      startOfLondonWeek(occurredAt).toISOString();
+
+    const driverWeekKey =
+      `${weekKey}::${driverId}`;
+
+    driverWeekTotals.set(
+      driverWeekKey,
+      (
+        driverWeekTotals.get(driverWeekKey) ??
+        0
+      ) + amount,
+    );
+  };
+
   for (const booking of completedBookings) {
-    if (!booking.driverId) {
+    if (
+      !booking.driverId ||
+      !booking.completedAt
+    ) {
       continue;
     }
 
@@ -121,15 +158,18 @@ export async function getDriverCompanyOverview(
     driverEarnings += driverValue;
     companyRevenue += companyValue;
 
-    driverTotals.set(
+    addDriverEarnings(
       booking.driverId,
-      (driverTotals.get(booking.driverId) ?? 0) +
-        driverValue,
+      booking.completedAt,
+      driverValue,
     );
   }
 
   for (const booking of noFareBookings) {
-    if (!booking.driverId) {
+    if (
+      !booking.driverId ||
+      !booking.noFareAt
+    ) {
       continue;
     }
 
@@ -140,34 +180,42 @@ export async function getDriverCompanyOverview(
     companyRevenue +=
       financials.companyRevenue;
 
-    driverTotals.set(
+    addDriverEarnings(
       booking.driverId,
-      (driverTotals.get(booking.driverId) ?? 0) +
-        financials.driverCost,
+      booking.noFareAt,
+      financials.driverCost,
     );
   }
 
-  let fullRentDrivers = 0;
+  let fullRentDriverWeeks = 0;
   let estimatedRent = 0;
+  const fullRentDriverIds = new Set<string>();
 
-  driverTotals.forEach((earnings) => {
-    const percentageRent =
-      earnings * (rentPercentage / 100);
+  driverWeekTotals.forEach(
+    (earnings, driverWeekKey) => {
+      const percentageRent =
+        earnings * (rentPercentage / 100);
 
-    const driverRent = Math.min(
-      percentageRent,
-      weeklyCap,
-    );
+      estimatedRent += Math.min(
+        percentageRent,
+        weeklyCap,
+      );
 
-    estimatedRent += driverRent;
+      if (
+        percentageRent >= weeklyCap &&
+        weeklyCap > 0
+      ) {
+        fullRentDriverWeeks += 1;
 
-    if (
-      percentageRent >= weeklyCap &&
-      weeklyCap > 0
-    ) {
-      fullRentDrivers += 1;
-    }
-  });
+        const separator =
+          driverWeekKey.indexOf("::");
+
+        fullRentDriverIds.add(
+          driverWeekKey.slice(separator + 2),
+        );
+      }
+    },
+  );
 
   return {
     from,
@@ -178,7 +226,9 @@ export async function getDriverCompanyOverview(
       companyRevenue - driverEarnings,
     ),
     earningDrivers: driverTotals.size,
-    fullRentDrivers,
+    earningDriverWeeks: driverWeekTotals.size,
+    fullRentDrivers: fullRentDriverIds.size,
+    fullRentDriverWeeks,
     estimatedRent: round(estimatedRent),
     rentPercentage,
     weeklyCap,
@@ -190,4 +240,16 @@ export async function getDriverCompanyOverview(
           )
         : 0,
   };
+}
+
+export async function getDriverCompanyOverview(
+  date = new Date(),
+): Promise<DriverCompanyOverview> {
+  const from = startOfLondonWeek(date);
+  const to = addLondonDays(from, 7);
+
+  return getDriverCompanyOverviewForRange(
+    from,
+    to,
+  );
 }
