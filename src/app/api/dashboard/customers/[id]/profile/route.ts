@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
+import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -94,6 +95,15 @@ export async function GET(
 
     const profile =
       buildCustomerProfile(customer.bookings);
+
+    try {
+      await ensureHourlyWeatherCurrent();
+    } catch (weatherSyncError) {
+      console.error(
+        "Automatic weather sync failed:",
+        weatherSyncError,
+      );
+    }
 
     const weatherObservations =
       await prisma.hourlyWeatherObservation.findMany({

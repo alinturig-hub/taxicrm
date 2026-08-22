@@ -129,3 +129,58 @@ export async function syncHourlyWeather(
     imported,
   };
 }
+
+const londonDateFormatter =
+  new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/London",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+
+function londonDate(value: Date) {
+  return londonDateFormatter.format(value);
+}
+
+export async function ensureHourlyWeatherCurrent(
+  now = new Date(),
+) {
+  const today = londonDate(now);
+
+  const latest =
+    await prisma.hourlyWeatherObservation.findFirst({
+      where: {
+        source: SOURCE,
+        locationKey: LOCATION_KEY,
+      },
+      orderBy: {
+        observedAt: "desc",
+      },
+      select: {
+        observedAt: true,
+      },
+    });
+
+  const latestDate = latest
+    ? londonDate(latest.observedAt)
+    : null;
+
+  if (latestDate === today) {
+    return {
+      updated: false,
+      through: today,
+    };
+  }
+
+  const from = latestDate ?? today;
+  const result = await syncHourlyWeather(
+    from,
+    today,
+  );
+
+  return {
+    updated: true,
+    through: today,
+    imported: result.imported,
+  };
+}
