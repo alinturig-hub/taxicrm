@@ -81,6 +81,24 @@ type ProfileResponse = {
       }>;
     }>;
   };
+  placeIntelligence?: {
+    matchedLocations: number;
+    distinctPlaces: number;
+    protectedPlaces: number;
+    places: Array<{
+      id: string;
+      name: string | null;
+      formattedAddress: string | null;
+      category: string | null;
+      website: string | null;
+      confidence: number | null;
+      isSensitive: boolean;
+      linkedBookings: number;
+      bookingIds: string[];
+      pickupMatches: number;
+      destinationMatches: number;
+    }>;
+  };
   contextualIntelligence?: {
     status: "READY" | "LEARNING";
     analysedBookings: number;
@@ -571,7 +589,12 @@ export default function CustomerProfileDrawer({
               ) : null}
 
               {tab === "PLACES" ? (
-                <Places profile={profile} />
+                <Places
+                  profile={profile}
+                  placeIntelligence={
+                    data?.placeIntelligence
+                  }
+                />
               ) : null}
 
               {tab === "BOOKINGS" ? (
@@ -1716,23 +1739,172 @@ function Behaviour({
 
 function Places({
   profile,
+  placeIntelligence,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  placeIntelligence?:
+    ProfileResponse["placeIntelligence"];
 }) {
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <RankedSection
-        title="Most Used Pickups"
-        values={profile.places.topPickups}
-      />
-      <RankedSection
-        title="Most Used Destinations"
-        values={
-          profile.places.topDestinations
-        }
-      />
+    <div className="space-y-6">
+      <Section title="Verified Real-World Places">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Metric
+            label="Matched locations"
+            value={(
+              placeIntelligence
+                ?.matchedLocations ?? 0
+            ).toLocaleString("en-GB")}
+          />
+          <Metric
+            label="Distinct places"
+            value={(
+              placeIntelligence
+                ?.distinctPlaces ?? 0
+            ).toLocaleString("en-GB")}
+          />
+          <Metric
+            label="Protected places"
+            value={(
+              placeIntelligence
+                ?.protectedPlaces ?? 0
+            ).toLocaleString("en-GB")}
+          />
+        </div>
+
+        <div className="mt-5 rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm leading-6 text-slate-300">
+          These are verified place matches from
+          booking coordinates. A match identifies
+          the physical place, but does not prove why
+          the customer travelled there. Sensitive
+          locations are protected automatically.
+        </div>
+
+        {placeIntelligence?.places.length ? (
+          <div className="mt-5 overflow-x-auto rounded-xl border border-slate-800">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-950 text-xs uppercase tracking-wide text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">
+                    Place
+                  </th>
+                  <th className="px-4 py-3">
+                    Category
+                  </th>
+                  <th className="px-4 py-3">
+                    Use
+                  </th>
+                  <th className="px-4 py-3">
+                    Bookings
+                  </th>
+                  <th className="px-4 py-3">
+                    Confidence
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {placeIntelligence.places.map(
+                  (place) => (
+                    <tr
+                      key={place.id}
+                      className="bg-slate-900/50 align-top"
+                    >
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-white">
+                          {place.name ??
+                            "Unnamed place"}
+                        </div>
+
+                        {place.formattedAddress ? (
+                          <div className="mt-1 max-w-md text-xs leading-5 text-slate-500">
+                            {
+                              place.formattedAddress
+                            }
+                          </div>
+                        ) : null}
+
+                        {place.isSensitive ? (
+                          <Badge tone="amber">
+                            Protected
+                          </Badge>
+                        ) : null}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-300">
+                        {place.category ??
+                          "Uncategorised"}
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-300">
+                        <div>
+                          {
+                            place.pickupMatches
+                          }{" "}
+                          pickups
+                        </div>
+                        <div className="mt-1">
+                          {
+                            place.destinationMatches
+                          }{" "}
+                          destinations
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4">
+                        <div className="font-semibold text-white">
+                          {
+                            place.linkedBookings
+                          }
+                        </div>
+                        <div className="mt-1 max-w-xs text-xs leading-5 text-slate-600">
+                          {place.bookingIds.join(
+                            ", ",
+                          )}
+                        </div>
+                      </td>
+
+                      <td className="px-4 py-4 text-slate-300">
+                        {place.confidence ===
+                        null
+                          ? "Provider match"
+                          : `${Math.round(
+                              place.confidence *
+                                100,
+                            )}%`}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-5 text-sm text-slate-400">
+            No enriched places are connected to
+            this customer yet. Run destination
+            enrichment from Configuration to build
+            this section.
+          </div>
+        )}
+      </Section>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RankedSection
+          title="Most Used Pickups"
+          values={
+            profile.places.topPickups
+          }
+        />
+        <RankedSection
+          title="Most Used Destinations"
+          values={
+            profile.places
+              .topDestinations
+          }
+        />
+      </div>
     </div>
   );
 }

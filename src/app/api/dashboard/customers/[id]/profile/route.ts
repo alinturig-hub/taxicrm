@@ -82,6 +82,18 @@ export async function GET(
                   type: true,
                   address: true,
                   zoneName: true,
+                  placeIntelligence: {
+                    select: {
+                      id: true,
+                      placeName: true,
+                      formattedAddress: true,
+                      category: true,
+                      website: true,
+                      confidence: true,
+                      isSensitive: true,
+                      status: true,
+                    },
+                  },
                 },
               },
             },
@@ -228,6 +240,121 @@ export async function GET(
         contextualEvents,
       );
 
+    const identifiedPlaces = new Map<
+      string,
+      {
+        id: string;
+        name: string | null;
+        formattedAddress: string | null;
+        category: string | null;
+        website: string | null;
+        confidence: number | null;
+        isSensitive: boolean;
+        bookingIds: Set<string>;
+        pickupMatches: number;
+        destinationMatches: number;
+      }
+    >();
+
+    let matchedPlaceLocations = 0;
+
+    for (const booking of customer.bookings) {
+      for (const location of booking.locations) {
+        const place = location.placeIntelligence;
+
+        if (!place || place.status !== "READY") {
+          continue;
+        }
+
+        matchedPlaceLocations += 1;
+
+        const existing =
+          identifiedPlaces.get(place.id) ?? {
+            id: place.id,
+            name: place.isSensitive
+              ? null
+              : place.placeName,
+            formattedAddress: place.isSensitive
+              ? null
+              : place.formattedAddress,
+            category: place.isSensitive
+              ? null
+              : place.category,
+            website: place.isSensitive
+              ? null
+              : place.website,
+            confidence:
+              place.confidence === null
+                ? null
+                : Number(place.confidence),
+            isSensitive: place.isSensitive,
+            bookingIds: new Set<string>(),
+            pickupMatches: 0,
+            destinationMatches: 0,
+          };
+
+        existing.bookingIds.add(
+          booking.externalId,
+        );
+
+        if (location.type === "PICKUP") {
+          existing.pickupMatches += 1;
+        }
+
+        if (location.type === "DESTINATION") {
+          existing.destinationMatches += 1;
+        }
+
+        identifiedPlaces.set(
+          place.id,
+          existing,
+        );
+      }
+    }
+
+    const customerPlaceIntelligence = {
+      matchedLocations: matchedPlaceLocations,
+      distinctPlaces: identifiedPlaces.size,
+      protectedPlaces: Array.from(
+        identifiedPlaces.values(),
+      ).filter((place) => place.isSensitive)
+        .length,
+      places: Array.from(
+        identifiedPlaces.values(),
+      )
+        .map((place) => ({
+          id: place.id,
+          name: place.isSensitive
+            ? "Protected location"
+            : place.name,
+          formattedAddress: place.isSensitive
+            ? null
+            : place.formattedAddress,
+          category: place.isSensitive
+            ? "Protected category"
+            : place.category,
+          website: place.isSensitive
+            ? null
+            : place.website,
+          confidence: place.confidence,
+          isSensitive: place.isSensitive,
+          linkedBookings:
+            place.bookingIds.size,
+          bookingIds: Array.from(
+            place.bookingIds,
+          ).slice(0, 10),
+          pickupMatches:
+            place.pickupMatches,
+          destinationMatches:
+            place.destinationMatches,
+        }))
+        .sort(
+          (first, second) =>
+            second.linkedBookings -
+            first.linkedBookings,
+        ),
+    };
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -250,6 +377,8 @@ export async function GET(
       relationshipQuality,
       behaviourChange,
       contextualIntelligence,
+      placeIntelligence:
+        customerPlaceIntelligence,
       generatedAt: new Date(),
       observation: weather,
     });
