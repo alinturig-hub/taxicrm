@@ -771,6 +771,12 @@ model HourlyWeatherObservation {
   apparentTemperature Decimal? @db.Decimal(7, 2)
   precipitation       Decimal? @db.Decimal(8, 2)
   rain                Decimal? @db.Decimal(8, 2)
+  snowfall            Decimal? @db.Decimal(8, 2)
+  windSpeed           Decimal? @db.Decimal(8, 2)
+  windGusts           Decimal? @db.Decimal(8, 2)
+  cloudCover          Int?
+  visibility          Decimal? @db.Decimal(12, 2)
+  isDay               Boolean?
   weatherCode         Int?
   source              String   @default("OPEN_METEO")
   createdAt           DateTime @default(now())

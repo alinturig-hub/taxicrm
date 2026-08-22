@@ -13,6 +13,12 @@ type OpenMeteoResponse = {
     apparent_temperature?: Array<number | null>;
     precipitation?: Array<number | null>;
     rain?: Array<number | null>;
+    snowfall?: Array<number | null>;
+    wind_speed_10m?: Array<number | null>;
+    wind_gusts_10m?: Array<number | null>;
+    cloud_cover?: Array<number | null>;
+    visibility?: Array<number | null>;
+    is_day?: Array<number | null>;
     weather_code?: Array<number | null>;
   };
   error?: boolean;
@@ -48,6 +54,12 @@ export async function syncHourlyWeather(
       "apparent_temperature",
       "precipitation",
       "rain",
+      "snowfall",
+      "wind_speed_10m",
+      "wind_gusts_10m",
+      "cloud_cover",
+      "visibility",
+      "is_day",
       "weather_code",
     ].join(","),
     timezone: "Europe/London",
@@ -95,6 +107,23 @@ export async function syncHourlyWeather(
           precipitation:
             hourly.precipitation?.[index] ?? null,
           rain: hourly.rain?.[index] ?? null,
+          snowfall:
+            hourly.snowfall?.[index] ?? null,
+          windSpeed:
+            hourly.wind_speed_10m?.[index] ??
+            null,
+          windGusts:
+            hourly.wind_gusts_10m?.[index] ??
+            null,
+          cloudCover:
+            hourly.cloud_cover?.[index] ?? null,
+          visibility:
+            hourly.visibility?.[index] ?? null,
+          isDay:
+            hourly.is_day?.[index] === null ||
+            hourly.is_day?.[index] === undefined
+              ? null
+              : hourly.is_day[index] === 1,
           weatherCode:
             hourly.weather_code?.[index] ?? null,
         };

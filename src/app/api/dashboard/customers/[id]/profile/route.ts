@@ -115,8 +115,16 @@ export async function GET(
         },
         select: {
           observedAt: true,
+          temperature: true,
+          apparentTemperature: true,
           precipitation: true,
           rain: true,
+          snowfall: true,
+          windSpeed: true,
+          windGusts: true,
+          cloudCover: true,
+          isDay: true,
+          weatherCode: true,
         },
       });
 

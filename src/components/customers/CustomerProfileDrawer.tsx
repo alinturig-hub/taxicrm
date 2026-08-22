@@ -87,6 +87,13 @@ type ProfileResponse = {
     matchedBookings: number;
     rainyBookings: number;
     dryBookings: number;
+    snowyBookings: number;
+    foggyBookings: number;
+    strongWindBookings: number;
+    nightBookings: number;
+    coldBookings: number;
+    averageTemperature: number | null;
+    averageApparentTemperature: number | null;
     rainyBookingPercentage: number;
     rainyHours: number;
     dryHours: number;
@@ -535,6 +542,49 @@ function Overview({
                     ? "Learning"
                     : `${weather.liftPercent > 0 ? "+" : ""}${weather.liftPercent}%`
                 }
+              />
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Average temperature"
+                value={
+                  weather.averageTemperature === null
+                    ? "No data"
+                    : `${weather.averageTemperature}°C`
+                }
+              />
+              <Metric
+                label="Average feels like"
+                value={
+                  weather.averageApparentTemperature === null
+                    ? "No data"
+                    : `${weather.averageApparentTemperature}°C`
+                }
+              />
+              <Metric
+                label="Night bookings"
+                value={weather.nightBookings.toString()}
+              />
+              <Metric
+                label="Cold-weather bookings"
+                value={weather.coldBookings.toString()}
+              />
+              <Metric
+                label="Strong-wind bookings"
+                value={weather.strongWindBookings.toString()}
+              />
+              <Metric
+                label="Fog bookings"
+                value={weather.foggyBookings.toString()}
+              />
+              <Metric
+                label="Snow bookings"
+                value={weather.snowyBookings.toString()}
+              />
+              <Metric
+                label="Weather coverage"
+                value={`${weather.matchedBookings} journeys`}
               />
             </div>
 
