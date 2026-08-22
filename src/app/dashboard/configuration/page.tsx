@@ -30,6 +30,13 @@ const configurationModules = [
     status: "Active",
   },
   {
+    title: "City Events",
+    description:
+      "Import city events, football matches, public holidays and activities used by contextual customer intelligence.",
+    href: "/dashboard/configuration/contextual-events",
+    status: "Active",
+  },
+  {
     title: "API Endpoints",
     description:
       "Add and test external API endpoints by URL using configured integration credentials.",

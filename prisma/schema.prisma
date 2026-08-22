@@ -786,3 +786,25 @@ model HourlyWeatherObservation {
   @@index([locationKey, observedAt])
   @@index([observedAt])
 }
+
+model ContextualCalendarEvent {
+  id           String   @id @default(cuid())
+  externalId   String?
+  title        String
+  category     String
+  startsAt     DateTime
+  endsAt       DateTime
+  locationName String?
+  description  String?
+  impactLevel  String   @default("MEDIUM")
+  source       String
+  sourceUrl    String?
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  @@unique([source, externalId])
+  @@index([startsAt, endsAt])
+  @@index([category, startsAt])
+  @@index([active, startsAt])
+}
