@@ -118,6 +118,53 @@ type ProfileResponse = {
     } | null;
     explanation: string[];
   };
+  operationalPreferences?: {
+    status: "READY" | "LEARNING";
+    analysedBookings: number;
+    leadTime: {
+      medianMinutes: number | null;
+      medianLabel: string;
+      immediateBookings: number;
+      plannedBookings: number;
+      advanceBookings: number;
+      immediatePercentage: number;
+      plannedPercentage: number;
+      advancePercentage: number;
+      preferredBookingStyle:
+        | "IMMEDIATE"
+        | "PLANNED"
+        | "ADVANCE"
+        | "MIXED"
+        | "LEARNING";
+    };
+    passengers: {
+      typical: number | null;
+      maximum: number | null;
+      multiPassengerPercentage: number;
+    };
+    luggageDataAvailable: boolean;
+    commonRequirements: Array<{
+      name: string;
+      shortCode: string | null;
+      bookings: number;
+      percentage: number;
+      category:
+        | "ACCESSIBILITY"
+        | "VEHICLE"
+        | "TRAVEL"
+        | "SERVICE"
+        | "OTHER";
+    }>;
+    paymentPreference: {
+      value: string | null;
+      percentage: number;
+    };
+    bookingChannelPreference: {
+      value: string | null;
+      percentage: number;
+    };
+    explanation: string[];
+  };
   nextBookingPrediction?: {
     status: "READY" | "LEARNING";
     signalStrength:
@@ -419,6 +466,9 @@ export default function CustomerProfileDrawer({
                   profile={profile}
                   rhythm={
                     data?.customerRhythm
+                  }
+                  operational={
+                    data?.operationalPreferences
                   }
                 />
               ) : null}
@@ -779,11 +829,13 @@ function Overview({
 function Behaviour({
   profile,
   rhythm,
+  operational,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
   rhythm?: ProfileResponse["customerRhythm"];
+  operational?: ProfileResponse["operationalPreferences"];
 }) {
   const safe =
     profile.classification
@@ -932,6 +984,146 @@ function Behaviour({
                   "More bookings are required to learn this rhythm."}
               </p>
             )}
+          </div>
+        </Section>
+      ) : null}
+
+      {operational ? (
+        <Section title="Operational Preferences">
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-blue-300">
+                  How this customer usually books
+                </p>
+                <p className="mt-2 text-2xl font-bold text-white">
+                  {operational.leadTime
+                    .preferredBookingStyle
+                    .toLowerCase()
+                    .replace("_", " ")}
+                </p>
+              </div>
+
+              <Badge
+                tone={
+                  operational.status === "READY"
+                    ? "blue"
+                    : "slate"
+                }
+              >
+                {operational.analysedBookings} bookings analysed
+              </Badge>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Typical notice"
+                value={
+                  operational.leadTime
+                    .medianLabel
+                }
+              />
+              <Metric
+                label="Immediate bookings"
+                value={`${operational.leadTime.immediatePercentage}%`}
+              />
+              <Metric
+                label="Planned bookings"
+                value={`${operational.leadTime.plannedPercentage}%`}
+              />
+              <Metric
+                label="Advance bookings"
+                value={`${operational.leadTime.advancePercentage}%`}
+              />
+              <Metric
+                label="Preferred payment"
+                value={
+                  operational.paymentPreference
+                    .value
+                    ? `${operational.paymentPreference.value} (${operational.paymentPreference.percentage}%)`
+                    : "Learning"
+                }
+              />
+              <Metric
+                label="Preferred channel"
+                value={
+                  operational
+                    .bookingChannelPreference
+                    .value
+                    ? `${operational.bookingChannelPreference.value} (${operational.bookingChannelPreference.percentage}%)`
+                    : "Learning"
+                }
+              />
+              <Metric
+                label="Typical passengers"
+                value={
+                  operational.passengers
+                    .typical === null
+                    ? "Not recorded"
+                    : operational.passengers
+                        .typical
+                        .toString()
+                }
+              />
+              <Metric
+                label="Luggage"
+                value={
+                  operational
+                    .luggageDataAvailable
+                    ? "Recorded"
+                    : "Not recorded"
+                }
+              />
+            </div>
+
+            {operational.commonRequirements
+              .length > 0 ? (
+              <div className="mt-5 rounded-xl border border-blue-500/20 bg-slate-950/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Repeated requirements
+                </p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {operational.commonRequirements.map(
+                    (requirement) => (
+                      <Badge
+                        key={`${requirement.name}-${requirement.shortCode ?? ""}`}
+                        tone="blue"
+                      >
+                        {requirement.name} ·{" "}
+                        {requirement.bookings} bookings
+                      </Badge>
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Evidence
+              </p>
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {operational.explanation.map(
+                  (reason) => (
+                    <li
+                      key={reason}
+                      className="flex gap-2"
+                    >
+                      <span className="text-blue-400">
+                        •
+                      </span>
+                      <span>{reason}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              Preferences are inferred only from recorded
+              bookings. Missing passenger or luggage data is
+              shown as unavailable and is never guessed.
+            </p>
           </div>
         </Section>
       ) : null}

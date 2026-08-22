@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildNextBookingPrediction } from "@/lib/customers/customer-next-booking";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
+import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-operational-preferences";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
@@ -70,6 +71,9 @@ export async function GET(
               distance: true,
               paymentType: true,
               bookingSource: true,
+              passengers: true,
+              luggage: true,
+              capabilities: true,
               locations: {
                 select: {
                   type: true,
@@ -105,6 +109,11 @@ export async function GET(
 
     const customerRhythm =
       buildCustomerRhythm(
+        customer.bookings,
+      );
+
+    const operationalPreferences =
+      buildCustomerOperationalPreferences(
         customer.bookings,
       );
 
@@ -164,6 +173,7 @@ export async function GET(
       profile,
       nextBookingPrediction,
       customerRhythm,
+      operationalPreferences,
       generatedAt: new Date(),
       observation: weather,
     });
