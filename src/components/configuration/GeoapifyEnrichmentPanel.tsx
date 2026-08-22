@@ -14,12 +14,31 @@ type Statistics = {
   waitingDestinations: number;
 };
 
+type IdentifiedPlace = {
+  id: string;
+  name: string | null;
+  formattedAddress: string | null;
+  originalAddress: string | null;
+  category: string | null;
+  website: string | null;
+  confidence: number | null;
+  sensitive: boolean;
+  status: string;
+  enrichedAt: string | null;
+  linkedLocations: number;
+  bookings: Array<{
+    bookingId: string;
+    type: string;
+  }>;
+};
+
 type ResponsePayload = {
   success: boolean;
   message?: string;
   completed?: number;
   failed?: number;
   statistics?: Statistics;
+  recentPlaces?: IdentifiedPlace[];
 };
 
 export default function GeoapifyEnrichmentPanel() {
@@ -27,6 +46,8 @@ export default function GeoapifyEnrichmentPanel() {
     useState<Statistics | null>(null);
   const [batchLimit, setBatchLimit] =
     useState(1);
+  const [recentPlaces, setRecentPlaces] =
+    useState<IdentifiedPlace[]>([]);
   const [processing, setProcessing] =
     useState(false);
   const [message, setMessage] =
@@ -59,6 +80,9 @@ export default function GeoapifyEnrichmentPanel() {
         }
 
         setStatistics(payload.statistics);
+        setRecentPlaces(
+          payload.recentPlaces ?? [],
+        );
       } catch (loadError) {
         setError(
           loadError instanceof Error
@@ -227,6 +251,102 @@ export default function GeoapifyEnrichmentPanel() {
         Sensitive locations are marked internally and excluded
         from personalised persuasion and customer-facing messages.
       </p>
+
+      <div className="mt-6 border-t border-slate-800 pt-6">
+        <h3 className="font-semibold text-white">
+          Recently identified places
+        </h3>
+
+        {recentPlaces.length === 0 ? (
+          <p className="mt-3 text-sm text-slate-500">
+            No identified places yet.
+          </p>
+        ) : (
+          <div className="mt-4 overflow-x-auto rounded-xl border border-slate-800">
+            <table className="min-w-full text-left text-sm">
+              <thead className="bg-slate-950 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3">
+                    Place
+                  </th>
+                  <th className="px-4 py-3">
+                    Category
+                  </th>
+                  <th className="px-4 py-3">
+                    Booking IDs
+                  </th>
+                  <th className="px-4 py-3">
+                    Confidence
+                  </th>
+                  <th className="px-4 py-3">
+                    Linked
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-800">
+                {recentPlaces.map((place) => (
+                  <tr
+                    key={place.id}
+                    className="bg-slate-900/60"
+                  >
+                    <td className="px-4 py-4">
+                      <p className="font-semibold text-white">
+                        {place.name ??
+                          place.originalAddress ??
+                          "Unidentified place"}
+                      </p>
+                      <p className="mt-1 max-w-md text-xs leading-5 text-slate-500">
+                        {place.formattedAddress ??
+                          place.originalAddress ??
+                          "No formatted address"}
+                      </p>
+                      {place.website ? (
+                        <a
+                          href={place.website}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="mt-1 inline-block text-xs text-blue-400 hover:text-blue-300"
+                        >
+                          Open website
+                        </a>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 text-slate-300">
+                      {place.category ??
+                        "Uncategorised"}
+                      {place.sensitive ? (
+                        <span className="ml-2 rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[10px] font-semibold text-amber-300">
+                          Protected
+                        </span>
+                      ) : null}
+                    </td>
+                    <td className="px-4 py-4 text-slate-300">
+                      {place.bookings.length > 0
+                        ? place.bookings
+                            .map(
+                              (booking) =>
+                                booking.bookingId,
+                            )
+                            .join(", ")
+                        : "—"}
+                    </td>
+                    <td className="px-4 py-4 text-slate-300">
+                      {place.confidence === null
+                        ? "—"
+                        : `${Math.round(
+                            place.confidence * 100,
+                          )}%`}
+                    </td>
+                    <td className="px-4 py-4 font-semibold text-white">
+                      {place.linkedLocations}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </section>
   );
 }

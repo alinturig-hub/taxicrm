@@ -56,6 +56,7 @@ export async function GET() {
     sensitivePlaces,
     enrichedLocations,
     waitingDestinations,
+    recentPlaces,
   ] = await Promise.all([
     prisma.placeIntelligence.count(),
     prisma.placeIntelligence.count({
@@ -87,6 +88,51 @@ export async function GET() {
         placeIntelligenceId: null,
       },
     }),
+    prisma.placeIntelligence.findMany({
+      where: {
+        status: {
+          in: [
+            "READY",
+            "NOT_FOUND",
+          ],
+        },
+      },
+      orderBy: {
+        enrichedAt: "desc",
+      },
+      take: 20,
+      select: {
+        id: true,
+        placeName: true,
+        formattedAddress: true,
+        originalAddress: true,
+        category: true,
+        website: true,
+        confidence: true,
+        isSensitive: true,
+        status: true,
+        enrichedAt: true,
+        _count: {
+          select: {
+            bookingLocations: true,
+          },
+        },
+        bookingLocations: {
+          orderBy: {
+            updatedAt: "desc",
+          },
+          take: 5,
+          select: {
+            type: true,
+            booking: {
+              select: {
+                externalId: true,
+              },
+            },
+          },
+        },
+      },
+    }),
   ]);
 
   return NextResponse.json({
@@ -98,6 +144,41 @@ export async function GET() {
       enrichedLocations,
       waitingDestinations,
     },
+    recentPlaces: recentPlaces.map(
+      (place) => ({
+        id: place.id,
+        name: place.isSensitive
+          ? "Sensitive location"
+          : place.placeName,
+        formattedAddress:
+          place.formattedAddress,
+        originalAddress:
+          place.originalAddress,
+        category: place.isSensitive
+          ? "Sensitive category"
+          : place.category,
+        website: place.isSensitive
+          ? null
+          : place.website,
+        confidence:
+          place.confidence === null
+            ? null
+            : Number(place.confidence),
+        sensitive: place.isSensitive,
+        status: place.status,
+        enrichedAt: place.enrichedAt,
+        linkedLocations:
+          place._count.bookingLocations,
+        bookings:
+          place.bookingLocations.map(
+            (location) => ({
+              bookingId:
+                location.booking.externalId,
+              type: location.type,
+            }),
+          ),
+      }),
+    ),
   });
 }
 
