@@ -83,6 +83,22 @@ type ProfileResponse = {
   };
   observation?: {
     weatherAvailable: boolean;
+    enoughData: boolean;
+    matchedBookings: number;
+    rainyBookings: number;
+    dryBookings: number;
+    rainyBookingPercentage: number;
+    rainyHours: number;
+    dryHours: number;
+    rainyBookingsPer100Hours: number;
+    dryBookingsPer100Hours: number;
+    liftPercent: number | null;
+    tendency:
+      | "MORE_LIKELY_IN_RAIN"
+      | "LESS_LIKELY_IN_RAIN"
+      | "NO_CLEAR_DIFFERENCE"
+      | "INSUFFICIENT_DATA";
+    confidence: number;
     weatherMessage: string;
   };
 };
@@ -329,10 +345,7 @@ export default function CustomerProfileDrawer({
               {tab === "OVERVIEW" ? (
                 <Overview
                   profile={profile}
-                  weatherMessage={
-                    data?.observation
-                      ?.weatherMessage
-                  }
+                  weather={data?.observation}
                 />
               ) : null}
 
@@ -365,12 +378,12 @@ export default function CustomerProfileDrawer({
 
 function Overview({
   profile,
-  weatherMessage,
+  weather,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
-  weatherMessage?: string;
+  weather?: ProfileResponse["observation"];
 }) {
   const { overview, classification } = profile;
 
@@ -478,14 +491,65 @@ function Overview({
         </div>
       </Section>
 
-      {weatherMessage ? (
+      {weather?.weatherAvailable ? (
+        <Section title="Weather Intelligence">
+          <div className="rounded-2xl border border-blue-500/20 bg-blue-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="font-semibold text-white">
+                  Rain sensitivity
+                </p>
+                <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                  {weather.weatherMessage}
+                </p>
+              </div>
+
+              <Badge
+                tone={
+                  weather.enoughData
+                    ? "blue"
+                    : "slate"
+                }
+              >
+                {weather.confidence}% confidence
+              </Badge>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Weather-matched bookings"
+                value={weather.matchedBookings.toString()}
+              />
+              <Metric
+                label="During rain"
+                value={`${weather.rainyBookings} (${weather.rainyBookingPercentage}%)`}
+              />
+              <Metric
+                label="During dry weather"
+                value={weather.dryBookings.toString()}
+              />
+              <Metric
+                label="Rain effect"
+                value={
+                  weather.liftPercent === null
+                    ? "Learning"
+                    : `${weather.liftPercent > 0 ? "+" : ""}${weather.liftPercent}%`
+                }
+              />
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              Comparison is normalised per 100 rainy and dry hours,
+              so it does not assume that every rainy booking was
+              caused by the weather.
+            </p>
+          </div>
+        </Section>
+      ) : (
         <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-4 text-sm text-slate-400">
-          <span className="font-semibold text-slate-200">
-            Weather intelligence:
-          </span>{" "}
-          {weatherMessage}
+          Weather intelligence is waiting for historical observations.
         </div>
-      ) : null}
+      )}
     </div>
   );
 }

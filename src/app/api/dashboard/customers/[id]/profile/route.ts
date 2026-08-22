@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
+import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -94,6 +95,27 @@ export async function GET(
     const profile =
       buildCustomerProfile(customer.bookings);
 
+    const weatherObservations =
+      await prisma.hourlyWeatherObservation.findMany({
+        where: {
+          locationKey: "PLYMOUTH",
+        },
+        orderBy: {
+          observedAt: "asc",
+        },
+        select: {
+          observedAt: true,
+          precipitation: true,
+          rain: true,
+        },
+      });
+
+    const weather =
+      buildCustomerWeatherIntelligence(
+        customer.bookings,
+        weatherObservations,
+      );
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -111,11 +133,7 @@ export async function GET(
       },
       profile,
       generatedAt: new Date(),
-      observation: {
-        weatherAvailable: false,
-        weatherMessage:
-          "Historical weather is not stored yet. Weather sensitivity will be enabled after weather observations are added.",
-      },
+      observation: weather,
     });
   } catch (error) {
     console.error(

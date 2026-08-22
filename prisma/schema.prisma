@@ -760,3 +760,23 @@ model CompanyDailyMetric {
 
   @@index([date])
 }
+
+model HourlyWeatherObservation {
+  id                  String   @id @default(cuid())
+  locationKey         String   @default("PLYMOUTH")
+  latitude            Decimal  @db.Decimal(10, 6)
+  longitude           Decimal  @db.Decimal(10, 6)
+  observedAt          DateTime
+  temperature         Decimal? @db.Decimal(7, 2)
+  apparentTemperature Decimal? @db.Decimal(7, 2)
+  precipitation       Decimal? @db.Decimal(8, 2)
+  rain                Decimal? @db.Decimal(8, 2)
+  weatherCode         Int?
+  source              String   @default("OPEN_METEO")
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@unique([source, locationKey, observedAt])
+  @@index([locationKey, observedAt])
+  @@index([observedAt])
+}
