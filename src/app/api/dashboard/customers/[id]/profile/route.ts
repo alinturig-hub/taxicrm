@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildNextBookingPrediction } from "@/lib/customers/customer-next-booking";
+import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
@@ -102,6 +103,11 @@ export async function GET(
         customer.bookings,
       );
 
+    const customerRhythm =
+      buildCustomerRhythm(
+        customer.bookings,
+      );
+
     try {
       await ensureHourlyWeatherCurrent();
     } catch (weatherSyncError) {
@@ -157,6 +163,7 @@ export async function GET(
       },
       profile,
       nextBookingPrediction,
+      customerRhythm,
       generatedAt: new Date(),
       observation: weather,
     });

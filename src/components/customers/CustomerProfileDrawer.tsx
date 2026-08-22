@@ -81,6 +81,43 @@ type ProfileResponse = {
       }>;
     }>;
   };
+  customerRhythm?: {
+    status: "READY" | "LEARNING";
+    rhythmType:
+      | "REGULAR"
+      | "SEMI_REGULAR"
+      | "OCCASIONAL"
+      | "LEARNING";
+    regularityScore: number | null;
+    typicalIntervalHours: number | null;
+    typicalIntervalLabel: string;
+    nextExpectedAt: string | null;
+    scheduleStatus:
+      | "ON_TRACK"
+      | "DUE"
+      | "OVERDUE"
+      | "LEARNING";
+    overdueHours: number;
+    recent30Days: number;
+    previous30Days: number;
+    frequencyChangePercent: number | null;
+    frequencyTrend:
+      | "INCREASING"
+      | "DECLINING"
+      | "STABLE"
+      | "NEW_BASELINE"
+      | "LEARNING";
+    commutePattern: {
+      detected: true;
+      pickup: string;
+      destination: string;
+      observations: number;
+      sharePercent: number;
+      weekdayPercent: number;
+      confidence: number;
+    } | null;
+    explanation: string[];
+  };
   nextBookingPrediction?: {
     status: "READY" | "LEARNING";
     signalStrength:
@@ -380,6 +417,9 @@ export default function CustomerProfileDrawer({
               {tab === "BEHAVIOUR" ? (
                 <Behaviour
                   profile={profile}
+                  rhythm={
+                    data?.customerRhythm
+                  }
                 />
               ) : null}
 
@@ -738,33 +778,186 @@ function Overview({
 
 function Behaviour({
   profile,
+  rhythm,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  rhythm?: ProfileResponse["customerRhythm"];
 }) {
+  const safe =
+    profile.classification
+      .profileSafeForPersonalisation;
+
   return (
-    <div className="grid gap-6 lg:grid-cols-2">
-      <RankedSection
-        title="Bookings by Day"
-        values={profile.behaviour.days}
-      />
-      <RankedSection
-        title="Bookings by Hour"
-        values={profile.behaviour.hours}
-      />
-      <RankedSection
-        title="Payment Preferences"
-        values={
-          profile.behaviour.paymentMethods
-        }
-      />
-      <RankedSection
-        title="Booking Channels"
-        values={
-          profile.behaviour.bookingChannels
-        }
-      />
+    <div className="space-y-6">
+      {rhythm ? (
+        <Section title="Customer Rhythm">
+          <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">
+            {rhythm.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-cyan-300">
+                      Observed booking rhythm
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-white">
+                      {rhythm.rhythmType
+                        .toLowerCase()
+                        .replace("_", " ")}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="blue">
+                      Regularity{" "}
+                      {rhythm.regularityScore ?? 0}/100
+                    </Badge>
+                    <Badge
+                      tone={
+                        rhythm.scheduleStatus ===
+                        "OVERDUE"
+                          ? "amber"
+                          : "slate"
+                      }
+                    >
+                      {rhythm.scheduleStatus
+                        .toLowerCase()
+                        .replace("_", " ")}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric
+                    label="Typical interval"
+                    value={
+                      rhythm.typicalIntervalLabel
+                    }
+                  />
+                  <Metric
+                    label="Recent 30 days"
+                    value={rhythm.recent30Days.toString()}
+                  />
+                  <Metric
+                    label="Previous 30 days"
+                    value={rhythm.previous30Days.toString()}
+                  />
+                  <Metric
+                    label="Frequency change"
+                    value={
+                      rhythm.frequencyChangePercent ===
+                      null
+                        ? "New baseline"
+                        : `${rhythm.frequencyChangePercent > 0 ? "+" : ""}${rhythm.frequencyChangePercent}%`
+                    }
+                  />
+                </div>
+
+                {rhythm.commutePattern &&
+                safe ? (
+                  <div className="mt-5 rounded-xl border border-cyan-500/20 bg-slate-950/40 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-white">
+                          Possible recurring commute
+                        </p>
+                        <p className="mt-2 text-sm text-slate-300">
+                          {
+                            rhythm
+                              .commutePattern
+                              .pickup
+                          }
+                          {" → "}
+                          {
+                            rhythm
+                              .commutePattern
+                              .destination
+                          }
+                        </p>
+                      </div>
+                      <Badge tone="blue">
+                        {
+                          rhythm.commutePattern
+                            .confidence
+                        }
+                        % confidence
+                      </Badge>
+                    </div>
+                    <p className="mt-3 text-xs leading-5 text-slate-500">
+                      {
+                        rhythm.commutePattern
+                          .observations
+                      }{" "}
+                      observed journeys ·{" "}
+                      {
+                        rhythm.commutePattern
+                          .weekdayPercent
+                      }
+                      % occurred on weekdays
+                    </p>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    How it was calculated
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    {rhythm.explanation.map(
+                      (reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2"
+                        >
+                          <span className="text-cyan-400">
+                            •
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  Rhythm is inferred from booking history.
+                  It is decision support, not proof of a
+                  customer&apos;s personal routine.
+                </p>
+              </>
+            ) : (
+              <p className="text-sm text-slate-400">
+                {rhythm.explanation[0] ??
+                  "More bookings are required to learn this rhythm."}
+              </p>
+            )}
+          </div>
+        </Section>
+      ) : null}
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <RankedSection
+          title="Bookings by Day"
+          values={profile.behaviour.days}
+        />
+        <RankedSection
+          title="Bookings by Hour"
+          values={profile.behaviour.hours}
+        />
+        <RankedSection
+          title="Payment Preferences"
+          values={
+            profile.behaviour.paymentMethods
+          }
+        />
+        <RankedSection
+          title="Booking Channels"
+          values={
+            profile.behaviour.bookingChannels
+          }
+        />
+      </div>
     </div>
   );
 }
