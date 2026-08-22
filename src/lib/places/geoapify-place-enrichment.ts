@@ -263,10 +263,10 @@ export async function enrichBookingLocation(
     place.id,
   );
 
-  await reserveDailyCredit();
-
   const credentials =
     await getGeoapifyCredentials();
+
+  await reserveDailyCredit();
 
   const url = new URL(
     "/v1/geocode/reverse",

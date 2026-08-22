@@ -7,6 +7,8 @@ import {
   useState,
 } from "react";
 
+import GeoapifyEnrichmentPanel from "@/components/configuration/GeoapifyEnrichmentPanel";
+
 type Configuration = {
   id: string | null;
   provider: string;
@@ -411,6 +413,8 @@ export default function GeoapifySettings() {
           </button>
         </div>
       </form>
+
+      <GeoapifyEnrichmentPanel />
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
         <h2 className="font-semibold text-white">
