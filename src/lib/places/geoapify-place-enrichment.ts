@@ -7,12 +7,19 @@ const LOCATION_KEY_DECIMALS = 5;
 type GeoapifyResult = {
   name?: string;
   formatted?: string;
+  result_type?: string;
   categories?: string[];
   place_id?: string;
   website?: string;
   datasource?: {
     raw?: {
       website?: string;
+      amenity?: string;
+      healthcare?: string;
+      tourism?: string;
+      leisure?: string;
+      shop?: string;
+      office?: string;
     };
   };
   rank?: {
@@ -65,8 +72,35 @@ export function placeLocationKey(
   ].join(":");
 }
 
+const sensitivePlaceKeywords = [
+  "renal",
+  "dialysis",
+  "hospital",
+  "clinic",
+  "medical centre",
+  "medical center",
+  "health centre",
+  "health center",
+  "healthcare",
+  "surgery",
+  "pharmacy",
+  "hospice",
+  "mental health",
+  "sexual health",
+  "fertility",
+  "religious",
+  "church",
+  "mosque",
+  "synagogue",
+  "temple",
+  "political",
+];
+
 function sensitiveReason(
   categories: string[],
+  textValues: Array<
+    string | null | undefined
+  >,
 ) {
   const sensitiveCategory =
     categories.find((category) =>
@@ -77,8 +111,26 @@ function sensitiveReason(
       ),
     );
 
-  return sensitiveCategory
-    ? `Sensitive place category: ${sensitiveCategory}`
+  if (sensitiveCategory) {
+    return `Sensitive place category: ${sensitiveCategory}`;
+  }
+
+  const combinedText = textValues
+    .filter(
+      (value): value is string =>
+        typeof value === "string",
+    )
+    .join(" ")
+    .toLowerCase();
+
+  const keyword =
+    sensitivePlaceKeywords.find(
+      (candidate) =>
+        combinedText.includes(candidate),
+    );
+
+  return keyword
+    ? `Sensitive place indicator: ${keyword}`
     : null;
 }
 
@@ -337,8 +389,31 @@ export async function enrichBookingLocation(
         ? result.categories
         : [];
 
+    const raw =
+      result.datasource?.raw;
+
+    const category =
+      categories[0] ??
+      raw?.amenity ??
+      raw?.healthcare ??
+      raw?.tourism ??
+      raw?.leisure ??
+      raw?.shop ??
+      raw?.office ??
+      result.result_type ??
+      null;
+
     const sensitivityReason =
-      sensitiveReason(categories);
+      sensitiveReason(
+        categories,
+        [
+          result.name,
+          result.formatted,
+          category,
+          raw?.amenity,
+          raw?.healthcare,
+        ],
+      );
 
     const enriched =
       await prisma.placeIntelligence.update({
@@ -350,8 +425,7 @@ export async function enrichBookingLocation(
             result.name?.trim() || null,
           formattedAddress:
             result.formatted?.trim() || null,
-          category:
-            categories[0] ?? null,
+          category,
           categories,
           website:
             result.website ??
