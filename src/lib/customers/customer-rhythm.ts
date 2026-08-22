@@ -389,3 +389,7 @@ export function buildCustomerRhythm(
     explanation,
   };
 }
+
+export type CustomerRhythm =
+  ReturnType<typeof buildCustomerRhythm>;
+

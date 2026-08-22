@@ -118,6 +118,25 @@ type ProfileResponse = {
     } | null;
     explanation: string[];
   };
+  relationshipQuality?: {
+    status: "READY" | "LEARNING";
+    score: number | null;
+    level:
+      | "STRONG"
+      | "ESTABLISHED"
+      | "DEVELOPING"
+      | "NEEDS_ATTENTION"
+      | "LEARNING";
+    completedBookings: number;
+    completionRate: number;
+    cancellationRate: number;
+    noFareRate: number;
+    relationshipAgeDays: number | null;
+    daysSinceLastBooking: number | null;
+    strengths: string[];
+    attentionSignals: string[];
+    explanation: string[];
+  };
   operationalPreferences?: {
     status: "READY" | "LEARNING";
     analysedBookings: number;
@@ -457,6 +476,9 @@ export default function CustomerProfileDrawer({
                   prediction={
                     data?.nextBookingPrediction
                   }
+                  relationship={
+                    data?.relationshipQuality
+                  }
                   weather={data?.observation}
                 />
               ) : null}
@@ -497,12 +519,14 @@ export default function CustomerProfileDrawer({
 function Overview({
   profile,
   prediction,
+  relationship,
   weather,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
   prediction?: ProfileResponse["nextBookingPrediction"];
+  relationship?: ProfileResponse["relationshipQuality"];
   weather?: ProfileResponse["observation"];
 }) {
   const { overview, classification } = profile;
@@ -580,6 +604,137 @@ function Overview({
           detail={`Observed since ${dateTime(overview.firstBookingAt)}`}
         />
       </div>
+
+      {relationship ? (
+        <Section title="Relationship Quality">
+          <div className="rounded-2xl border border-emerald-500/20 bg-emerald-500/5 p-5">
+            {relationship.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-300">
+                      Observed relationship strength
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-white">
+                      {relationship.level
+                        .toLowerCase()
+                        .replace("_", " ")}
+                    </p>
+                  </div>
+
+                  <Badge
+                    tone={
+                      relationship.level ===
+                      "NEEDS_ATTENTION"
+                        ? "amber"
+                        : relationship.level ===
+                            "STRONG"
+                          ? "green"
+                          : "blue"
+                    }
+                  >
+                    {relationship.score ?? 0}/100
+                  </Badge>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric
+                    label="Completion"
+                    value={`${relationship.completionRate}%`}
+                  />
+                  <Metric
+                    label="Cancellation"
+                    value={`${relationship.cancellationRate}%`}
+                  />
+                  <Metric
+                    label="No Fare"
+                    value={`${relationship.noFareRate}%`}
+                  />
+                  <Metric
+                    label="Relationship age"
+                    value={
+                      relationship
+                        .relationshipAgeDays ===
+                      null
+                        ? "Learning"
+                        : `${relationship.relationshipAgeDays} days`
+                    }
+                  />
+                </div>
+
+                {relationship.strengths.length >
+                0 ? (
+                  <div className="mt-5 rounded-xl border border-emerald-500/20 bg-slate-950/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Relationship strengths
+                    </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {relationship.strengths.map(
+                        (strength) => (
+                          <Badge
+                            key={strength}
+                            tone="green"
+                          >
+                            {strength}
+                          </Badge>
+                        ),
+                      )}
+                    </div>
+                  </div>
+                ) : null}
+
+                {relationship.attentionSignals
+                  .length > 0 ? (
+                  <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+                      Operational attention
+                    </p>
+                    <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-100/70">
+                      {relationship.attentionSignals.map(
+                        (signal) => (
+                          <li
+                            key={signal}
+                            className="flex gap-2"
+                          >
+                            <span>•</span>
+                            <span>{signal}</span>
+                          </li>
+                        ),
+                      )}
+                    </ul>
+                  </div>
+                ) : null}
+
+                <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    How it was calculated
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    {relationship.explanation.map(
+                      (reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2"
+                        >
+                          <span className="text-emerald-400">
+                            •
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-400">
+                {relationship.explanation[0] ??
+                  "More booking history is required."}
+              </p>
+            )}
+          </div>
+        </Section>
+      ) : null}
 
       <Section title="Profile Insights">
         <div className="grid gap-3 lg:grid-cols-2">
