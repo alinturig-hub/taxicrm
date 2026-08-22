@@ -7,6 +7,7 @@ import { buildNextBookingPrediction } from "@/lib/customers/customer-next-bookin
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-operational-preferences";
 import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relationship-quality";
+import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
@@ -124,6 +125,11 @@ export async function GET(
         customerRhythm,
       );
 
+    const behaviourChange =
+      buildCustomerBehaviourChange(
+        customer.bookings,
+      );
+
     try {
       await ensureHourlyWeatherCurrent();
     } catch (weatherSyncError) {
@@ -182,6 +188,7 @@ export async function GET(
       customerRhythm,
       operationalPreferences,
       relationshipQuality,
+      behaviourChange,
       generatedAt: new Date(),
       observation: weather,
     });

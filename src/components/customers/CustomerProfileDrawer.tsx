@@ -118,6 +118,37 @@ type ProfileResponse = {
     } | null;
     explanation: string[];
   };
+  behaviourChange?: {
+    status: "READY" | "LEARNING";
+    windowDays: number;
+    recentBookings: number;
+    previousBookings: number;
+    changeScore: number | null;
+    direction:
+      | "INCREASING"
+      | "DECLINING"
+      | "STABLE"
+      | "MIXED"
+      | "LEARNING";
+    changes: Array<{
+      category:
+        | "FREQUENCY"
+        | "OUTCOMES"
+        | "TIME"
+        | "PAYMENT"
+        | "CHANNEL"
+        | "PICKUP";
+      severity:
+        | "LOW"
+        | "MEDIUM"
+        | "HIGH";
+      title: string;
+      detail: string;
+      evidence: string;
+      sensitive: boolean;
+    }>;
+    explanation: string[];
+  };
   relationshipQuality?: {
     status: "READY" | "LEARNING";
     score: number | null;
@@ -488,6 +519,9 @@ export default function CustomerProfileDrawer({
                   profile={profile}
                   rhythm={
                     data?.customerRhythm
+                  }
+                  changes={
+                    data?.behaviourChange
                   }
                   operational={
                     data?.operationalPreferences
@@ -984,12 +1018,14 @@ function Overview({
 function Behaviour({
   profile,
   rhythm,
+  changes,
   operational,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
   rhythm?: ProfileResponse["customerRhythm"];
+  changes?: ProfileResponse["behaviourChange"];
   operational?: ProfileResponse["operationalPreferences"];
 }) {
   const safe =
@@ -1138,6 +1174,134 @@ function Behaviour({
                 {rhythm.explanation[0] ??
                   "More bookings are required to learn this rhythm."}
               </p>
+            )}
+          </div>
+        </Section>
+      ) : null}
+
+      {changes ? (
+        <Section title="Behaviour Changes">
+          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-5">
+            {changes.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-orange-300">
+                      Latest {changes.windowDays} days versus previous{" "}
+                      {changes.windowDays} days
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-white">
+                      {changes.direction
+                        .toLowerCase()
+                        .replace("_", " ")}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      tone={
+                        changes.direction ===
+                        "DECLINING"
+                          ? "amber"
+                          : changes.direction ===
+                              "INCREASING"
+                            ? "green"
+                            : "blue"
+                      }
+                    >
+                      Change Score{" "}
+                      {changes.changeScore ?? 0}/100
+                    </Badge>
+                    <Badge tone="slate">
+                      {changes.recentBookings} recent ·{" "}
+                      {changes.previousBookings} previous
+                    </Badge>
+                  </div>
+                </div>
+
+                {changes.changes.filter(
+                  (change) =>
+                    !change.sensitive || safe,
+                ).length > 0 ? (
+                  <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                    {changes.changes
+                      .filter(
+                        (change) =>
+                          !change.sensitive ||
+                          safe,
+                      )
+                      .map((change) => (
+                        <div
+                          key={`${change.category}-${change.title}`}
+                          className="rounded-xl border border-slate-800 bg-slate-950/40 p-4"
+                        >
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div>
+                              <p className="font-semibold text-white">
+                                {change.title}
+                              </p>
+                              <p className="mt-2 text-sm leading-6 text-slate-300">
+                                {change.detail}
+                              </p>
+                            </div>
+                            <Badge
+                              tone={
+                                change.severity ===
+                                "HIGH"
+                                  ? "amber"
+                                  : "slate"
+                              }
+                            >
+                              {change.severity}
+                            </Badge>
+                          </div>
+                          <p className="mt-3 text-xs text-orange-300">
+                            {change.evidence}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                ) : (
+                  <div className="mt-5 rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-4">
+                    <p className="font-semibold text-emerald-300">
+                      No material behavioural change detected
+                    </p>
+                    <p className="mt-2 text-sm text-slate-400">
+                      Recent activity remains close to the previous comparison period.
+                    </p>
+                  </div>
+                )}
+
+                <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Interpretation rules
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    {changes.explanation.map(
+                      (reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2"
+                        >
+                          <span className="text-orange-400">
+                            •
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className="font-semibold text-white">
+                  Still learning
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {changes.explanation.join(" ")}
+                </p>
+              </div>
             )}
           </div>
         </Section>
