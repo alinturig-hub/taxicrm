@@ -81,6 +81,24 @@ type ProfileResponse = {
       }>;
     }>;
   };
+  nextBookingPrediction?: {
+    status: "READY" | "LEARNING";
+    signalStrength:
+      | "HIGH"
+      | "MODERATE"
+      | "LOW"
+      | "LEARNING";
+    needScore: number | null;
+    confidence: number;
+    predictedDay: string | null;
+    predictedHour: number | null;
+    predictedWindow: string | null;
+    predictedStartAt: string | null;
+    pickup: string | null;
+    destination: string | null;
+    routeObservations: number;
+    explanation: string[];
+  };
   observation?: {
     weatherAvailable: boolean;
     enoughData: boolean;
@@ -352,6 +370,9 @@ export default function CustomerProfileDrawer({
               {tab === "OVERVIEW" ? (
                 <Overview
                   profile={profile}
+                  prediction={
+                    data?.nextBookingPrediction
+                  }
                   weather={data?.observation}
                 />
               ) : null}
@@ -385,11 +406,13 @@ export default function CustomerProfileDrawer({
 
 function Overview({
   profile,
+  prediction,
   weather,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  prediction?: ProfileResponse["nextBookingPrediction"];
   weather?: ProfileResponse["observation"];
 }) {
   const { overview, classification } = profile;
@@ -497,6 +520,115 @@ function Overview({
           ))}
         </div>
       </Section>
+
+      {prediction &&
+      classification.profileSafeForPersonalisation ? (
+        <Section title="Next Booking Prediction">
+          <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-5">
+            {prediction.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-violet-300">
+                      Most likely booking window
+                    </p>
+                    <p className="mt-2 text-2xl font-bold text-white">
+                      {prediction.predictedDay},{" "}
+                      {prediction.predictedWindow}
+                    </p>
+                    {prediction.pickup ||
+                    prediction.destination ? (
+                      <p className="mt-2 text-sm text-slate-300">
+                        {prediction.pickup ??
+                          "Unknown pickup"}
+                        {" → "}
+                        {prediction.destination ??
+                          "Unknown destination"}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge tone="blue">
+                      Need Score{" "}
+                      {prediction.needScore ?? 0}/100
+                    </Badge>
+                    <Badge tone="slate">
+                      {prediction.signalStrength} signal
+                    </Badge>
+                    <Badge tone="slate">
+                      {prediction.confidence}% confidence
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  <Metric
+                    label="Predicted day"
+                    value={
+                      prediction.predictedDay ??
+                      "Learning"
+                    }
+                  />
+                  <Metric
+                    label="Time window"
+                    value={
+                      prediction.predictedWindow ??
+                      "Learning"
+                    }
+                  />
+                  <Metric
+                    label="Route observations"
+                    value={prediction.routeObservations.toString()}
+                  />
+                </div>
+
+                <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Why this prediction
+                  </p>
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    {prediction.explanation.map(
+                      (reason) => (
+                        <li
+                          key={reason}
+                          className="flex gap-2"
+                        >
+                          <span className="text-violet-400">
+                            •
+                          </span>
+                          <span>{reason}</span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+
+                <p className="mt-4 text-xs leading-5 text-slate-500">
+                  Internal decision support only. No customer
+                  message is sent automatically. Sensitive
+                  destinations must never be mentioned in
+                  promotional content.
+                </p>
+              </>
+            ) : (
+              <div>
+                <p className="font-semibold text-white">
+                  Learning this customer&apos;s pattern
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {prediction.explanation[0] ??
+                    "More historical bookings are required."}
+                </p>
+                <p className="mt-3 text-xs text-slate-500">
+                  Current confidence:{" "}
+                  {prediction.confidence}%
+                </p>
+              </div>
+            )}
+          </div>
+        </Section>
+      ) : null}
 
       {weather?.weatherAvailable ? (
         <Section title="Weather Intelligence">
