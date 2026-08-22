@@ -197,10 +197,13 @@ model BookingLocation {
   createdAt      DateTime            @default(now())
   updatedAt      DateTime            @updatedAt
 
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  booking             Booking            @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  placeIntelligenceId String?
+  placeIntelligence   PlaceIntelligence? @relation(fields: [placeIntelligenceId], references: [id], onDelete: SetNull)
 
   @@unique([bookingId, type])
   @@index([zoneId])
+  @@index([placeIntelligenceId])
 }
 
 model BookingVia {
@@ -807,4 +810,57 @@ model ContextualCalendarEvent {
   @@index([startsAt, endsAt])
   @@index([category, startsAt])
   @@index([active, startsAt])
+}
+
+model GeoapifyApiConfiguration {
+  id                     String    @id @default(cuid())
+  provider               String    @unique @default("GEOAPIFY")
+  baseUrl                String    @default("https://api.geoapify.com")
+  apiKeyEncrypted        String?   @db.Text
+  apiKeyLastFour         String?
+  isEnabled              Boolean   @default(false)
+  dailyLimit             Int       @default(3000)
+  dailyUsed              Int       @default(0)
+  usageDate              DateTime?
+  lastTestedAt           DateTime?
+  lastSuccessfulLookupAt DateTime?
+  lastError              String?   @db.Text
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  @@index([isEnabled])
+}
+
+model PlaceIntelligence {
+  id                String    @id @default(cuid())
+  locationKey       String    @unique
+  latitude          Decimal   @db.Decimal(10, 8)
+  longitude         Decimal   @db.Decimal(11, 8)
+  originalAddress   String?
+  placeName         String?
+  formattedAddress  String?
+  category          String?
+  categories        Json?
+  website           String?
+  provider          String    @default("GEOAPIFY")
+  providerPlaceId   String?
+  confidence        Decimal?  @db.Decimal(5, 2)
+  isSensitive       Boolean   @default(false)
+  sensitivityReason String?
+  status            String    @default("PENDING")
+  attemptCount      Int       @default(0)
+  lastAttemptAt     DateTime?
+  nextRetryAt       DateTime?
+  enrichedAt        DateTime?
+  lastError         String?   @db.Text
+  rawPayload        Json?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  bookingLocations BookingLocation[]
+
+  @@index([status, nextRetryAt])
+  @@index([provider, providerPlaceId])
+  @@index([latitude, longitude])
+  @@index([isSensitive])
 }

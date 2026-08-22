@@ -37,6 +37,13 @@ const configurationModules = [
     status: "Active",
   },
   {
+    title: "Places & Geoapify",
+    description:
+      "Securely configure place identification for customer pickup and destination intelligence.",
+    href: "/dashboard/configuration/geoapify",
+    status: "Active",
+  },
+  {
     title: "API Endpoints",
     description:
       "Add and test external API endpoints by URL using configured integration credentials.",
