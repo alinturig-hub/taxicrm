@@ -81,6 +81,44 @@ type ProfileResponse = {
       }>;
     }>;
   };
+  contextualIntelligence?: {
+    status: "READY" | "LEARNING";
+    analysedBookings: number;
+    availableEvents: number;
+    matchedBookings: number;
+    matchedBookingPercentage: number;
+    eventHours: number;
+    normalHours: number;
+    eventBookingsPer100Hours: number | null;
+    normalBookingsPer100Hours: number | null;
+    liftPercent: number | null;
+    tendency:
+      | "MORE_ACTIVE_DURING_EVENTS"
+      | "LESS_ACTIVE_DURING_EVENTS"
+      | "NO_CLEAR_DIFFERENCE"
+      | "LEARNING";
+    confidence: number;
+    categories: Array<{
+      category: string;
+      bookings: number;
+      events: number;
+      percentage: number;
+    }>;
+    strongestAssociations: Array<{
+      eventId: string;
+      title: string;
+      category: string;
+      startsAt: string;
+      endsAt: string;
+      locationName: string | null;
+      impactLevel: string;
+      source: string;
+      bookings: number;
+      bookingIds: string[];
+    }>;
+    message: string;
+    explanation: string[];
+  };
   customerRhythm?: {
     status: "READY" | "LEARNING";
     rhythmType:
@@ -525,6 +563,9 @@ export default function CustomerProfileDrawer({
                   }
                   operational={
                     data?.operationalPreferences
+                  }
+                  contextual={
+                    data?.contextualIntelligence
                   }
                 />
               ) : null}
@@ -1020,6 +1061,7 @@ function Behaviour({
   rhythm,
   changes,
   operational,
+  contextual,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
@@ -1027,6 +1069,7 @@ function Behaviour({
   rhythm?: ProfileResponse["customerRhythm"];
   changes?: ProfileResponse["behaviourChange"];
   operational?: ProfileResponse["operationalPreferences"];
+  contextual?: ProfileResponse["contextualIntelligence"];
 }) {
   const safe =
     profile.classification
@@ -1034,6 +1077,204 @@ function Behaviour({
 
   return (
     <div className="space-y-6">
+      {contextual ? (
+        <Section title="City & Event Context">
+          <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-purple-300">
+                  Booking activity around recorded events
+                </p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                  {contextual.message}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  tone={
+                    contextual.status === "READY"
+                      ? "blue"
+                      : "slate"
+                  }
+                >
+                  {contextual.confidence}% confidence
+                </Badge>
+
+                <Badge tone="slate">
+                  {contextual.availableEvents} events evaluated
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Event-associated bookings"
+                value={contextual.matchedBookings.toString()}
+                detail={`${contextual.matchedBookingPercentage}% of analysed bookings`}
+              />
+              <Metric
+                label="During event hours"
+                value={
+                  contextual.eventBookingsPer100Hours ===
+                  null
+                    ? "Learning"
+                    : `${contextual.eventBookingsPer100Hours} per 100h`
+                }
+                detail={`${contextual.eventHours} recorded event hours`}
+              />
+              <Metric
+                label="During normal hours"
+                value={
+                  contextual.normalBookingsPer100Hours ===
+                  null
+                    ? "Learning"
+                    : `${contextual.normalBookingsPer100Hours} per 100h`
+                }
+                detail={`${contextual.normalHours} comparison hours`}
+              />
+              <Metric
+                label="Observed event effect"
+                value={
+                  contextual.liftPercent === null
+                    ? "Learning"
+                    : `${contextual.liftPercent > 0 ? "+" : ""}${contextual.liftPercent}%`
+                }
+                detail={readable(
+                  contextual.tendency,
+                )}
+              />
+            </div>
+
+            {contextual.categories.length > 0 ? (
+              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Associated event categories
+                </p>
+
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {contextual.categories.map(
+                    (category) => (
+                      <div
+                        key={category.category}
+                        className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <p className="font-semibold text-white">
+                            {readable(
+                              category.category,
+                            )}
+                          </p>
+                          <Badge tone="blue">
+                            {category.bookings} bookings
+                          </Badge>
+                        </div>
+
+                        <p className="mt-2 text-xs leading-5 text-slate-500">
+                          {category.events} recorded events ·{" "}
+                          {category.percentage}% of analysed
+                          bookings
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {contextual.strongestAssociations
+              .length > 0 ? (
+              <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Strongest observed associations
+                </p>
+
+                <div className="mt-3 space-y-3">
+                  {contextual.strongestAssociations.map(
+                    (event) => (
+                      <div
+                        key={event.eventId}
+                        className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">
+                              {event.title}
+                            </p>
+
+                            <p className="mt-2 text-sm text-slate-400">
+                              {readable(
+                                event.category,
+                              )}
+                              {" · "}
+                              {dateTime(
+                                event.startsAt,
+                              )}
+                              {event.locationName
+                                ? ` · ${event.locationName}`
+                                : ""}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap gap-2">
+                            <Badge
+                              tone={
+                                event.impactLevel ===
+                                "HIGH"
+                                  ? "amber"
+                                  : "slate"
+                              }
+                            >
+                              {event.impactLevel} impact
+                            </Badge>
+
+                            <Badge tone="blue">
+                              {event.bookings} bookings
+                            </Badge>
+                          </div>
+                        </div>
+
+                        <p className="mt-3 text-xs text-slate-600">
+                          Source: {event.source}
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Interpretation
+              </p>
+
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {contextual.explanation.map(
+                  (reason) => (
+                    <li
+                      key={reason}
+                      className="flex gap-2"
+                    >
+                      <span className="text-purple-400">
+                        •
+                      </span>
+                      <span>{reason}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              Context is used to explain operational demand.
+              It must not be presented as proof of a
+              customer&apos;s motive or personal activity.
+            </p>
+          </div>
+        </Section>
+      ) : null}
+
       {rhythm ? (
         <Section title="Customer Rhythm">
           <div className="rounded-2xl border border-cyan-500/20 bg-cyan-500/5 p-5">

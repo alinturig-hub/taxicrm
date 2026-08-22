@@ -9,6 +9,7 @@ import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-op
 import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relationship-quality";
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
+import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
@@ -168,6 +169,65 @@ export async function GET(
         weatherObservations,
       );
 
+    const bookingTimes = customer.bookings
+      .map(
+        (booking) =>
+          booking.pickupDueTime ??
+          booking.bookedAtTime,
+      )
+      .filter(
+        (value): value is Date =>
+          value !== null,
+      );
+
+    const contextualEvents =
+      bookingTimes.length > 0
+        ? await prisma.contextualCalendarEvent.findMany({
+            where: {
+              active: true,
+              startsAt: {
+                lte: new Date(
+                  Math.max(
+                    ...bookingTimes.map(
+                      (value) =>
+                        value.getTime(),
+                    ),
+                  ),
+                ),
+              },
+              endsAt: {
+                gt: new Date(
+                  Math.min(
+                    ...bookingTimes.map(
+                      (value) =>
+                        value.getTime(),
+                    ),
+                  ),
+                ),
+              },
+            },
+            orderBy: {
+              startsAt: "asc",
+            },
+            select: {
+              id: true,
+              title: true,
+              category: true,
+              startsAt: true,
+              endsAt: true,
+              locationName: true,
+              impactLevel: true,
+              source: true,
+            },
+          })
+        : [];
+
+    const contextualIntelligence =
+      buildCustomerContextualIntelligence(
+        customer.bookings,
+        contextualEvents,
+      );
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -189,6 +249,7 @@ export async function GET(
       operationalPreferences,
       relationshipQuality,
       behaviourChange,
+      contextualIntelligence,
       generatedAt: new Date(),
       observation: weather,
     });

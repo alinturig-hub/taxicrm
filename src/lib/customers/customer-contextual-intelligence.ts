@@ -1,0 +1,451 @@
+export type ContextualBooking = {
+  externalId: string;
+  bookedAtTime?: Date | string | null;
+  pickupDueTime?: Date | string | null;
+};
+
+export type ContextualEvent = {
+  id: string;
+  title: string;
+  category: string;
+  startsAt: Date | string;
+  endsAt: Date | string;
+  locationName?: string | null;
+  impactLevel: string;
+  source: string;
+};
+
+export type CustomerContextualIntelligence = {
+  status: "READY" | "LEARNING";
+  analysedBookings: number;
+  availableEvents: number;
+  matchedBookings: number;
+  matchedBookingPercentage: number;
+  eventHours: number;
+  normalHours: number;
+  eventBookingsPer100Hours: number | null;
+  normalBookingsPer100Hours: number | null;
+  liftPercent: number | null;
+  tendency:
+    | "MORE_ACTIVE_DURING_EVENTS"
+    | "LESS_ACTIVE_DURING_EVENTS"
+    | "NO_CLEAR_DIFFERENCE"
+    | "LEARNING";
+  confidence: number;
+  categories: Array<{
+    category: string;
+    bookings: number;
+    events: number;
+    percentage: number;
+  }>;
+  strongestAssociations: Array<{
+    eventId: string;
+    title: string;
+    category: string;
+    startsAt: string;
+    endsAt: string;
+    locationName: string | null;
+    impactLevel: string;
+    source: string;
+    bookings: number;
+    bookingIds: string[];
+  }>;
+  message: string;
+  explanation: string[];
+};
+
+function timestamp(
+  value: Date | string | null | undefined,
+) {
+  if (!value) {
+    return null;
+  }
+
+  const result =
+    value instanceof Date
+      ? value.getTime()
+      : new Date(value).getTime();
+
+  return Number.isFinite(result)
+    ? result
+    : null;
+}
+
+function bookingTimestamp(
+  booking: ContextualBooking,
+) {
+  return (
+    timestamp(booking.pickupDueTime) ??
+    timestamp(booking.bookedAtTime)
+  );
+}
+
+function percentage(
+  value: number,
+  total: number,
+) {
+  return total > 0
+    ? Number(
+        ((value / total) * 100).toFixed(1),
+      )
+    : 0;
+}
+
+function round(value: number) {
+  return Number(value.toFixed(2));
+}
+
+function hourKey(value: number) {
+  return Math.floor(value / 3_600_000);
+}
+
+export function buildCustomerContextualIntelligence(
+  bookings: ContextualBooking[],
+  events: ContextualEvent[],
+): CustomerContextualIntelligence {
+  const timedBookings = bookings
+    .map((booking) => ({
+      booking,
+      time: bookingTimestamp(booking),
+    }))
+    .filter(
+      (
+        item,
+      ): item is {
+        booking: ContextualBooking;
+        time: number;
+      } => item.time !== null,
+    );
+
+  const validEvents = events
+    .map((event) => ({
+      ...event,
+      start: timestamp(event.startsAt),
+      end: timestamp(event.endsAt),
+    }))
+    .filter(
+      (
+        event,
+      ): event is ContextualEvent & {
+        start: number;
+        end: number;
+      } =>
+        event.start !== null &&
+        event.end !== null &&
+        event.end > event.start,
+    );
+
+  if (
+    timedBookings.length === 0 ||
+    validEvents.length === 0
+  ) {
+    return {
+      status: "LEARNING",
+      analysedBookings:
+        timedBookings.length,
+      availableEvents: validEvents.length,
+      matchedBookings: 0,
+      matchedBookingPercentage: 0,
+      eventHours: 0,
+      normalHours: 0,
+      eventBookingsPer100Hours: null,
+      normalBookingsPer100Hours: null,
+      liftPercent: null,
+      tendency: "LEARNING",
+      confidence: 0,
+      categories: [],
+      strongestAssociations: [],
+      message:
+        validEvents.length === 0
+          ? "No active contextual events overlap this customer's booking history yet."
+          : "More timestamped booking history is required.",
+      explanation: [
+        "Only active events overlapping the customer's recorded booking period are evaluated.",
+        "Event association does not prove that an event caused a booking.",
+      ],
+    };
+  }
+
+  const firstBooking = Math.min(
+    ...timedBookings.map((item) => item.time),
+  );
+  const lastBooking = Math.max(
+    ...timedBookings.map((item) => item.time),
+  );
+
+  const coverageStart = Math.min(
+    firstBooking,
+    ...validEvents.map((event) => event.start),
+  );
+  const coverageEnd = Math.max(
+    lastBooking,
+    ...validEvents.map((event) => event.end),
+  );
+
+  const eventHourKeys = new Set<number>();
+
+  for (const event of validEvents) {
+    const firstHour = hourKey(event.start);
+    const lastHour = hourKey(
+      Math.max(event.end - 1, event.start),
+    );
+
+    for (
+      let hour = firstHour;
+      hour <= lastHour;
+      hour++
+    ) {
+      eventHourKeys.add(hour);
+    }
+  }
+
+  const totalHours = Math.max(
+    Math.ceil(
+      (coverageEnd - coverageStart) /
+        3_600_000,
+    ),
+    1,
+  );
+
+  const eventHours = eventHourKeys.size;
+  const normalHours = Math.max(
+    totalHours - eventHours,
+    0,
+  );
+
+  const matchedBookingIds = new Set<string>();
+  const associationRows: CustomerContextualIntelligence[
+    "strongestAssociations"
+  ] = [];
+
+  const categoryBookings =
+    new Map<string, Set<string>>();
+  const categoryEvents =
+    new Map<string, Set<string>>();
+
+  for (const event of validEvents) {
+    const matching = timedBookings.filter(
+      (item) =>
+        item.time >= event.start &&
+        item.time < event.end,
+    );
+
+    const bookingIds = Array.from(
+      new Set(
+        matching.map(
+          (item) =>
+            item.booking.externalId,
+        ),
+      ),
+    );
+
+    for (const bookingId of bookingIds) {
+      matchedBookingIds.add(bookingId);
+    }
+
+    if (
+      !categoryEvents.has(event.category)
+    ) {
+      categoryEvents.set(
+        event.category,
+        new Set(),
+      );
+    }
+
+    categoryEvents
+      .get(event.category)
+      ?.add(event.id);
+
+    if (bookingIds.length > 0) {
+      if (
+        !categoryBookings.has(
+          event.category,
+        )
+      ) {
+        categoryBookings.set(
+          event.category,
+          new Set(),
+        );
+      }
+
+      for (const bookingId of bookingIds) {
+        categoryBookings
+          .get(event.category)
+          ?.add(bookingId);
+      }
+
+      associationRows.push({
+        eventId: event.id,
+        title: event.title,
+        category: event.category,
+        startsAt: new Date(
+          event.start,
+        ).toISOString(),
+        endsAt: new Date(
+          event.end,
+        ).toISOString(),
+        locationName:
+          event.locationName ?? null,
+        impactLevel: event.impactLevel,
+        source: event.source,
+        bookings: bookingIds.length,
+        bookingIds,
+      });
+    }
+  }
+
+  const matchedBookings =
+    matchedBookingIds.size;
+  const normalBookings = Math.max(
+    timedBookings.length - matchedBookings,
+    0,
+  );
+
+  const eventRate =
+    eventHours > 0
+      ? round(
+          (matchedBookings / eventHours) *
+            100,
+        )
+      : null;
+
+  const normalRate =
+    normalHours > 0
+      ? round(
+          (normalBookings / normalHours) *
+            100,
+        )
+      : null;
+
+  const enoughComparison =
+    eventHours >= 6 &&
+    normalHours >= 24 &&
+    matchedBookings >= 3 &&
+    eventRate !== null &&
+    normalRate !== null;
+
+  const liftPercent =
+    enoughComparison && normalRate > 0
+      ? Number(
+          (
+            ((eventRate - normalRate) /
+              normalRate) *
+            100
+          ).toFixed(1),
+        )
+      : null;
+
+  const tendency =
+    liftPercent === null
+      ? "LEARNING"
+      : liftPercent >= 20
+        ? "MORE_ACTIVE_DURING_EVENTS"
+        : liftPercent <= -20
+          ? "LESS_ACTIVE_DURING_EVENTS"
+          : "NO_CLEAR_DIFFERENCE";
+
+  const confidence = enoughComparison
+    ? Math.min(
+        95,
+        Math.round(
+          45 +
+            Math.min(
+              matchedBookings * 4,
+              30,
+            ) +
+            Math.min(
+              validEvents.length * 2,
+              20,
+            ),
+        ),
+      )
+    : Math.min(
+        55,
+        matchedBookings * 8 +
+          validEvents.length * 2,
+      );
+
+  const categories = Array.from(
+    categoryEvents.entries(),
+  )
+    .map(([category, eventIds]) => {
+      const bookingsForCategory =
+        categoryBookings.get(category)
+          ?.size ?? 0;
+
+      return {
+        category,
+        bookings: bookingsForCategory,
+        events: eventIds.size,
+        percentage: percentage(
+          bookingsForCategory,
+          timedBookings.length,
+        ),
+      };
+    })
+    .sort(
+      (first, second) =>
+        second.bookings -
+          first.bookings ||
+        second.events - first.events,
+    );
+
+  const strongestAssociations =
+    associationRows
+      .sort(
+        (first, second) =>
+          second.bookings -
+            first.bookings ||
+          new Date(
+            second.startsAt,
+          ).getTime() -
+            new Date(
+              first.startsAt,
+            ).getTime(),
+      )
+      .slice(0, 10);
+
+  const message =
+    tendency ===
+    "MORE_ACTIVE_DURING_EVENTS"
+      ? "This customer books more frequently during recorded event hours than during normal hours."
+      : tendency ===
+          "LESS_ACTIVE_DURING_EVENTS"
+        ? "This customer books less frequently during recorded event hours than during normal hours."
+        : tendency ===
+            "NO_CLEAR_DIFFERENCE"
+          ? "No meaningful difference between event and normal booking activity was detected."
+          : matchedBookings > 0
+            ? "Some bookings overlap recorded events, but more evidence is required for a reliable comparison."
+            : "No bookings currently overlap the recorded events.";
+
+  return {
+    status: enoughComparison
+      ? "READY"
+      : "LEARNING",
+    analysedBookings:
+      timedBookings.length,
+    availableEvents: validEvents.length,
+    matchedBookings,
+    matchedBookingPercentage: percentage(
+      matchedBookings,
+      timedBookings.length,
+    ),
+    eventHours,
+    normalHours,
+    eventBookingsPer100Hours: eventRate,
+    normalBookingsPer100Hours: normalRate,
+    liftPercent,
+    tendency,
+    confidence,
+    categories,
+    strongestAssociations,
+    message,
+    explanation: [
+      `${validEvents.length} active events overlapping the recorded period were evaluated.`,
+      `${matchedBookings} of ${timedBookings.length} bookings occurred during at least one recorded event.`,
+      "Booking rates are normalised per 100 event and normal hours.",
+      "This is contextual association only and does not prove that an event caused a booking.",
+    ],
+  };
+}
