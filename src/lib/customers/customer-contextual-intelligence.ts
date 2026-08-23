@@ -150,6 +150,34 @@ function locationTokens(
     );
 }
 
+const excludedSportPlaceIndicators = [
+  "petrol",
+  "fuel",
+  "garage",
+  "service station",
+];
+
+const sportVenueIndicators = [
+  "stadium",
+  "football club",
+  "rugby club",
+  "sports ground",
+  "arena",
+  "argyle fc",
+];
+
+function containsEveryLocationToken(
+  candidate: string,
+  expectedTokens: string[],
+) {
+  return (
+    candidate.length > 0 &&
+    expectedTokens.every((token) =>
+      candidate.includes(token),
+    )
+  );
+}
+
 function bookingMatchesEventLocation(
   booking: ContextualBooking,
   event: ContextualEvent,
@@ -177,29 +205,75 @@ function bookingMatchesEventLocation(
       continue;
     }
 
-    const candidates = [
-      location.address,
-      location.zoneName,
-      place?.status === "READY"
-        ? place.placeName
-        : null,
-      place?.status === "READY"
-        ? place.formattedAddress
-        : null,
-    ];
+    const combinedLocationText =
+      normaliseLocationText(
+        [
+          location.address,
+          location.zoneName,
+          place?.placeName,
+          place?.formattedAddress,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
 
-    for (const candidate of candidates) {
-      const candidateText =
-        normaliseLocationText(candidate);
+    const excluded =
+      excludedSportPlaceIndicators.some(
+        (indicator) =>
+          combinedLocationText.includes(
+            indicator,
+          ),
+      );
 
-      if (
-        candidateText &&
-        expectedTokens.every((token) =>
-          candidateText.includes(token),
-        )
-      ) {
-        return true;
-      }
+    if (excluded) {
+      continue;
+    }
+
+    const verifiedPlaceName =
+      place?.status === "READY"
+        ? normaliseLocationText(
+            place.placeName,
+          )
+        : "";
+
+    if (
+      containsEveryLocationToken(
+        verifiedPlaceName,
+        expectedTokens,
+      )
+    ) {
+      return true;
+    }
+
+    const recordedLocationText =
+      normaliseLocationText(
+        [
+          location.address,
+          location.zoneName,
+          place?.status === "READY"
+            ? place.formattedAddress
+            : null,
+        ]
+          .filter(Boolean)
+          .join(" "),
+      );
+
+    const venueEvidence =
+      sportVenueIndicators.some(
+        (indicator) =>
+          recordedLocationText.includes(
+            indicator,
+          ),
+      );
+
+    if (
+      venueEvidence &&
+      containsEveryLocationToken(
+        recordedLocationText,
+        expectedTokens,
+      )
+    ) {
+      return true;
     }
   }
 
