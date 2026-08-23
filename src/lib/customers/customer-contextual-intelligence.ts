@@ -2,6 +2,17 @@ export type ContextualBooking = {
   externalId: string;
   bookedAtTime?: Date | string | null;
   pickupDueTime?: Date | string | null;
+  locations?: Array<{
+    type?: string;
+    address?: string | null;
+    zoneName?: string | null;
+    placeIntelligence?: {
+      placeName?: string | null;
+      formattedAddress?: string | null;
+      isSensitive?: boolean;
+      status?: string;
+    } | null;
+  }>;
 };
 
 export type ContextualEvent = {
@@ -106,6 +117,93 @@ function eventImpactBufferMilliseconds(
     "SPORT"
     ? 2 * 60 * 60 * 1000
     : 0;
+}
+
+const ignoredLocationTokens = new Set([
+  "plymouth",
+  "united",
+  "kingdom",
+  "uk",
+  "england",
+]);
+
+function normaliseLocationText(
+  value: string | null | undefined,
+) {
+  return (value ?? "")
+    .normalize("NFKD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+function locationTokens(
+  value: string | null | undefined,
+) {
+  return normaliseLocationText(value)
+    .split(" ")
+    .filter(
+      (token) =>
+        token.length >= 3 &&
+        !ignoredLocationTokens.has(token),
+    );
+}
+
+function bookingMatchesEventLocation(
+  booking: ContextualBooking,
+  event: ContextualEvent,
+) {
+  if (
+    event.category.trim().toUpperCase() !==
+    "SPORT"
+  ) {
+    return true;
+  }
+
+  const expectedTokens = locationTokens(
+    event.locationName,
+  );
+
+  if (expectedTokens.length === 0) {
+    return false;
+  }
+
+  for (const location of booking.locations ?? []) {
+    const place =
+      location.placeIntelligence;
+
+    if (place?.isSensitive) {
+      continue;
+    }
+
+    const candidates = [
+      location.address,
+      location.zoneName,
+      place?.status === "READY"
+        ? place.placeName
+        : null,
+      place?.status === "READY"
+        ? place.formattedAddress
+        : null,
+    ];
+
+    for (const candidate of candidates) {
+      const candidateText =
+        normaliseLocationText(candidate);
+
+      if (
+        candidateText &&
+        expectedTokens.every((token) =>
+          candidateText.includes(token),
+        )
+      ) {
+        return true;
+      }
+    }
+  }
+
+  return false;
 }
 
 export function buildCustomerContextualIntelligence(
@@ -285,7 +383,11 @@ export function buildCustomerContextualIntelligence(
     const matching = timedBookings.filter(
       (item) =>
         item.time >= event.start &&
-        item.time < event.end,
+        item.time < event.end &&
+        bookingMatchesEventLocation(
+          item.booking,
+          event,
+        ),
     );
 
     const bookingIds = Array.from(
@@ -504,6 +606,7 @@ export function buildCustomerContextualIntelligence(
       `${matchedBookings} of ${timedBookings.length} bookings occurred during at least one recorded event.`,
       "Booking rates are normalised per 100 event and normal hours.",
       "Sports events include a two-hour arrival window before and a two-hour departure window after the recorded event.",
+      "Sports associations also require a matching non-sensitive pickup or destination location.",
       "This is contextual association only and does not prove that an event caused a booking.",
     ],
   };

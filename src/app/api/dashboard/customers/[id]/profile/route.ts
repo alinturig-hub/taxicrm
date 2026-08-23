@@ -192,29 +192,45 @@ export async function GET(
           value !== null,
       );
 
-    const contextualEvents =
+    const contextualWindowMilliseconds =
+      2 * 60 * 60 * 1000;
+
+    const earliestBookingTime =
       bookingTimes.length > 0
+        ? Math.min(
+            ...bookingTimes.map(
+              (value) =>
+                value.getTime(),
+            ),
+          )
+        : null;
+
+    const latestBookingTime =
+      bookingTimes.length > 0
+        ? Math.max(
+            ...bookingTimes.map(
+              (value) =>
+                value.getTime(),
+            ),
+          )
+        : null;
+
+    const contextualEvents =
+      earliestBookingTime !== null &&
+      latestBookingTime !== null
         ? await prisma.contextualCalendarEvent.findMany({
             where: {
               active: true,
               startsAt: {
                 lte: new Date(
-                  Math.max(
-                    ...bookingTimes.map(
-                      (value) =>
-                        value.getTime(),
-                    ),
-                  ),
+                  latestBookingTime +
+                    contextualWindowMilliseconds,
                 ),
               },
               endsAt: {
                 gt: new Date(
-                  Math.min(
-                    ...bookingTimes.map(
-                      (value) =>
-                        value.getTime(),
-                    ),
-                  ),
+                  earliestBookingTime -
+                    contextualWindowMilliseconds,
                 ),
               },
             },
