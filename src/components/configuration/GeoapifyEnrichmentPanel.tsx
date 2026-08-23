@@ -46,6 +46,8 @@ export default function GeoapifyEnrichmentPanel() {
     useState<Statistics | null>(null);
   const [batchLimit, setBatchLimit] =
     useState(1);
+  const [bookingId, setBookingId] =
+    useState("");
   const [recentPlaces, setRecentPlaces] =
     useState<IdentifiedPlace[]>([]);
   const [processing, setProcessing] =
@@ -110,7 +112,11 @@ export default function GeoapifyEnrichmentPanel() {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            limit: batchLimit,
+            limit: bookingId.trim()
+              ? 10
+              : batchLimit,
+            bookingId:
+              bookingId.trim() || undefined,
           }),
         },
       );
@@ -198,6 +204,32 @@ export default function GeoapifyEnrichmentPanel() {
       <div className="mt-5 flex flex-wrap items-end gap-3">
         <div>
           <label
+            htmlFor="geoapify-booking-id"
+            className="block text-xs font-semibold uppercase tracking-wider text-slate-500"
+          >
+            Booking ID (optional)
+          </label>
+
+          <input
+            id="geoapify-booking-id"
+            type="text"
+            inputMode="numeric"
+            value={bookingId}
+            onChange={(event) =>
+              setBookingId(
+                event.target.value.replace(
+                  /[^0-9]/g,
+                  "",
+                ),
+              )
+            }
+            placeholder="Example: 13126039"
+            className="mt-2 w-56 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-white placeholder:text-slate-600"
+          />
+        </div>
+
+        <div>
+          <label
             htmlFor="geoapify-batch"
             className="block text-xs font-semibold uppercase tracking-wider text-slate-500"
           >
@@ -232,6 +264,8 @@ export default function GeoapifyEnrichmentPanel() {
         >
           {processing
             ? "Identifying places…"
+            : bookingId.trim()
+            ? "Identify booking locations"
             : "Identify next locations"}
         </button>
 

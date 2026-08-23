@@ -78,7 +78,7 @@ export async function GET() {
     }),
     prisma.bookingLocation.count({
       where: {
-        latitude: {
+          latitude: {
           not: null,
         },
         longitude: {
@@ -217,7 +217,13 @@ export async function POST(request: Request) {
       () => ({}),
     )) as {
       limit?: unknown;
+      bookingId?: unknown;
     };
+
+    const bookingId =
+      typeof body.bookingId === "string"
+        ? body.bookingId.trim()
+        : "";
 
     const requestedLimit =
       typeof body.limit === "number" &&
@@ -233,7 +239,12 @@ export async function POST(request: Request) {
     const locations =
       await prisma.bookingLocation.findMany({
         where: {
-            latitude: {
+          booking: bookingId
+            ? {
+                externalId: bookingId,
+              }
+            : undefined,
+          latitude: {
             not: null,
           },
           longitude: {
@@ -275,7 +286,9 @@ export async function POST(request: Request) {
             updatedAt: "desc",
           },
         ],
-        take: limit,
+        take: bookingId
+          ? Math.min(limit, 10)
+          : limit,
         select: {
           id: true,
           address: true,
