@@ -137,6 +137,61 @@ function sensitiveReason(
     : null;
 }
 
+function normalisePlaceName(
+  value: string,
+) {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function declaredPlaceName(
+  address: string,
+) {
+  return normalisePlaceName(
+    address.split(",")[0] ?? "",
+  );
+}
+
+function candidateNameScore(
+  address: string,
+  candidate: GeoapifyResult,
+) {
+  const declared =
+    declaredPlaceName(address);
+  const candidateName =
+    normalisePlaceName(
+      candidate.name ?? "",
+    );
+
+  if (!declared || !candidateName) {
+    return 0;
+  }
+
+  if (candidateName === declared) {
+    return 1_000;
+  }
+
+  if (
+    candidateName.startsWith(
+      `${declared} `,
+    )
+  ) {
+    return 500;
+  }
+
+  if (
+    candidateName.includes(declared)
+  ) {
+    return 250;
+  }
+
+  return 0;
+}
+
 function distanceMetres(
   firstLatitude: number,
   firstLongitude: number,
@@ -260,15 +315,32 @@ async function findNearbyAddressPlace({
         typeof candidate.lon === "number" &&
         Number.isFinite(candidate.lon),
     )
-    .map((candidate) => ({
-      candidate,
-      distance: distanceMetres(
+    .map((candidate) => {
+      const distance = distanceMetres(
         latitude,
         longitude,
         candidate.lat,
         candidate.lon,
-      ),
-    }))
+      );
+
+      const confidence =
+        typeof candidate.rank?.confidence ===
+        "number"
+          ? candidate.rank.confidence
+          : 0;
+
+      return {
+        candidate,
+        distance,
+        selectionScore:
+          candidateNameScore(
+            address,
+            candidate,
+          ) +
+          confidence * 100 -
+          distance / 100,
+      };
+    })
     .filter(
       ({ distance }) =>
         distance <=
@@ -276,7 +348,10 @@ async function findNearbyAddressPlace({
     )
     .sort(
       (first, second) =>
-        first.distance - second.distance,
+        second.selectionScore -
+          first.selectionScore ||
+        first.distance -
+          second.distance,
     );
 
   return {
