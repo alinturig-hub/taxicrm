@@ -11,7 +11,7 @@ type Statistics = {
   readyPlaces: number;
   sensitivePlaces: number;
   enrichedLocations: number;
-  waitingDestinations: number;
+  waitingLocations: number;
 };
 
 type IdentifiedPlace = {
@@ -96,7 +96,7 @@ export default function GeoapifyEnrichmentPanel() {
     void loadStatistics();
   }, [loadStatistics]);
 
-  async function processDestinations() {
+  async function processLocations() {
     setProcessing(true);
     setMessage(null);
     setError(null);
@@ -121,7 +121,7 @@ export default function GeoapifyEnrichmentPanel() {
       if (!response.ok || !payload.success) {
         throw new Error(
           payload.message ??
-            "Destinations could not be processed.",
+            "Locations could not be processed.",
         );
       }
 
@@ -134,7 +134,7 @@ export default function GeoapifyEnrichmentPanel() {
       setError(
         processError instanceof Error
           ? processError.message
-          : "Destinations could not be processed.",
+          : "Locations could not be processed.",
       );
     } finally {
       setProcessing(false);
@@ -146,10 +146,10 @@ export default function GeoapifyEnrichmentPanel() {
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
         <div>
           <h2 className="font-semibold text-white">
-            Destination enrichment
+            Pickup and destination enrichment
           </h2>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-            Identify real-world destinations. Previously identified
+            Identify real-world pickup and destination places. Previously identified
             coordinates are loaded from the permanent cache without
             using another API credit.
           </p>
@@ -190,8 +190,8 @@ export default function GeoapifyEnrichmentPanel() {
           value={statistics?.sensitivePlaces ?? 0}
         />
         <Metric
-          label="Waiting destinations"
-          value={statistics?.waitingDestinations ?? 0}
+          label="Waiting locations"
+          value={statistics?.waitingLocations ?? 0}
         />
       </div>
 
@@ -201,7 +201,7 @@ export default function GeoapifyEnrichmentPanel() {
             htmlFor="geoapify-batch"
             className="block text-xs font-semibold uppercase tracking-wider text-slate-500"
           >
-            Destinations per batch
+            Locations per batch
           </label>
 
           <select
@@ -225,14 +225,14 @@ export default function GeoapifyEnrichmentPanel() {
         <button
           type="button"
           onClick={() =>
-            void processDestinations()
+            void processLocations()
           }
           disabled={processing}
           className="rounded-xl bg-blue-600 px-5 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:opacity-40"
         >
           {processing
             ? "Identifying places…"
-            : "Identify next destinations"}
+            : "Identify next locations"}
         </button>
 
         <button

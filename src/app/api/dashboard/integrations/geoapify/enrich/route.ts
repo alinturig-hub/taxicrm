@@ -55,7 +55,7 @@ export async function GET() {
     readyPlaces,
     sensitivePlaces,
     enrichedLocations,
-    waitingDestinations,
+    waitingLocations,
     recentPlaces,
   ] = await Promise.all([
     prisma.placeIntelligence.count(),
@@ -78,7 +78,6 @@ export async function GET() {
     }),
     prisma.bookingLocation.count({
       where: {
-        type: "DESTINATION",
         latitude: {
           not: null,
         },
@@ -142,7 +141,7 @@ export async function GET() {
       readyPlaces,
       sensitivePlaces,
       enrichedLocations,
-      waitingDestinations,
+      waitingLocations,
     },
     recentPlaces: recentPlaces.map(
       (place) => ({
@@ -234,8 +233,7 @@ export async function POST(request: Request) {
     const locations =
       await prisma.bookingLocation.findMany({
         where: {
-          type: "DESTINATION",
-          latitude: {
+            latitude: {
             not: null,
           },
           longitude: {
