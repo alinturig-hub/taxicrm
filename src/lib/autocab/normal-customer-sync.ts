@@ -5,7 +5,7 @@ import {
   type JsonObject,
 } from "@/lib/autocab/booking-mappers";
 
-function normaliseTelephone(
+export function normaliseCustomerTelephone(
   value: unknown,
 ): string | null {
   const telephone = normaliseString(value);
@@ -14,7 +14,36 @@ function normaliseTelephone(
     return null;
   }
 
-  return telephone.replace(/\s+/g, "");
+  const compact = telephone.replace(
+    /\s+/g,
+    "",
+  );
+
+  const digits = compact.replace(
+    /[^0-9]/g,
+    "",
+  );
+
+  if (/^0044[0-9]{10}$/.test(digits)) {
+    return `0${digits.slice(4)}`;
+  }
+
+  if (/^44[0-9]{10}$/.test(digits)) {
+    return `0${digits.slice(2)}`;
+  }
+
+  if (/^7[0-9]{9}$/.test(digits)) {
+    return `0${digits}`;
+  }
+
+  if (/^0[0-9]{10}$/.test(digits)) {
+    return digits;
+  }
+
+  // Keep unknown or international formats stable.
+  // They require explicit country-aware handling and
+  // must not be merged into a UK profile by assumption.
+  return compact;
 }
 
 export async function synchroniseNormalCustomer(
@@ -34,7 +63,7 @@ export async function synchroniseNormalCustomer(
   }
 
   const telephone =
-    normaliseTelephone(
+    normaliseCustomerTelephone(
       payload.TelephoneNumber,
     );
 
@@ -98,6 +127,15 @@ export async function synchroniseNormalCustomer(
         id: true,
       },
     });
+
+  await tx.booking.update({
+    where: {
+      id: bookingId,
+    },
+    data: {
+      normalCustomerId: customer.id,
+    },
+  });
 
   await tx.booking.updateMany({
     where: {
