@@ -117,7 +117,7 @@ export function buildCustomerContextualIntelligence(
       } => item.time !== null,
     );
 
-  const validEvents = events
+  let validEvents = events
     .map((event) => ({
       ...event,
       start: timestamp(event.startsAt),
@@ -173,21 +173,40 @@ export function buildCustomerContextualIntelligence(
     ...timedBookings.map((item) => item.time),
   );
 
-  const coverageStart = Math.min(
-    firstBooking,
-    ...validEvents.map((event) => event.start),
-  );
-  const coverageEnd = Math.max(
-    lastBooking,
-    ...validEvents.map((event) => event.end),
+  const coverageStart =
+    hourKey(firstBooking) * 3_600_000;
+
+  const coverageEnd =
+    (hourKey(lastBooking) + 1) *
+    3_600_000;
+
+  validEvents = validEvents.filter(
+    (event) =>
+      event.end > coverageStart &&
+      event.start < coverageEnd,
   );
 
   const eventHourKeys = new Set<number>();
 
   for (const event of validEvents) {
-    const firstHour = hourKey(event.start);
+    const clippedStart = Math.max(
+      event.start,
+      coverageStart,
+    );
+
+    const clippedEnd = Math.min(
+      event.end,
+      coverageEnd,
+    );
+
+    const firstHour =
+      hourKey(clippedStart);
+
     const lastHour = hourKey(
-      Math.max(event.end - 1, event.start),
+      Math.max(
+        clippedEnd - 1,
+        clippedStart,
+      ),
     );
 
     for (
