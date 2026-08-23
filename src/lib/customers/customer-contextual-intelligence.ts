@@ -99,6 +99,15 @@ function hourKey(value: number) {
   return Math.floor(value / 3_600_000);
 }
 
+function eventImpactBufferMilliseconds(
+  category: string,
+) {
+  return category.trim().toUpperCase() ===
+    "SPORT"
+    ? 2 * 60 * 60 * 1000
+    : 0;
+}
+
 export function buildCustomerContextualIntelligence(
   bookings: ContextualBooking[],
   events: ContextualEvent[],
@@ -118,18 +127,48 @@ export function buildCustomerContextualIntelligence(
     );
 
   let validEvents = events
-    .map((event) => ({
-      ...event,
-      start: timestamp(event.startsAt),
-      end: timestamp(event.endsAt),
-    }))
+    .map((event) => {
+      const originalStart =
+        timestamp(event.startsAt);
+      const originalEnd =
+        timestamp(event.endsAt);
+
+      const impactBuffer =
+        eventImpactBufferMilliseconds(
+          event.category,
+        );
+
+      return {
+        ...event,
+        originalStart,
+        originalEnd,
+        start:
+          originalStart === null
+            ? null
+            : originalStart -
+              impactBuffer,
+        end:
+          originalEnd === null
+            ? null
+            : originalEnd +
+              impactBuffer,
+        impactBuffer,
+      };
+    })
     .filter(
       (
         event,
       ): event is ContextualEvent & {
+        originalStart: number;
+        originalEnd: number;
         start: number;
         end: number;
+        impactBuffer: number;
       } =>
+        event.originalStart !== null &&
+        event.originalEnd !== null &&
+        event.originalEnd >
+          event.originalStart &&
         event.start !== null &&
         event.end !== null &&
         event.end > event.start,
@@ -298,10 +337,10 @@ export function buildCustomerContextualIntelligence(
         title: event.title,
         category: event.category,
         startsAt: new Date(
-          event.start,
+          event.originalStart,
         ).toISOString(),
         endsAt: new Date(
-          event.end,
+          event.originalEnd,
         ).toISOString(),
         locationName:
           event.locationName ?? null,
@@ -464,6 +503,7 @@ export function buildCustomerContextualIntelligence(
       `${validEvents.length} active events overlapping the recorded period were evaluated.`,
       `${matchedBookings} of ${timedBookings.length} bookings occurred during at least one recorded event.`,
       "Booking rates are normalised per 100 event and normal hours.",
+      "Sports events include a two-hour arrival window before and a two-hour departure window after the recorded event.",
       "This is contextual association only and does not prove that an event caused a booking.",
     ],
   };
