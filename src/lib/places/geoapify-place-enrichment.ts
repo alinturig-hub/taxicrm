@@ -3,11 +3,14 @@ import { getGeoapifyCredentials } from "@/lib/integrations/geoapify/configuratio
 
 const PROVIDER = "GEOAPIFY";
 const LOCATION_KEY_DECIMALS = 5;
+const ADDRESS_FALLBACK_MAX_DISTANCE_METRES = 750;
 
 type GeoapifyResult = {
   name?: string;
   formatted?: string;
   result_type?: string;
+  lat?: number;
+  lon?: number;
   categories?: string[];
   place_id?: string;
   website?: string;
@@ -132,6 +135,157 @@ function sensitiveReason(
   return keyword
     ? `Sensitive place indicator: ${keyword}`
     : null;
+}
+
+function distanceMetres(
+  firstLatitude: number,
+  firstLongitude: number,
+  secondLatitude: number,
+  secondLongitude: number,
+) {
+  const earthRadius = 6_371_000;
+  const radians = (value: number) =>
+    (value * Math.PI) / 180;
+
+  const latitudeDelta = radians(
+    secondLatitude - firstLatitude,
+  );
+  const longitudeDelta = radians(
+    secondLongitude - firstLongitude,
+  );
+
+  const firstLatitudeRadians =
+    radians(firstLatitude);
+  const secondLatitudeRadians =
+    radians(secondLatitude);
+
+  const calculation =
+    Math.sin(latitudeDelta / 2) ** 2 +
+    Math.cos(firstLatitudeRadians) *
+      Math.cos(secondLatitudeRadians) *
+      Math.sin(longitudeDelta / 2) ** 2;
+
+  return (
+    2 *
+    earthRadius *
+    Math.atan2(
+      Math.sqrt(calculation),
+      Math.sqrt(1 - calculation),
+    )
+  );
+}
+
+function isGenericResult(
+  result: GeoapifyResult,
+) {
+  if (result.name?.trim()) {
+    return false;
+  }
+
+  const categories =
+    result.categories ?? [];
+
+  return (
+    result.result_type === "building" ||
+    result.result_type === "amenity" ||
+    categories.length === 0 ||
+    categories.every(
+      (category) =>
+        category === "building" ||
+        category.startsWith("building."),
+    )
+  );
+}
+
+async function findNearbyAddressPlace({
+  address,
+  latitude,
+  longitude,
+  baseUrl,
+  apiKey,
+}: {
+  address: string;
+  latitude: number;
+  longitude: number;
+  baseUrl: string;
+  apiKey: string;
+}) {
+  await reserveDailyCredit();
+
+  const searchUrl = new URL(
+    "/v1/geocode/search",
+    `${baseUrl}/`,
+  );
+
+  searchUrl.search = new URLSearchParams({
+    text: address,
+    format: "json",
+    limit: "5",
+    filter:
+      `circle:${longitude},${latitude},${ADDRESS_FALLBACK_MAX_DISTANCE_METRES}`,
+    bias:
+      `proximity:${longitude},${latitude}`,
+    apiKey,
+  }).toString();
+
+  const response = await fetch(searchUrl, {
+    cache: "no-store",
+    signal: AbortSignal.timeout(15000),
+  });
+
+  const payload =
+    (await response.json()) as GeoapifyPayload;
+
+  if (!response.ok) {
+    throw new Error(
+      payload.message ??
+        payload.error ??
+        `Geoapify address search returned HTTP ${response.status}.`,
+    );
+  }
+
+  const candidates = (
+    payload.results ?? []
+  )
+    .filter(
+      (
+        candidate,
+      ): candidate is GeoapifyResult & {
+        lat: number;
+        lon: number;
+      } =>
+        Boolean(candidate.name?.trim()) &&
+        typeof candidate.lat === "number" &&
+        Number.isFinite(candidate.lat) &&
+        typeof candidate.lon === "number" &&
+        Number.isFinite(candidate.lon),
+    )
+    .map((candidate) => ({
+      candidate,
+      distance: distanceMetres(
+        latitude,
+        longitude,
+        candidate.lat,
+        candidate.lon,
+      ),
+    }))
+    .filter(
+      ({ distance }) =>
+        distance <=
+        ADDRESS_FALLBACK_MAX_DISTANCE_METRES,
+    )
+    .sort(
+      (first, second) =>
+        first.distance - second.distance,
+    );
+
+  return {
+    result:
+      candidates[0]?.candidate ?? null,
+    payload,
+    distance:
+      candidates[0]?.distance ?? null,
+  };
 }
 
 async function reserveDailyCredit() {
@@ -351,7 +505,46 @@ export async function enrichBookingLocation(
       );
     }
 
-    const result = payload.results?.[0];
+    let result = payload.results?.[0];
+    let storedPayload: unknown = payload;
+
+    if (
+      result &&
+      isGenericResult(result) &&
+      location.address.trim()
+    ) {
+      try {
+        const addressFallback =
+          await findNearbyAddressPlace({
+            address: location.address,
+            latitude,
+            longitude,
+            baseUrl: credentials.baseUrl,
+            apiKey: credentials.apiKey,
+          });
+
+        if (addressFallback.result) {
+          result = addressFallback.result;
+          storedPayload = {
+            reverse: payload,
+            addressSearch:
+              addressFallback.payload,
+            selectedBy:
+              "NEARBY_ADDRESS_FALLBACK",
+            selectedDistanceMetres:
+              addressFallback.distance,
+          };
+        }
+      } catch (fallbackError) {
+        storedPayload = {
+          reverse: payload,
+          addressFallbackError:
+            fallbackError instanceof Error
+              ? fallbackError.message
+              : "Address fallback failed.",
+        };
+      }
+    }
 
     if (!result) {
       const notFound =
@@ -449,7 +642,8 @@ export async function enrichBookingLocation(
           nextRetryAt: null,
           enrichedAt: attemptedAt,
           lastError: null,
-          rawPayload: payload,
+          rawPayload:
+          storedPayload as object,
         },
       });
 
