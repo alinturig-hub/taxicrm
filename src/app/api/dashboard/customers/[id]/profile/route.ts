@@ -4,6 +4,7 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildNextBookingPrediction } from "@/lib/customers/customer-next-booking";
+import { buildCustomerNeedPropensity } from "@/lib/customers/customer-need-propensity";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-operational-preferences";
 import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relationship-quality";
@@ -148,6 +149,17 @@ export async function GET(
       buildCustomerReturnJourney(
         customer.bookings,
       );
+
+    const needPropensity =
+      buildCustomerNeedPropensity({
+        profileSafeForPersonalisation:
+          profile.classification
+            .profileSafeForPersonalisation,
+        prediction:
+          nextBookingPrediction,
+        rhythm: customerRhythm,
+        returnJourney,
+      });
 
     try {
       await ensureHourlyWeatherCurrent();
@@ -394,6 +406,7 @@ export async function GET(
       },
       profile,
       nextBookingPrediction,
+      needPropensity,
       customerRhythm,
       operationalPreferences,
       relationshipQuality,

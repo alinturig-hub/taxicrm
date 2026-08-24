@@ -295,6 +295,44 @@ type ProfileResponse = {
     };
     explanation: string[];
   };
+  needPropensity?: {
+    status:
+      | "READY"
+      | "LEARNING"
+      | "DISABLED";
+    score: number | null;
+    level:
+      | "HIGH"
+      | "ELEVATED"
+      | "MODERATE"
+      | "LOW"
+      | "LEARNING"
+      | "DISABLED";
+    confidence: number;
+    actionWindow:
+      | "NOW"
+      | "TODAY"
+      | "UPCOMING"
+      | "MONITOR"
+      | "NONE";
+    recommendedAction:
+      | "REVIEW_SERVICE_READINESS"
+      | "PREPARE_FOR_LIKELY_DEMAND"
+      | "MONITOR_PATTERN"
+      | "KEEP_LEARNING"
+      | "NO_PERSONAL_ACTION";
+    predictedStartAt: string | null;
+    predictedDay: string | null;
+    predictedWindow: string | null;
+    components: {
+      prediction: number;
+      schedule: number;
+      regularity: number;
+      returnPattern: number;
+    };
+    signals: string[];
+    explanation: string[];
+  };
   nextBookingPrediction?: {
     status: "READY" | "LEARNING";
     signalStrength:
@@ -587,6 +625,9 @@ export default function CustomerProfileDrawer({
                   prediction={
                     data?.nextBookingPrediction
                   }
+                  propensity={
+                    data?.needPropensity
+                  }
                   relationship={
                     data?.relationshipQuality
                   }
@@ -644,6 +685,7 @@ export default function CustomerProfileDrawer({
 function Overview({
   profile,
   prediction,
+  propensity,
   relationship,
   weather,
 }: {
@@ -651,6 +693,7 @@ function Overview({
     ProfileResponse["profile"]
   >;
   prediction?: ProfileResponse["nextBookingPrediction"];
+  propensity?: ProfileResponse["needPropensity"];
   relationship?: ProfileResponse["relationshipQuality"];
   weather?: ProfileResponse["observation"];
 }) {
@@ -890,6 +933,111 @@ function Overview({
           ))}
         </div>
       </Section>
+
+      {propensity &&
+      classification.profileSafeForPersonalisation ? (
+        <Section title="Operational Need Propensity">
+          <div className="rounded-2xl border border-fuchsia-500/25 bg-fuchsia-500/5 p-5">
+            {propensity.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-fuchsia-300">
+                      Combined observed signal
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-white">
+                      {propensity.level}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-300">
+                      Recommended internal action:{" "}
+                      {readable(
+                        propensity.recommendedAction,
+                      )}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      tone={
+                        propensity.level === "HIGH"
+                          ? "amber"
+                          : propensity.level ===
+                              "ELEVATED"
+                            ? "blue"
+                            : "slate"
+                      }
+                    >
+                      {propensity.score ?? 0}/100
+                    </Badge>
+                    <Badge tone="slate">
+                      {propensity.confidence}% confidence
+                    </Badge>
+                    <Badge tone="slate">
+                      {readable(
+                        propensity.actionWindow,
+                      )}
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                  <Metric
+                    label="Booking prediction"
+                    value={`${propensity.components.prediction}/55`}
+                  />
+                  <Metric
+                    label="Schedule timing"
+                    value={`${propensity.components.schedule}/25`}
+                  />
+                  <Metric
+                    label="Rhythm regularity"
+                    value={`${propensity.components.regularity}/10`}
+                  />
+                  <Metric
+                    label="Return pattern"
+                    value={`${propensity.components.returnPattern}/10`}
+                  />
+                </div>
+
+                <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                  <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                    Evidence
+                  </p>
+
+                  <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                    {propensity.signals.map(
+                      (signal) => (
+                        <li
+                          key={signal}
+                          className="flex gap-2"
+                        >
+                          <span className="text-fuchsia-400">
+                            •
+                          </span>
+                          <span>{signal}</span>
+                        </li>
+                      ),
+                    )}
+                  </ul>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm leading-6 text-slate-300">
+                The combined propensity score is still
+                learning from booking history.
+              </p>
+            )}
+
+            <div className="mt-5 space-y-2 text-xs leading-5 text-slate-500">
+              {propensity.explanation.map(
+                (reason) => (
+                  <p key={reason}>{reason}</p>
+                ),
+              )}
+            </div>
+          </div>
+        </Section>
+      ) : null}
 
       {prediction &&
       classification.profileSafeForPersonalisation ? (
