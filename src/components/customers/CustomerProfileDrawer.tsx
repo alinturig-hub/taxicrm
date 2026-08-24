@@ -99,6 +99,30 @@ type ProfileResponse = {
       destinationMatches: number;
     }>;
   };
+  returnJourney?: {
+    status: "READY" | "LEARNING";
+    analysedJourneys: number;
+    excludedSensitiveJourneys: number;
+    returnPairs: number;
+    returnRate: number;
+    typicalReturnHours: number | null;
+    typicalReturnLabel: string;
+    returnWindow:
+      | "QUICK_RETURN"
+      | "SAME_PART_OF_DAY"
+      | "LATER_SAME_DAY"
+      | "NEXT_DAY"
+      | "LEARNING";
+    confidence: number;
+    strongestRoutes: Array<{
+      pickupZone: string;
+      destinationZone: string;
+      returnPairs: number;
+      sharePercent: number;
+      typicalReturnHours: number;
+    }>;
+    explanation: string[];
+  };
   contextualIntelligence?: {
     status: "READY" | "LEARNING";
     analysedBookings: number;
@@ -584,6 +608,9 @@ export default function CustomerProfileDrawer({
                   }
                   contextual={
                     data?.contextualIntelligence
+                  }
+                  returnJourney={
+                    data?.returnJourney
                   }
                 />
               ) : null}
@@ -1085,6 +1112,7 @@ function Behaviour({
   changes,
   operational,
   contextual,
+  returnJourney,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
@@ -1093,6 +1121,7 @@ function Behaviour({
   changes?: ProfileResponse["behaviourChange"];
   operational?: ProfileResponse["operationalPreferences"];
   contextual?: ProfileResponse["contextualIntelligence"];
+  returnJourney?: ProfileResponse["returnJourney"];
 }) {
   const safe =
     profile.classification
@@ -1100,6 +1129,138 @@ function Behaviour({
 
   return (
     <div className="space-y-6">
+      {returnJourney ? (
+        <Section title="Return Journey Intelligence">
+          <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-teal-300">
+                  Observed return behaviour
+                </p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                  {returnJourney.status === "READY"
+                    ? `${returnJourney.returnPairs} reverse journeys were observed within 24 hours.`
+                    : "More journeys are required to establish a reliable return pattern."}
+                </p>
+              </div>
+
+              <Badge
+                tone={
+                  returnJourney.status === "READY"
+                    ? "blue"
+                    : "slate"
+                }
+              >
+                {returnJourney.confidence}% confidence
+              </Badge>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Analysed journeys"
+                value={returnJourney.analysedJourneys.toString()}
+              />
+              <Metric
+                label="Observed returns"
+                value={returnJourney.returnPairs.toString()}
+                detail="Reverse journey within 24 hours"
+              />
+              <Metric
+                label="Observed return rate"
+                value={`${returnJourney.returnRate}%`}
+                detail="Historical observation, not a guarantee"
+              />
+              <Metric
+                label="Typical return time"
+                value={returnJourney.typicalReturnLabel}
+                detail={readable(
+                  returnJourney.returnWindow,
+                )}
+              />
+            </div>
+
+            {returnJourney.strongestRoutes.length > 0 &&
+            safe ? (
+              <div className="mt-5 rounded-xl border border-teal-500/20 bg-slate-950/40 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  Strongest return routes
+                </p>
+
+                <div className="mt-3 grid gap-3 lg:grid-cols-2">
+                  {returnJourney.strongestRoutes.map(
+                    (route) => (
+                      <div
+                        key={`${route.pickupZone}:${route.destinationZone}`}
+                        className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-white">
+                              {route.pickupZone}
+                              {" ↔ "}
+                              {route.destinationZone}
+                            </p>
+                            <p className="mt-2 text-xs leading-5 text-slate-500">
+                              Typical return after{" "}
+                              {route.typicalReturnHours} hours
+                            </p>
+                          </div>
+
+                          <Badge tone="blue">
+                            {route.returnPairs} returns
+                          </Badge>
+                        </div>
+
+                        <p className="mt-3 text-xs text-slate-500">
+                          {route.sharePercent}% of observed
+                          return pairs
+                        </p>
+                      </div>
+                    ),
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {!safe &&
+            returnJourney.strongestRoutes.length > 0 ? (
+              <p className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4 text-sm leading-6 text-amber-200/80">
+                Route details are hidden because this may
+                be a shared or business booking profile.
+              </p>
+            ) : null}
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Interpretation
+              </p>
+
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {returnJourney.explanation.map(
+                  (reason) => (
+                    <li
+                      key={reason}
+                      className="flex gap-2"
+                    >
+                      <span className="text-teal-400">
+                        •
+                      </span>
+                      <span>{reason}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              Protected journeys are excluded. This section
+              describes historical operational patterns and
+              does not infer why the customer travelled.
+            </p>
+          </div>
+        </Section>
+      ) : null}
+
       {contextual ? (
         <Section title="City & Event Context">
           <div className="rounded-2xl border border-purple-500/20 bg-purple-500/5 p-5">

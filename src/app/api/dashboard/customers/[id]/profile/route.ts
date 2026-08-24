@@ -7,6 +7,7 @@ import { buildNextBookingPrediction } from "@/lib/customers/customer-next-bookin
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-operational-preferences";
 import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relationship-quality";
+import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-journey";
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
@@ -140,6 +141,11 @@ export async function GET(
 
     const behaviourChange =
       buildCustomerBehaviourChange(
+        customer.bookings,
+      );
+
+    const returnJourney =
+      buildCustomerReturnJourney(
         customer.bookings,
       );
 
@@ -392,6 +398,7 @@ export async function GET(
       operationalPreferences,
       relationshipQuality,
       behaviourChange,
+      returnJourney,
       contextualIntelligence,
       placeIntelligence:
         customerPlaceIntelligence,
