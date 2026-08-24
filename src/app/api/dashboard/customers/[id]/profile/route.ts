@@ -4,6 +4,10 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildCustomerProfileDataQuality } from "@/lib/customers/customer-profile-data-quality";
+import {
+  getCustomerProfileHistory,
+  saveCustomerProfileSnapshot,
+} from "@/lib/customers/customer-profile-snapshots";
 import { buildNextBookingPrediction } from "@/lib/customers/customer-next-booking";
 import { buildCustomerNeedPropensity } from "@/lib/customers/customer-need-propensity";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
@@ -405,6 +409,37 @@ export async function GET(
         ),
     };
 
+    let profileHistory:
+      Awaited<
+        ReturnType<
+          typeof getCustomerProfileHistory
+        >
+      > = [];
+
+    try {
+      await saveCustomerProfileSnapshot({
+        customerId: customer.id,
+        profile,
+        needPropensity,
+        relationshipQuality,
+        customerRhythm,
+        returnJourney,
+        serviceOutcomes,
+        profileDataQuality,
+        behaviourChange,
+      });
+
+      profileHistory =
+        await getCustomerProfileHistory(
+          customer.id,
+        );
+    } catch (snapshotError) {
+      console.error(
+        "Customer profile snapshot failed:",
+        snapshotError,
+      );
+    }
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -422,6 +457,7 @@ export async function GET(
       },
       profile,
       profileDataQuality,
+      profileHistory,
       nextBookingPrediction,
       needPropensity,
       customerRhythm,

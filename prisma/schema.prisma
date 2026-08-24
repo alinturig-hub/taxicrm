@@ -679,11 +679,47 @@ model NormalCustomer {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  bookings Booking[]
+  bookings         Booking[]
+  profileSnapshots CustomerProfileSnapshot[]
 
   @@index([telephoneNumber])
   @@index([email])
   @@index([lastBookingAt])
+}
+
+model CustomerProfileSnapshot {
+  id               String   @id @default(cuid())
+  normalCustomerId String
+  snapshotDate     DateTime @db.Date
+  generatedAt      DateTime @default(now())
+
+  totalBookings            Int
+  profileSafe              Boolean
+  lifecycle                String
+  needScore                Int?
+  needLevel                String
+  needConfidence           Int
+  relationshipScore        Int?
+  relationshipLevel        String
+  regularityScore          Int?
+  scheduleStatus           String
+  returnRate               Decimal @db.Decimal(6, 2)
+  serviceOutcomeLevel      String
+  recentAdverseRate        Decimal @db.Decimal(6, 2)
+  dataQualityScore         Int
+  dataQualityGrade         String
+  behaviourChangeScore     Int?
+  behaviourChangeDirection String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer NormalCustomer @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([normalCustomerId, snapshotDate])
+  @@index([snapshotDate])
+  @@index([needLevel, snapshotDate])
+  @@index([serviceOutcomeLevel, snapshotDate])
 }
 
 model AutocabAccount {

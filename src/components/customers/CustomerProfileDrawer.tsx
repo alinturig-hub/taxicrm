@@ -414,6 +414,27 @@ type ProfileResponse = {
     routeObservations: number;
     explanation: string[];
   };
+  profileHistory?: Array<{
+    snapshotDate: string;
+    generatedAt: string;
+    totalBookings: number;
+    profileSafe: boolean;
+    lifecycle: string;
+    needScore: number | null;
+    needLevel: string;
+    needConfidence: number;
+    relationshipScore: number | null;
+    relationshipLevel: string;
+    regularityScore: number | null;
+    scheduleStatus: string;
+    returnRate: number;
+    serviceOutcomeLevel: string;
+    recentAdverseRate: number;
+    dataQualityScore: number;
+    dataQualityGrade: string;
+    behaviourChangeScore: number | null;
+    behaviourChangeDirection: string;
+  }>;
   observation?: {
     weatherAvailable: boolean;
     enoughData: boolean;
@@ -448,6 +469,7 @@ type Tab =
   | "BEHAVIOUR"
   | "PLACES"
   | "BOOKINGS"
+  | "HISTORY"
   | "OPPORTUNITIES";
 
 function money(value: number | string | null) {
@@ -468,6 +490,14 @@ function dateTime(value: string | null) {
     dateStyle: "medium",
     timeStyle: "short",
   }).format(new Date(value));
+}
+
+function dateOnly(value: string) {
+  return new Intl.DateTimeFormat("en-GB", {
+    dateStyle: "medium",
+  }).format(
+    new Date(`${value}T12:00:00Z`),
+  );
 }
 
 function readable(value: string) {
@@ -651,6 +681,7 @@ export default function CustomerProfileDrawer({
                 ["BEHAVIOUR", "Behaviour"],
                 ["PLACES", "Places & Routes"],
                 ["BOOKINGS", "Booking History"],
+                ["HISTORY", "Profile History"],
                 ["OPPORTUNITIES", "Opportunities"],
               ] as Array<[Tab, string]>
             ).map(([value, label]) => (
@@ -733,6 +764,14 @@ export default function CustomerProfileDrawer({
 
               {tab === "BOOKINGS" ? (
                 <Bookings profile={profile} />
+              ) : null}
+
+              {tab === "HISTORY" ? (
+                <ProfileHistory
+                  history={
+                    data?.profileHistory ?? []
+                  }
+                />
               ) : null}
 
               {tab === "OPPORTUNITIES" ? (
@@ -2490,6 +2529,227 @@ function Bookings({
         </table>
       </div>
     </Section>
+  );
+}
+
+function ProfileHistory({
+  history,
+}: {
+  history: NonNullable<
+    ProfileResponse["profileHistory"]
+  >;
+}) {
+  return (
+    <div className="space-y-6">
+      <Section title="Daily Profile History">
+        <div className="rounded-xl border border-blue-500/20 bg-blue-500/5 p-4 text-sm leading-6 text-slate-300">
+          One privacy-safe snapshot is stored per London
+          calendar day. Opening the profile again on the
+          same day updates that day rather than creating a
+          duplicate.
+        </div>
+
+        {history.length > 0 ? (
+          <div className="mt-5 space-y-4">
+            {history.map(
+              (snapshot, index) => {
+                const previous =
+                  history[index + 1];
+
+                const bookingDelta =
+                  previous
+                    ? snapshot.totalBookings -
+                      previous.totalBookings
+                    : null;
+
+                const needDelta =
+                  previous &&
+                  snapshot.needScore !== null &&
+                  previous.needScore !== null
+                    ? snapshot.needScore -
+                      previous.needScore
+                    : null;
+
+                const relationshipDelta =
+                  previous &&
+                  snapshot.relationshipScore !==
+                    null &&
+                  previous.relationshipScore !==
+                    null
+                    ? snapshot.relationshipScore -
+                      previous.relationshipScore
+                    : null;
+
+                return (
+                  <article
+                    key={snapshot.snapshotDate}
+                    className="rounded-2xl border border-slate-800 bg-slate-900 p-5"
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-4">
+                      <div>
+                        <p className="text-lg font-semibold text-white">
+                          {dateOnly(
+                            snapshot.snapshotDate,
+                          )}
+                        </p>
+                        <p className="mt-1 text-xs text-slate-500">
+                          Generated{" "}
+                          {dateTime(
+                            snapshot.generatedAt,
+                          )}
+                        </p>
+                      </div>
+
+                      <div className="flex flex-wrap gap-2">
+                        <Badge
+                          tone={
+                            snapshot.needLevel ===
+                              "HIGH" ||
+                            snapshot
+                              .serviceOutcomeLevel ===
+                              "URGENT_REVIEW"
+                              ? "amber"
+                              : snapshot.needLevel ===
+                                  "ELEVATED"
+                                ? "blue"
+                                : "slate"
+                          }
+                        >
+                          Need{" "}
+                          {readable(
+                            snapshot.needLevel,
+                          )}
+                        </Badge>
+                        <Badge tone="slate">
+                          Service{" "}
+                          {readable(
+                            snapshot
+                              .serviceOutcomeLevel,
+                          )}
+                        </Badge>
+                        <Badge
+                          tone={
+                            snapshot.dataQualityGrade ===
+                            "EXCELLENT"
+                              ? "green"
+                              : "blue"
+                          }
+                        >
+                          Data{" "}
+                          {readable(
+                            snapshot
+                              .dataQualityGrade,
+                          )}
+                        </Badge>
+                      </div>
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                      <Metric
+                        label="Bookings"
+                        value={snapshot.totalBookings.toString()}
+                        detail={
+                          bookingDelta === null
+                            ? "Baseline snapshot"
+                            : `${bookingDelta >= 0 ? "+" : ""}${bookingDelta} since previous snapshot`
+                        }
+                      />
+                      <Metric
+                        label="Need score"
+                        value={
+                          snapshot.needScore === null
+                            ? "Disabled"
+                            : `${snapshot.needScore}/100`
+                        }
+                        detail={
+                          needDelta === null
+                            ? `${snapshot.needConfidence}% confidence`
+                            : `${needDelta >= 0 ? "+" : ""}${needDelta} since previous snapshot`
+                        }
+                      />
+                      <Metric
+                        label="Relationship"
+                        value={
+                          snapshot.relationshipScore ===
+                          null
+                            ? readable(
+                                snapshot
+                                  .relationshipLevel,
+                              )
+                            : `${snapshot.relationshipScore}/100`
+                        }
+                        detail={
+                          relationshipDelta === null
+                            ? readable(
+                                snapshot
+                                  .relationshipLevel,
+                              )
+                            : `${relationshipDelta >= 0 ? "+" : ""}${relationshipDelta} since previous snapshot`
+                        }
+                      />
+                      <Metric
+                        label="Data quality"
+                        value={`${snapshot.dataQualityScore}/100`}
+                        detail={readable(
+                          snapshot.dataQualityGrade,
+                        )}
+                      />
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Badge tone="slate">
+                        Rhythm{" "}
+                        {snapshot.regularityScore ??
+                          "Learning"}
+                        {snapshot.regularityScore !==
+                        null
+                          ? "/100"
+                          : ""}
+                      </Badge>
+                      <Badge tone="slate">
+                        {readable(
+                          snapshot.scheduleStatus,
+                        )}
+                      </Badge>
+                      <Badge tone="slate">
+                        Return rate{" "}
+                        {snapshot.returnRate}%
+                      </Badge>
+                      <Badge tone="slate">
+                        Recent adverse{" "}
+                        {
+                          snapshot.recentAdverseRate
+                        }
+                        %
+                      </Badge>
+                      <Badge tone="slate">
+                        Change{" "}
+                        {readable(
+                          snapshot
+                            .behaviourChangeDirection,
+                        )}
+                      </Badge>
+                    </div>
+                  </article>
+                );
+              },
+            )}
+          </div>
+        ) : (
+          <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/50 p-5 text-sm text-slate-400">
+            The first snapshot will appear after this
+            profile is generated successfully.
+          </div>
+        )}
+
+        <p className="mt-5 text-xs leading-5 text-slate-500">
+          Snapshots contain derived operational scores only.
+          They do not store telephone numbers, email
+          addresses, routes, exact places or protected
+          location details.
+        </p>
+      </Section>
+    </div>
   );
 }
 
