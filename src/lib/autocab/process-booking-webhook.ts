@@ -10,10 +10,48 @@ import {
 } from "@/lib/autocab/booking-state";
 import { buildCompanyDailyMetrics } from "@/lib/analytics/build-company-daily-metrics";
 import { prisma } from "@/lib/prisma";
+import { enrichBookingLocation } from "@/lib/places/geoapify-place-enrichment";
 import { broadcastDashboardMetricUpdate } from "@/lib/realtime/dashboard-broadcast";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
 import { syncAutocabAccounts } from "@/lib/integrations/autocab/account-sync/sync";
+
+async function enrichBookingLocationsBestEffort(
+  bookingId: string,
+): Promise<void> {
+  const locations =
+    await prisma.bookingLocation.findMany({
+      where: {
+        bookingId,
+        latitude: {
+          not: null,
+        },
+        longitude: {
+          not: null,
+        },
+      },
+      orderBy: {
+        type: "asc",
+      },
+      select: {
+        id: true,
+        type: true,
+      },
+    });
+
+  for (const location of locations) {
+    try {
+      await enrichBookingLocation(
+        location.id,
+      );
+    } catch (error) {
+      console.error(
+        `Automatic Geoapify enrichment failed for ${location.type} location ${location.id}:`,
+        error,
+      );
+    }
+  }
+}
 
 async function reconcileUnknownAutocabAccount(
   payload: Record<string, unknown>,
@@ -198,6 +236,10 @@ export async function processBookingWebhook(
 
     await reconcileUnknownAutocabAccount(
       payload,
+    );
+
+    await enrichBookingLocationsBestEffort(
+      bookingId,
     );
 
     await createBookingSnapshot({

@@ -40,6 +40,29 @@ export async function synchroniseLocation(
     return;
   }
 
+  const existing =
+    await tx.bookingLocation.findUnique({
+      where: {
+        bookingId_type: {
+          bookingId,
+          type,
+        },
+      },
+      select: {
+        latitude: true,
+        longitude: true,
+      },
+    });
+
+  const coordinatesChanged =
+    existing !== null &&
+    (
+      Number(existing.latitude) !==
+        Number(data.latitude) ||
+      Number(existing.longitude) !==
+        Number(data.longitude)
+    );
+
   await tx.bookingLocation.upsert({
     where: {
       bookingId_type: {
@@ -52,7 +75,14 @@ export async function synchroniseLocation(
       type,
       ...data,
     },
-    update: data,
+    update: {
+      ...data,
+      ...(coordinatesChanged
+        ? {
+            placeIntelligenceId: null,
+          }
+        : {}),
+    },
   });
 }
 export async function synchroniseVias(
