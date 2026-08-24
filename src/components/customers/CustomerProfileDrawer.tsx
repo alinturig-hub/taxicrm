@@ -262,6 +262,36 @@ type ProfileResponse = {
     }>;
     explanation: string[];
   };
+  serviceOutcomes?: {
+    status: "READY" | "LEARNING";
+    level:
+      | "STABLE"
+      | "MONITOR"
+      | "REVIEW"
+      | "URGENT_REVIEW"
+      | "LEARNING";
+    confidence: number;
+    concludedBookings: number;
+    completedBookings: number;
+    cancelledBookings: number;
+    rejectedBookings: number;
+    noFareBookings: number;
+    overallAdverseRate: number;
+    recentWindowSize: number;
+    recentAdverseOutcomes: number;
+    recentAdverseRate: number;
+    previousAdverseRate: number | null;
+    changePercentagePoints: number | null;
+    consecutiveAdverseOutcomes: number;
+    dominantAdverseOutcome:
+      | "CANCELLED"
+      | "REJECTED"
+      | "NO_FARE"
+      | null;
+    serviceRecoveryRecommended: boolean;
+    signals: string[];
+    explanation: string[];
+  };
   relationshipQuality?: {
     status: "READY" | "LEARNING";
     score: number | null;
@@ -708,6 +738,9 @@ export default function CustomerProfileDrawer({
               {tab === "OPPORTUNITIES" ? (
                 <Opportunities
                   profile={profile}
+                  serviceOutcomes={
+                    data?.serviceOutcomes
+                  }
                 />
               ) : null}
             </>
@@ -2462,13 +2495,153 @@ function Bookings({
 
 function Opportunities({
   profile,
+  serviceOutcomes,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  serviceOutcomes?:
+    ProfileResponse["serviceOutcomes"];
 }) {
   return (
     <div className="space-y-4">
+      {serviceOutcomes ? (
+        <Section title="Service Outcome Review">
+          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-orange-300">
+                  Recent concluded journey outcomes
+                </p>
+                <p className="mt-2 text-2xl font-bold text-white">
+                  {readable(
+                    serviceOutcomes.level,
+                  )}
+                </p>
+                <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-300">
+                  {serviceOutcomes.serviceRecoveryRecommended
+                    ? "Review recent journeys before making a commercial offer. A service recovery action may be appropriate."
+                    : "No immediate service recovery action is required from the available evidence."}
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  tone={
+                    serviceOutcomes.level ===
+                      "URGENT_REVIEW" ||
+                    serviceOutcomes.level ===
+                      "REVIEW"
+                      ? "amber"
+                      : serviceOutcomes.level ===
+                          "STABLE"
+                        ? "green"
+                        : "blue"
+                  }
+                >
+                  {readable(
+                    serviceOutcomes.level,
+                  )}
+                </Badge>
+                <Badge tone="slate">
+                  {serviceOutcomes.confidence}% confidence
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Concluded bookings"
+                value={serviceOutcomes.concludedBookings.toString()}
+              />
+              <Metric
+                label="Overall adverse outcomes"
+                value={`${serviceOutcomes.overallAdverseRate}%`}
+                detail="Cancelled, rejected or no fare"
+              />
+              <Metric
+                label="Recent adverse outcomes"
+                value={`${serviceOutcomes.recentAdverseOutcomes}/${serviceOutcomes.recentWindowSize}`}
+                detail={`${serviceOutcomes.recentAdverseRate}% in the recent window`}
+              />
+              <Metric
+                label="Current adverse sequence"
+                value={serviceOutcomes.consecutiveAdverseOutcomes.toString()}
+                detail="Consecutive concluded bookings"
+              />
+            </div>
+
+            <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Completed"
+                value={serviceOutcomes.completedBookings.toString()}
+              />
+              <Metric
+                label="Cancelled"
+                value={serviceOutcomes.cancelledBookings.toString()}
+              />
+              <Metric
+                label="Rejected"
+                value={serviceOutcomes.rejectedBookings.toString()}
+              />
+              <Metric
+                label="No Fare"
+                value={serviceOutcomes.noFareBookings.toString()}
+              />
+            </div>
+
+            {serviceOutcomes.changePercentagePoints !==
+            null ? (
+              <p className="mt-4 text-sm leading-6 text-slate-300">
+                Recent adverse outcome rate changed by{" "}
+                <span className="font-semibold text-white">
+                  {serviceOutcomes.changePercentagePoints >
+                  0
+                    ? "+"
+                    : ""}
+                  {
+                    serviceOutcomes
+                      .changePercentagePoints
+                  }{" "}
+                  percentage points
+                </span>{" "}
+                versus earlier concluded bookings.
+              </p>
+            ) : null}
+
+            <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Review signals
+              </p>
+
+              <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-300">
+                {serviceOutcomes.signals.map(
+                  (signal) => (
+                    <li
+                      key={signal}
+                      className="flex gap-2"
+                    >
+                      <span className="text-orange-400">
+                        •
+                      </span>
+                      <span>{signal}</span>
+                    </li>
+                  ),
+                )}
+              </ul>
+            </div>
+
+            <div className="mt-5 space-y-2 text-xs leading-5 text-slate-500">
+              {serviceOutcomes.explanation.map(
+                (reason) => (
+                  <p key={reason}>{reason}</p>
+                ),
+              )}
+            </div>
+          </div>
+        </Section>
+      ) : null}
+
       <Section title="Next Best Actions">
         <div className="space-y-3">
           {profile.opportunities.map(

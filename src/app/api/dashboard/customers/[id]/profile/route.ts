@@ -10,6 +10,7 @@ import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerOperationalPreferences } from "@/lib/customers/customer-operational-preferences";
 import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relationship-quality";
 import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-journey";
+import { buildCustomerServiceOutcomes } from "@/lib/customers/customer-service-outcomes";
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
@@ -139,6 +140,11 @@ export async function GET(
       buildCustomerRelationshipQuality(
         customer.bookings,
         customerRhythm,
+      );
+
+    const serviceOutcomes =
+      buildCustomerServiceOutcomes(
+        customer.bookings,
       );
 
     const behaviourChange =
@@ -421,6 +427,7 @@ export async function GET(
       customerRhythm,
       operationalPreferences,
       relationshipQuality,
+      serviceOutcomes,
       behaviourChange,
       returnJourney,
       contextualIntelligence,
