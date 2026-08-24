@@ -81,6 +81,39 @@ type ProfileResponse = {
       }>;
     }>;
   };
+  profileDataQuality?: {
+    score: number;
+    grade:
+      | "EXCELLENT"
+      | "GOOD"
+      | "FAIR"
+      | "LIMITED";
+    totalBookings: number;
+    readyForBehaviourAnalysis: boolean;
+    readyForPrediction: boolean;
+    readyForPlaceInsights: boolean;
+    coverage: {
+      time: number;
+      status: number;
+      price: number;
+      zones: number;
+      weather: number;
+      enrichedPlaces: number;
+    };
+    components: {
+      historyDepth: number;
+      time: number;
+      status: number;
+      price: number;
+      zones: number;
+      weather: number;
+      enrichedPlaces: number;
+    };
+    protectedJourneys: number;
+    strengths: string[];
+    limitations: string[];
+    explanation: string[];
+  };
   placeIntelligence?: {
     matchedLocations: number;
     distinctPlaces: number;
@@ -622,6 +655,9 @@ export default function CustomerProfileDrawer({
               {tab === "OVERVIEW" ? (
                 <Overview
                   profile={profile}
+                  dataQuality={
+                    data?.profileDataQuality
+                  }
                   prediction={
                     data?.nextBookingPrediction
                   }
@@ -684,6 +720,7 @@ export default function CustomerProfileDrawer({
 
 function Overview({
   profile,
+  dataQuality,
   prediction,
   propensity,
   relationship,
@@ -692,6 +729,7 @@ function Overview({
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  dataQuality?: ProfileResponse["profileDataQuality"];
   prediction?: ProfileResponse["nextBookingPrediction"];
   propensity?: ProfileResponse["needPropensity"];
   relationship?: ProfileResponse["relationshipQuality"];
@@ -772,6 +810,127 @@ function Overview({
           detail={`Observed since ${dateTime(overview.firstBookingAt)}`}
         />
       </div>
+
+      {dataQuality ? (
+        <Section title="Profile Evidence Quality">
+          <div className="rounded-2xl border border-sky-500/20 bg-sky-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-sky-300">
+                  Evidence completeness
+                </p>
+                <p className="mt-2 text-2xl font-bold text-white">
+                  {readable(dataQuality.grade)}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-300">
+                  Based on {dataQuality.totalBookings} stored
+                  bookings and the coverage of each supporting
+                  signal.
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  tone={
+                    dataQuality.grade === "EXCELLENT"
+                      ? "green"
+                      : dataQuality.grade === "GOOD"
+                        ? "blue"
+                        : dataQuality.grade === "FAIR"
+                          ? "amber"
+                          : "slate"
+                  }
+                >
+                  {dataQuality.score}/100
+                </Badge>
+
+                <Badge
+                  tone={
+                    dataQuality.readyForPrediction
+                      ? "green"
+                      : "slate"
+                  }
+                >
+                  Prediction{" "}
+                  {dataQuality.readyForPrediction
+                    ? "ready"
+                    : "learning"}
+                </Badge>
+
+                <Badge
+                  tone={
+                    dataQuality.readyForPlaceInsights
+                      ? "green"
+                      : "slate"
+                  }
+                >
+                  Places{" "}
+                  {dataQuality.readyForPlaceInsights
+                    ? "ready"
+                    : "learning"}
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Time coverage"
+                value={`${dataQuality.coverage.time}%`}
+              />
+              <Metric
+                label="Zone coverage"
+                value={`${dataQuality.coverage.zones}%`}
+              />
+              <Metric
+                label="Weather coverage"
+                value={`${dataQuality.coverage.weather}%`}
+              />
+              <Metric
+                label="Verified place coverage"
+                value={`${dataQuality.coverage.enrichedPlaces}%`}
+              />
+            </div>
+
+            {dataQuality.strengths.length > 0 ? (
+              <div className="mt-5 flex flex-wrap gap-2">
+                {dataQuality.strengths.map(
+                  (strength) => (
+                    <Badge
+                      key={strength}
+                      tone="green"
+                    >
+                      {strength}
+                    </Badge>
+                  ),
+                )}
+              </div>
+            ) : null}
+
+            {dataQuality.limitations.length > 0 ? (
+              <div className="mt-5 rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
+                  Current limitations
+                </p>
+                <ul className="mt-3 space-y-2 text-sm leading-6 text-amber-100/70">
+                  {dataQuality.limitations.map(
+                    (limitation) => (
+                      <li key={limitation}>
+                        • {limitation}
+                      </li>
+                    ),
+                  )}
+                </ul>
+              </div>
+            ) : null}
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              This score measures data completeness, never
+              customer quality. Protected locations remain
+              hidden from behavioural details.
+            </p>
+          </div>
+        </Section>
+      ) : null}
 
       {relationship ? (
         <Section title="Relationship Quality">

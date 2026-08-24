@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
+import { buildCustomerProfileDataQuality } from "@/lib/customers/customer-profile-data-quality";
 import { buildNextBookingPrediction } from "@/lib/customers/customer-next-booking";
 import { buildCustomerNeedPropensity } from "@/lib/customers/customer-need-propensity";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
@@ -197,6 +198,15 @@ export async function GET(
       buildCustomerWeatherIntelligence(
         customer.bookings,
         weatherObservations,
+      );
+
+    const profileDataQuality =
+      buildCustomerProfileDataQuality(
+        customer.bookings,
+        {
+          weatherMatchedBookings:
+            weather.matchedBookings,
+        },
       );
 
     const bookingTimes = customer.bookings
@@ -405,6 +415,7 @@ export async function GET(
         updatedAt: customer.updatedAt,
       },
       profile,
+      profileDataQuality,
       nextBookingPrediction,
       needPropensity,
       customerRhythm,
