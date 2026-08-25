@@ -16,6 +16,7 @@ import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relat
 import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-journey";
 import { buildCustomerServiceOutcomes } from "@/lib/customers/customer-service-outcomes";
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
+import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
 import { prisma } from "@/lib/prisma";
@@ -128,6 +129,16 @@ export async function GET(
     const nextBookingPrediction =
       buildNextBookingPrediction(
         customer.bookings,
+      );
+
+    const bookingWindow =
+      buildCustomerBookingWindow(
+        customer.bookings,
+        {
+          profileSafeForPersonalisation:
+            profile.classification
+              .profileSafeForPersonalisation,
+        },
       );
 
     const customerRhythm =
@@ -459,6 +470,7 @@ export async function GET(
       profileDataQuality,
       profileHistory,
       nextBookingPrediction,
+      bookingWindow,
       needPropensity,
       customerRhythm,
       operationalPreferences,

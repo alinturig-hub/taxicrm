@@ -396,6 +396,63 @@ type ProfileResponse = {
     signals: string[];
     explanation: string[];
   };
+  bookingWindow?: {
+    status:
+      | "READY"
+      | "LEARNING"
+      | "DISABLED";
+    model: string;
+    analysedBookings: number;
+    primaryHorizonHours: number;
+    primaryScore?: number;
+    primaryLevel?:
+      | "HIGH"
+      | "ELEVATED"
+      | "MODERATE"
+      | "LOW";
+    primaryObservedBenchmarkRate?: number;
+    primaryEvidenceConfidence?: number;
+    horizons: Array<{
+      horizonHours: number;
+      score: number;
+      level:
+        | "HIGH"
+        | "ELEVATED"
+        | "MODERATE"
+        | "LOW";
+      evidenceConfidence: number;
+      observedBenchmarkRate: number;
+      calibrationSamples: number;
+      windowStartAt: string;
+      windowEndAt: string;
+      gapHazardScore: number;
+      weeklySlotScore: number;
+      elapsedSinceLastHours: number;
+      medianGapHours: number;
+      atRiskSamples: number;
+      strongestSlot: {
+        startAt: string | null;
+        endAt: string | null;
+        weekday: string | null;
+        hour: number | null;
+        historicalMatches: number;
+        sharePercent: number;
+      };
+    }>;
+    strongestUpcomingWindow: {
+      startAt: string | null;
+      endAt: string | null;
+      weekday: string | null;
+      hour: number | null;
+      historicalMatches: number;
+      sharePercent: number;
+    } | null;
+    medianLeadMinutes: number | null;
+    leadTimeSamples: number;
+    message: string;
+    explanation: string[];
+  };
+
   nextBookingPrediction?: {
     status: "READY" | "LEARNING";
     signalStrength:
@@ -722,6 +779,9 @@ export default function CustomerProfileDrawer({
                   prediction={
                     data?.nextBookingPrediction
                   }
+                  bookingWindow={
+                    data?.bookingWindow
+                  }
                   propensity={
                     data?.needPropensity
                   }
@@ -794,6 +854,7 @@ function Overview({
   profile,
   dataQuality,
   prediction,
+  bookingWindow,
   propensity,
   relationship,
   weather,
@@ -803,6 +864,7 @@ function Overview({
   >;
   dataQuality?: ProfileResponse["profileDataQuality"];
   prediction?: ProfileResponse["nextBookingPrediction"];
+  bookingWindow?: ProfileResponse["bookingWindow"];
   propensity?: ProfileResponse["needPropensity"];
   relationship?: ProfileResponse["relationshipQuality"];
   weather?: ProfileResponse["observation"];
@@ -1270,16 +1332,169 @@ function Overview({
         </Section>
       ) : null}
 
+      {bookingWindow ? (
+        <Section title="Next Booking Window">
+          <div className="rounded-2xl border border-emerald-500/25 bg-emerald-500/5 p-5">
+            {bookingWindow.status === "READY" ? (
+              <>
+                <div className="flex flex-wrap items-start justify-between gap-4">
+                  <div>
+                    <p className="text-sm font-medium text-emerald-300">
+                      Booking action in the next 24 hours
+                    </p>
+                    <p className="mt-2 text-3xl font-bold text-white">
+                      {bookingWindow.primaryLevel ??
+                        "LOW"}
+                    </p>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-300">
+                      {bookingWindow.message}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <Badge
+                      tone={
+                        bookingWindow.primaryLevel ===
+                        "HIGH"
+                          ? "amber"
+                          : bookingWindow.primaryLevel ===
+                              "ELEVATED"
+                            ? "blue"
+                            : "slate"
+                      }
+                    >
+                      Score{" "}
+                      {bookingWindow.primaryScore ??
+                        0}
+                      /100
+                    </Badge>
+                    <Badge tone="green">
+                      {bookingWindow
+                        .primaryObservedBenchmarkRate ??
+                        0}
+                      % observed benchmark
+                    </Badge>
+                    <Badge tone="slate">
+                      {bookingWindow
+                        .primaryEvidenceConfidence ??
+                        0}
+                      % evidence confidence
+                    </Badge>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {bookingWindow.horizons.map(
+                    (horizon) => (
+                      <Metric
+                        key={horizon.horizonHours}
+                        label={`Next ${horizon.horizonHours} hours`}
+                        value={`${horizon.observedBenchmarkRate}%`}
+                        detail={`${horizon.level} · score ${horizon.score}/100 · ${horizon.calibrationSamples.toLocaleString(
+                          "en-GB",
+                        )} validation samples`}
+                      />
+                    ),
+                  )}
+                </div>
+
+                <div className="mt-5 grid gap-3 lg:grid-cols-2">
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Strongest upcoming three-hour window
+                    </p>
+                    <p className="mt-3 font-semibold text-white">
+                      {bookingWindow
+                        .strongestUpcomingWindow
+                        ?.startAt
+                        ? `${dateTime(
+                            bookingWindow
+                              .strongestUpcomingWindow
+                              .startAt,
+                          )} – ${dateTime(
+                            bookingWindow
+                              .strongestUpcomingWindow
+                              .endAt,
+                          )}`
+                        : "Still learning"}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      {bookingWindow
+                        .strongestUpcomingWindow
+                        ?.historicalMatches ??
+                        0}{" "}
+                      historical matches ·{" "}
+                      {bookingWindow
+                        .strongestUpcomingWindow
+                        ?.sharePercent ??
+                        0}
+                      % share
+                    </p>
+                  </div>
+
+                  <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+                    <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
+                      Typical booking lead time
+                    </p>
+                    <p className="mt-3 font-semibold text-white">
+                      {bookingWindow.medianLeadMinutes ===
+                      null
+                        ? "Still learning"
+                        : bookingWindow.medianLeadMinutes <
+                            60
+                          ? `${bookingWindow.medianLeadMinutes} minutes`
+                          : `${(
+                              bookingWindow.medianLeadMinutes /
+                              60
+                            ).toFixed(1)} hours`}
+                    </p>
+                    <p className="mt-2 text-sm leading-6 text-slate-400">
+                      Based on{" "}
+                      {bookingWindow.leadTimeSamples.toLocaleString(
+                        "en-GB",
+                      )}{" "}
+                      valid booking-to-pickup intervals.
+                    </p>
+                  </div>
+                </div>
+
+                <div className="mt-5 space-y-2 text-xs leading-5 text-slate-500">
+                  {bookingWindow.explanation.map(
+                    (reason) => (
+                      <p key={reason}>
+                        {reason}
+                      </p>
+                    ),
+                  )}
+                </div>
+              </>
+            ) : (
+              <div>
+                <p className="font-semibold text-white">
+                  {bookingWindow.status ===
+                  "DISABLED"
+                    ? "Individual prediction disabled"
+                    : "Learning the booking-action window"}
+                </p>
+                <p className="mt-2 text-sm leading-6 text-slate-400">
+                  {bookingWindow.message}
+                </p>
+              </div>
+            )}
+          </div>
+        </Section>
+      ) : null}
+
       {prediction &&
       classification.profileSafeForPersonalisation ? (
-        <Section title="Next Booking Prediction">
+        <Section title="Historical Journey Pattern">
           <div className="rounded-2xl border border-violet-500/25 bg-violet-500/5 p-5">
             {prediction.status === "READY" ? (
               <>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-violet-300">
-                      Most likely booking window
+                      Most common journey window
                     </p>
                     <p className="mt-2 text-2xl font-bold text-white">
                       {prediction.predictedDay},{" "}
@@ -1299,7 +1514,7 @@ function Overview({
 
                   <div className="flex flex-wrap gap-2">
                     <Badge tone="blue">
-                      Need Score{" "}
+                      Pattern Score{" "}
                       {prediction.needScore ?? 0}/100
                     </Badge>
                     <Badge tone="slate">
