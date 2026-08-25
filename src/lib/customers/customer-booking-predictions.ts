@@ -14,6 +14,8 @@ function fingerprint(
     bookedAtTime: Date | null;
   }>,
   score: number,
+  windowStartAt: string,
+  windowEndAt: string,
   likelyStartAt: string | null,
   likelyEndAt: string | null,
 ) {
@@ -32,6 +34,8 @@ function fingerprint(
           ],
         ),
         score,
+        windowStartAt,
+        windowEndAt,
         likelyStartAt,
         likelyEndAt,
       }),
@@ -256,6 +260,8 @@ export async function refreshCustomerBookingPrediction(
         customer.id,
         customer.bookings,
         primary.score,
+        primary.windowStartAt,
+        primary.windowEndAt,
         likelyStartAt,
         likelyEndAt,
       );
