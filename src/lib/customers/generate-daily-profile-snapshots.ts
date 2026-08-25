@@ -52,6 +52,15 @@ export async function generateDailyProfileSnapshots({
   const snapshotDate =
     londonSnapshotDate(now);
 
+  const snapshotDateIso =
+    snapshotDate.toISOString().slice(0, 10);
+
+  const snapshotDateDisplay = [
+    snapshotDateIso.slice(8, 10),
+    snapshotDateIso.slice(5, 7),
+    snapshotDateIso.slice(0, 4),
+  ].join("/");
+
   const activeSince = new Date(
     now.getTime() -
       safeActiveDays * 24 * 60 * 60 * 1000,
@@ -122,7 +131,8 @@ export async function generateDailyProfileSnapshots({
     return {
       success: true,
       snapshotDate:
-        snapshotDate.toISOString().slice(0, 10),
+        snapshotDateDisplay,
+      snapshotDateIso,
       selected: 0,
       saved: 0,
       failed: 0,
@@ -283,7 +293,8 @@ export async function generateDailyProfileSnapshots({
   return {
     success: failed === 0,
     snapshotDate:
-      snapshotDate.toISOString().slice(0, 10),
+      snapshotDateDisplay,
+    snapshotDateIso,
     selected: eligibleCustomers.length,
     saved,
     failed,
