@@ -17,6 +17,7 @@ import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-jour
 import { buildCustomerServiceOutcomes } from "@/lib/customers/customer-service-outcomes";
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
 import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
+import { getCustomerPredictionHistory } from "@/lib/customers/customer-booking-predictions";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
 import { prisma } from "@/lib/prisma";
@@ -451,6 +452,33 @@ export async function GET(
       );
     }
 
+    let predictionHistory:
+      Awaited<
+        ReturnType<
+          typeof getCustomerPredictionHistory
+        >
+      > = {
+        predictions: [],
+        accuracy: {
+          evaluated: 0,
+          hits: 0,
+          missed: 0,
+          hitRate: null,
+        },
+      };
+
+    try {
+      predictionHistory =
+        await getCustomerPredictionHistory(
+          customer.id,
+        );
+    } catch (predictionHistoryError) {
+      console.error(
+        "Customer prediction history failed:",
+        predictionHistoryError,
+      );
+    }
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -471,6 +499,7 @@ export async function GET(
       profileHistory,
       nextBookingPrediction,
       bookingWindow,
+      predictionHistory,
       needPropensity,
       customerRhythm,
       operationalPreferences,

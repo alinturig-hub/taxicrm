@@ -679,8 +679,10 @@ model NormalCustomer {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  bookings         Booking[]
-  profileSnapshots CustomerProfileSnapshot[]
+  bookings           Booking[]
+  profileSnapshots   CustomerProfileSnapshot[]
+  bookingPredictions CustomerBookingPrediction[]
+  intelligenceState  CustomerIntelligenceState?
 
   @@index([telephoneNumber])
   @@index([email])
@@ -720,6 +722,60 @@ model CustomerProfileSnapshot {
   @@index([snapshotDate])
   @@index([needLevel, snapshotDate])
   @@index([serviceOutcomeLevel, snapshotDate])
+}
+
+model CustomerBookingPrediction {
+  id               String   @id @default(cuid())
+  normalCustomerId String
+  modelVersion     String
+  horizonHours     Int      @default(24)
+  issuedAt         DateTime
+  windowStartAt    DateTime
+  windowEndAt      DateTime
+
+  likelyWindowStartAt DateTime?
+  likelyWindowEndAt   DateTime?
+
+  score              Decimal @db.Decimal(6, 2)
+  level              String
+  observedRate       Decimal @db.Decimal(6, 2)
+  evidenceConfidence Int
+  calibrationSamples Int
+
+  status           String    @default("PENDING")
+  matchedBookingId String?
+  evaluatedAt      DateTime?
+  inputFingerprint String
+  activeKey        String?   @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  customer NormalCustomer @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([normalCustomerId, modelVersion, horizonHours, inputFingerprint])
+  @@index([normalCustomerId, issuedAt])
+  @@index([status, windowEndAt])
+  @@index([matchedBookingId])
+  @@index([modelVersion, horizonHours, status])
+}
+
+model CustomerIntelligenceState {
+  normalCustomerId String    @id
+  status           String    @default("DIRTY")
+  inputFingerprint String?
+  dirtyAt          DateTime  @default(now())
+  lastCalculatedAt DateTime?
+  nextRefreshAt    DateTime?
+  lastError        String?
+  attemptCount     Int       @default(0)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  customer NormalCustomer @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+
+  @@index([status, dirtyAt])
+  @@index([nextRefreshAt])
 }
 
 model AutocabAccount {

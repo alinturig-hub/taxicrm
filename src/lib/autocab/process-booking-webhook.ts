@@ -9,12 +9,45 @@ import {
   type BookingOperationalStatus,
 } from "@/lib/autocab/booking-state";
 import { buildCompanyDailyMetrics } from "@/lib/analytics/build-company-daily-metrics";
+import { refreshCustomerBookingPrediction } from "@/lib/customers/customer-booking-predictions";
 import { prisma } from "@/lib/prisma";
 import { enrichBookingLocation } from "@/lib/places/geoapify-place-enrichment";
 import { broadcastDashboardMetricUpdate } from "@/lib/realtime/dashboard-broadcast";
 import { createBookingSnapshot } from "@/lib/services/booking-snapshot-service";
 import { appendBookingTimelineEvent } from "@/lib/services/booking-timeline-service";
 import { syncAutocabAccounts } from "@/lib/integrations/autocab/account-sync/sync";
+
+async function refreshCustomerPredictionBestEffort(
+  bookingId: string,
+): Promise<void> {
+  try {
+    const booking =
+      await prisma.booking.findUnique({
+        where: {
+          id: bookingId,
+        },
+        select: {
+          normalCustomerId: true,
+        },
+      });
+
+    if (!booking?.normalCustomerId) {
+      return;
+    }
+
+    await refreshCustomerBookingPrediction(
+      booking.normalCustomerId,
+      {
+        triggerBookingId: bookingId,
+      },
+    );
+  } catch (error) {
+    console.error(
+      `Automatic customer prediction refresh failed for booking ${bookingId}:`,
+      error,
+    );
+  }
+}
 
 async function enrichBookingLocationsBestEffort(
   bookingId: string,
@@ -236,6 +269,10 @@ export async function processBookingWebhook(
 
     await reconcileUnknownAutocabAccount(
       payload,
+    );
+
+    await refreshCustomerPredictionBestEffort(
+      bookingId,
     );
 
     await enrichBookingLocationsBestEffort(

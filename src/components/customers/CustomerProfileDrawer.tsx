@@ -5,6 +5,59 @@ import {
   useState,
 } from "react";
 
+const londonPredictionFormatter =
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    weekday: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+const londonPredictionTimeFormatter =
+  new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Europe/London",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+function formatPredictionWindow(
+  startAt:
+    | string
+    | Date
+    | null
+    | undefined,
+  endAt:
+    | string
+    | Date
+    | null
+    | undefined,
+) {
+  if (!startAt || !endAt) {
+    return null;
+  }
+
+  const start = new Date(startAt);
+  const end = new Date(endAt);
+
+  if (
+    !Number.isFinite(start.getTime()) ||
+    !Number.isFinite(end.getTime())
+  ) {
+    return null;
+  }
+
+  return [
+    londonPredictionFormatter.format(
+      start,
+    ),
+    londonPredictionTimeFormatter.format(
+      end,
+    ),
+  ].join("–");
+}
+
 type RankedValue = {
   label: string;
   count: number;
@@ -453,6 +506,34 @@ type ProfileResponse = {
     explanation: string[];
   };
 
+  predictionHistory?: {
+    predictions: Array<{
+      id: string;
+      modelVersion: string;
+      issuedAt: string;
+      windowStartAt: string;
+      windowEndAt: string;
+      likelyWindowStartAt: string | null;
+      likelyWindowEndAt: string | null;
+      score: number;
+      level: string;
+      observedRate: number;
+      evidenceConfidence: number;
+      calibrationSamples: number;
+      status:
+        | "PENDING"
+        | "HIT"
+        | "MISSED";
+      evaluatedAt: string | null;
+    }>;
+    accuracy: {
+      evaluated: number;
+      hits: number;
+      missed: number;
+      hitRate: number | null;
+    };
+  };
+
   nextBookingPrediction?: {
     status: "READY" | "LEARNING";
     signalStrength:
@@ -755,6 +836,26 @@ export default function CustomerProfileDrawer({
                     .primaryObservedBenchmarkRate ??
                     0}
                   %
+                  {(() => {
+                    const primary =
+                      data.bookingWindow.horizons.find(
+                        (horizon) =>
+                          horizon.horizonHours ===
+                          24,
+                      );
+
+                    const interval =
+                      formatPredictionWindow(
+                        primary?.strongestSlot
+                          .startAt,
+                        primary?.strongestSlot
+                          .endAt,
+                      );
+
+                    return interval
+                      ? ` · ${interval}`
+                      : "";
+                  })()}
                 </button>
               ) : null}
             </div>
@@ -826,6 +927,9 @@ export default function CustomerProfileDrawer({
                   }
                   propensity={
                     data?.needPropensity
+                  }
+                  predictionHistory={
+                    data?.predictionHistory
                   }
                 />
               ) : null}
@@ -1370,6 +1474,7 @@ function PredictionTab({
   prediction,
   bookingWindow,
   propensity,
+  predictionHistory,
 }: {
   profile: NonNullable<
     ProfileResponse["profile"]
@@ -1377,11 +1482,121 @@ function PredictionTab({
   prediction?: ProfileResponse["nextBookingPrediction"];
   bookingWindow?: ProfileResponse["bookingWindow"];
   propensity?: ProfileResponse["needPropensity"];
+  predictionHistory?: ProfileResponse["predictionHistory"];
 }) {
   const { classification } = profile;
 
+  const latestStoredPrediction =
+    predictionHistory?.predictions[0];
+
+  const likelyInterval =
+    latestStoredPrediction
+      ? formatPredictionWindow(
+          latestStoredPrediction
+            .likelyWindowStartAt,
+          latestStoredPrediction
+            .likelyWindowEndAt,
+        )
+      : null;
+
   return (
     <div className="space-y-6">
+      {latestStoredPrediction ? (
+        <Section title="Verified 24-hour prediction">
+          <div className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <p className="text-sm font-medium text-blue-300">
+                  Current recorded prediction
+                </p>
+                <p className="mt-2 text-3xl font-bold text-white">
+                  {latestStoredPrediction.level}
+                </p>
+                <p className="mt-2 text-sm text-slate-300">
+                  {latestStoredPrediction.observedRate}%
+                  observed 24-hour benchmark
+                </p>
+              </div>
+
+              <div className="flex flex-wrap gap-2">
+                <Badge
+                  tone={
+                    latestStoredPrediction.status ===
+                    "HIT"
+                      ? "green"
+                      : latestStoredPrediction.status ===
+                          "MISSED"
+                        ? "slate"
+                        : "blue"
+                  }
+                >
+                  {latestStoredPrediction.status ===
+                  "HIT"
+                    ? "CORRECT"
+                    : latestStoredPrediction.status}
+                </Badge>
+                <Badge tone="slate">
+                  Score{" "}
+                  {latestStoredPrediction.score}/100
+                </Badge>
+                <Badge tone="slate">
+                  {
+                    latestStoredPrediction
+                      .evidenceConfidence
+                  }
+                  % evidence
+                </Badge>
+              </div>
+            </div>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              <Metric
+                label="Likely time"
+                value={
+                  likelyInterval ??
+                  "No reliable 3-hour slot"
+                }
+              />
+              <Metric
+                label="Evaluated predictions"
+                value={String(
+                  predictionHistory?.accuracy
+                    .evaluated ?? 0,
+                )}
+              />
+              <Metric
+                label="Correct"
+                value={String(
+                  predictionHistory?.accuracy
+                    .hits ?? 0,
+                )}
+              />
+              <Metric
+                label="Observed hit rate"
+                value={
+                  predictionHistory?.accuracy
+                    .hitRate === null ||
+                  predictionHistory?.accuracy
+                    .hitRate === undefined
+                    ? "Learning"
+                    : `${
+                        predictionHistory
+                          .accuracy.hitRate
+                      }%`
+                }
+              />
+            </div>
+
+            <p className="mt-4 text-xs leading-5 text-slate-500">
+              Pending means the 24-hour window has not
+              finished. Correct means a booking was
+              recorded inside it. Missed means the window
+              ended without a booking.
+            </p>
+          </div>
+        </Section>
+      ) : null}
+
       {propensity &&
       classification.profileSafeForPersonalisation ? (
         <Section title="Operational Need Propensity">
