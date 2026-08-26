@@ -40,3 +40,4 @@ next-env.d.ts
 
 # Local database backups
 *.dump
+driversinfo-pusher.log
