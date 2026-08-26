@@ -8,6 +8,7 @@ import {
 } from "react";
 
 import CustomerProfileDrawer from "@/components/customers/CustomerProfileDrawer";
+import CustomerPredictionsDashboard from "@/components/customers/CustomerPredictionsDashboard";
 
 type AccountCustomer = {
   id: string;
@@ -46,7 +47,10 @@ type CustomersResponse = {
   normalCustomers?: NormalCustomer[];
 };
 
-type Tab = "ACCOUNT" | "NORMAL";
+type Tab =
+  | "ACCOUNT"
+  | "NORMAL"
+  | "PREDICTIONS";
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -303,6 +307,17 @@ export default function CustomersDashboard() {
               >
                 Normal Customers
               </TabButton>
+
+              <TabButton
+                active={
+                  tab === "PREDICTIONS"
+                }
+                onClick={() =>
+                  setTab("PREDICTIONS")
+                }
+              >
+                Booking Predictions
+              </TabButton>
             </div>
 
             <input
@@ -333,12 +348,18 @@ export default function CustomersDashboard() {
               filteredAccountCustomers
             }
           />
-        ) : (
+        ) : tab === "NORMAL" ? (
           <NormalCustomersTable
             customers={
               filteredNormalCustomers
             }
             onOpen={(customerId) =>
+              setSelectedCustomerId(customerId)
+            }
+          />
+        ) : (
+          <CustomerPredictionsDashboard
+            onOpenCustomer={(customerId) =>
               setSelectedCustomerId(customerId)
             }
           />
