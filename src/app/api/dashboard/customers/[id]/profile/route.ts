@@ -464,6 +464,14 @@ export async function GET(
           hits: 0,
           missed: 0,
           hitRate: null,
+          timeSlotEvaluated: 0,
+          timeSlotHits: 0,
+          timeSlotMissed: 0,
+          timeSlotHitRate: null,
+          timeSlotHitRateWhenBooked:
+            null,
+          averageTimeSlotMissMinutes:
+            null,
         },
       };
 

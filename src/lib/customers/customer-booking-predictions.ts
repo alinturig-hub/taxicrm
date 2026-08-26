@@ -43,6 +43,46 @@ function fingerprint(
     .digest("hex");
 }
 
+function evaluateLikelyWindow(
+  bookedAt: Date,
+  startAt: Date | null,
+  endAt: Date | null,
+) {
+  if (!startAt || !endAt) {
+    return {
+      likelyWindowHit: null,
+      likelyWindowDistanceMinutes: null,
+    };
+  }
+
+  const bookedTime = bookedAt.getTime();
+  const startTime = startAt.getTime();
+  const endTime = endAt.getTime();
+
+  if (
+    bookedTime >= startTime &&
+    bookedTime <= endTime
+  ) {
+    return {
+      likelyWindowHit: true,
+      likelyWindowDistanceMinutes: 0,
+    };
+  }
+
+  const distanceMilliseconds =
+    bookedTime < startTime
+      ? startTime - bookedTime
+      : bookedTime - endTime;
+
+  return {
+    likelyWindowHit: false,
+    likelyWindowDistanceMinutes:
+      Math.round(
+        distanceMilliseconds / 60_000,
+      ),
+  };
+}
+
 async function resolvePredictionOutcomes(
   customerId: string,
   now: Date,
@@ -82,28 +122,43 @@ async function resolvePredictionOutcomes(
           },
           select: {
             id: true,
+            likelyWindowStartAt: true,
+            likelyWindowEndAt: true,
           },
         });
 
       if (matchingPredictions.length > 0) {
-        await prisma.customerBookingPrediction.updateMany({
-          where: {
-            id: {
-              in: matchingPredictions.map(
-                (prediction) =>
-                  prediction.id,
-              ),
+        await prisma.$transaction(
+          matchingPredictions.map(
+            (prediction) => {
+              const timing =
+                evaluateLikelyWindow(
+                  triggerBooking.bookedAtTime!,
+                  prediction
+                    .likelyWindowStartAt,
+                  prediction
+                    .likelyWindowEndAt,
+                );
+
+              return prisma.customerBookingPrediction.updateMany({
+                where: {
+                  id: prediction.id,
+                  status: "PENDING",
+                },
+                data: {
+                  status: "HIT",
+                  matchedBookingId:
+                    triggerBooking.id,
+                  matchedBookingAt:
+                    triggerBooking.bookedAtTime,
+                  ...timing,
+                  evaluatedAt: now,
+                  activeKey: null,
+                },
+              });
             },
-            status: "PENDING",
-          },
-          data: {
-            status: "HIT",
-            matchedBookingId:
-              triggerBooking.id,
-            evaluatedAt: now,
-            activeKey: null,
-          },
-        });
+          ),
+        );
       }
     }
   }
@@ -484,6 +539,9 @@ export async function getCustomerPredictionHistory(
         evidenceConfidence: true,
         calibrationSamples: true,
         status: true,
+        matchedBookingAt: true,
+        likelyWindowHit: true,
+        likelyWindowDistanceMinutes: true,
         evaluatedAt: true,
       },
     });
@@ -498,6 +556,51 @@ export async function getCustomerPredictionHistory(
     (prediction) =>
       prediction.status === "HIT",
   ).length;
+
+  const timeSlotEvaluated =
+    resolved.filter(
+      (prediction) =>
+        prediction.likelyWindowStartAt !==
+          null &&
+        prediction.likelyWindowEndAt !==
+          null,
+    );
+
+  const timeSlotHits =
+    timeSlotEvaluated.filter(
+      (prediction) =>
+        prediction.status === "HIT" &&
+        prediction.likelyWindowHit ===
+          true,
+    ).length;
+
+  const timeSlotMissDistances =
+    timeSlotEvaluated
+      .map(
+        (prediction) =>
+          prediction
+            .likelyWindowDistanceMinutes,
+      )
+      .filter(
+        (value): value is number =>
+          value !== null &&
+          value > 0,
+      );
+
+  const bookedTimeSlotEvaluated =
+    resolved.filter(
+      (prediction) =>
+        prediction.status === "HIT" &&
+        prediction.likelyWindowHit !==
+          null,
+    );
+
+  const bookedTimeSlotHits =
+    bookedTimeSlotEvaluated.filter(
+      (prediction) =>
+        prediction.likelyWindowHit ===
+          true,
+    ).length;
 
   return {
     predictions: predictions.map(
@@ -524,6 +627,43 @@ export async function getCustomerPredictionHistory(
                 hits /
                 resolved.length
               ).toFixed(1),
+            )
+          : null,
+      timeSlotEvaluated:
+        timeSlotEvaluated.length,
+      timeSlotHits,
+      timeSlotMissed:
+        timeSlotEvaluated.length -
+        timeSlotHits,
+      timeSlotHitRate:
+        timeSlotEvaluated.length > 0
+          ? Number(
+              (
+                100 *
+                timeSlotHits /
+                timeSlotEvaluated.length
+              ).toFixed(1),
+            )
+          : null,
+      timeSlotHitRateWhenBooked:
+        bookedTimeSlotEvaluated.length > 0
+          ? Number(
+              (
+                100 *
+                bookedTimeSlotHits /
+                bookedTimeSlotEvaluated.length
+              ).toFixed(1),
+            )
+          : null,
+      averageTimeSlotMissMinutes:
+        timeSlotMissDistances.length > 0
+          ? Math.round(
+              timeSlotMissDistances.reduce(
+                (total, value) =>
+                  total + value,
+                0,
+              ) /
+                timeSlotMissDistances.length,
             )
           : null,
     },

@@ -742,11 +742,14 @@ model CustomerBookingPrediction {
   evidenceConfidence Int
   calibrationSamples Int
 
-  status           String    @default("PENDING")
-  matchedBookingId String?
-  evaluatedAt      DateTime?
-  inputFingerprint String
-  activeKey        String?   @unique
+  status                      String    @default("PENDING")
+  matchedBookingId            String?
+  matchedBookingAt            DateTime?
+  likelyWindowHit             Boolean?
+  likelyWindowDistanceMinutes Int?
+  evaluatedAt                 DateTime?
+  inputFingerprint            String
+  activeKey                   String?   @unique
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt

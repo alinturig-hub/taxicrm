@@ -524,6 +524,10 @@ type ProfileResponse = {
         | "PENDING"
         | "HIT"
         | "MISSED";
+      matchedBookingAt: string | null;
+      likelyWindowHit: boolean | null;
+      likelyWindowDistanceMinutes:
+        number | null;
       evaluatedAt: string | null;
     }>;
     accuracy: {
@@ -531,6 +535,14 @@ type ProfileResponse = {
       hits: number;
       missed: number;
       hitRate: number | null;
+      timeSlotEvaluated: number;
+      timeSlotHits: number;
+      timeSlotMissed: number;
+      timeSlotHitRate: number | null;
+      timeSlotHitRateWhenBooked:
+        number | null;
+      averageTimeSlotMissMinutes:
+        number | null;
     };
   };
 
@@ -1535,6 +1547,22 @@ function PredictionTab({
                     ? "CORRECT"
                     : latestStoredPrediction.status}
                 </Badge>
+                {latestStoredPrediction.status ===
+                "HIT" ? (
+                  <Badge
+                    tone={
+                      latestStoredPrediction
+                        .likelyWindowHit
+                        ? "green"
+                        : "slate"
+                    }
+                  >
+                    {latestStoredPrediction
+                      .likelyWindowHit
+                      ? "TIME SLOT CORRECT"
+                      : "TIME SLOT MISSED"}
+                  </Badge>
+                ) : null}
                 <Badge tone="slate">
                   Score{" "}
                   {latestStoredPrediction.score}/100
@@ -1572,7 +1600,7 @@ function PredictionTab({
                 )}
               />
               <Metric
-                label="Observed hit rate"
+                label="24h hit rate"
                 value={
                   predictionHistory?.accuracy
                     .hitRate === null ||
@@ -1583,6 +1611,50 @@ function PredictionTab({
                         predictionHistory
                           .accuracy.hitRate
                       }%`
+                }
+              />
+              <Metric
+                label="3-hour slot accuracy"
+                value={
+                  predictionHistory?.accuracy
+                    .timeSlotHitRate === null ||
+                  predictionHistory?.accuracy
+                    .timeSlotHitRate ===
+                    undefined
+                    ? "Learning"
+                    : `${
+                        predictionHistory
+                          .accuracy
+                          .timeSlotHitRate
+                      }%`
+                }
+              />
+              <Metric
+                label="Slot correct"
+                value={String(
+                  predictionHistory?.accuracy
+                    .timeSlotHits ?? 0,
+                )}
+              />
+              <Metric
+                label="Average slot miss"
+                value={
+                  predictionHistory?.accuracy
+                    .averageTimeSlotMissMinutes ===
+                    null ||
+                  predictionHistory?.accuracy
+                    .averageTimeSlotMissMinutes ===
+                    undefined
+                    ? "Learning"
+                    : `${
+                        Math.round(
+                          predictionHistory
+                            .accuracy
+                            .averageTimeSlotMissMinutes /
+                            60 *
+                            10,
+                        ) / 10
+                      } hours`
                 }
               />
             </div>
