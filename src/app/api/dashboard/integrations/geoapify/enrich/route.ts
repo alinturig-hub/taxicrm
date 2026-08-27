@@ -185,9 +185,20 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
-  const session = await getServerSession(authOptions);
+  const suppliedCronSecret =
+    request.headers.get("x-cron-secret");
 
-  if (!session?.user) {
+  const cronAuthorized = Boolean(
+    process.env.CRON_SECRET &&
+      suppliedCronSecret ===
+        process.env.CRON_SECRET,
+  );
+
+  const session = cronAuthorized
+    ? null
+    : await getServerSession(authOptions);
+
+  if (!cronAuthorized && !session?.user) {
     return NextResponse.json(
       {
         success: false,
@@ -200,8 +211,9 @@ export async function POST(request: Request) {
   }
 
   if (
+    !cronAuthorized &&
     !(await canManageIntegration(
-      session.user.email,
+      session?.user?.email,
     ))
   ) {
     return NextResponse.json(
@@ -433,7 +445,7 @@ export async function POST(request: Request) {
     ).length;
 
     return NextResponse.json({
-      success: true,
+      success: failed === 0,
       requested: limit,
       selected: locations.length,
       processed: results.length,
@@ -445,7 +457,14 @@ export async function POST(request: Request) {
       stoppedAtDailyCreditCeiling,
       completed,
       failed,
-      results,
+      hasMore:
+        locations.length === limit &&
+        !stoppedAtDailyCreditCeiling,
+      containsPersonalData:
+        !cronAuthorized,
+      results: cronAuthorized
+        ? undefined
+        : results,
     });
   } catch (error) {
     console.error(
