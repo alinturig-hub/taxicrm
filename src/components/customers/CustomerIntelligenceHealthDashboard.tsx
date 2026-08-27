@@ -291,6 +291,13 @@ export default function CustomerIntelligenceHealthDashboard() {
     );
   }
 
+  const recentJobRuns =
+    Array.isArray(
+      health.recentJobRuns,
+    )
+      ? health.recentJobRuns
+      : [];
+
   const jobCards = [
     {
       title: "Booking predictions",
@@ -461,7 +468,7 @@ export default function CustomerIntelligenceHealthDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/70">
-              {health.recentJobRuns
+              {recentJobRuns
                 .slice(0, 12)
                 .map((run) => (
                   <tr key={run.id}>
@@ -522,7 +529,7 @@ export default function CustomerIntelligenceHealthDashboard() {
             </tbody>
           </table>
 
-          {health.recentJobRuns.length === 0 ? (
+          {recentJobRuns.length === 0 ? (
             <p className="py-8 text-center text-sm text-slate-500">
               No automated job executions have been
               recorded yet.
