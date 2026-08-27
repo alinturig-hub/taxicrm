@@ -74,9 +74,9 @@ const configurationModules = [
   {
     title: "System Health",
     description:
-      "Monitor application services, webhook processing and integration availability.",
+      "Monitor customer intelligence jobs, prediction accuracy, profile snapshots and Geoapify coverage.",
     href: "/dashboard/configuration/system-health",
-    status: "Planned",
+    status: "Active",
   },
 ];
 
