@@ -1,6 +1,10 @@
 import { createHash } from "node:crypto";
 
 import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
+import {
+  minutesBetween,
+  recordPredictionEvidence,
+} from "@/lib/customers/customer-prediction-evidence";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { prisma } from "@/lib/prisma";
 
@@ -83,6 +87,65 @@ function evaluateLikelyWindow(
   };
 }
 
+async function markPredictionsMissed(
+  predictions: Array<{
+    id: string;
+    windowEndAt: Date;
+  }>,
+  now: Date,
+) {
+  if (predictions.length === 0) {
+    return 0;
+  }
+
+  return prisma.$transaction(
+    async (tx) => {
+      let missed = 0;
+
+      for (const prediction of predictions) {
+        const updated =
+          await tx.customerBookingPrediction.updateMany({
+            where: {
+              id: prediction.id,
+              status: "PENDING",
+            },
+            data: {
+              status: "MISSED",
+              evaluatedAt: now,
+              activeKey: null,
+            },
+          });
+
+        if (updated.count !== 1) {
+          continue;
+        }
+
+        missed += 1;
+
+        await recordPredictionEvidence(
+          tx,
+          [
+            {
+              predictionId:
+                prediction.id,
+              eventType:
+                "HORIZON_24H_MISSED",
+              occurredAt:
+                prediction.windowEndAt,
+              source:
+                "SCHEDULED_EVALUATION",
+              outcome:
+                "MISSED",
+            },
+          ],
+        );
+      }
+
+      return missed;
+    },
+  );
+}
+
 async function resolvePredictionOutcomes(
   customerId: string,
   now: Date,
@@ -122,61 +185,129 @@ async function resolvePredictionOutcomes(
           },
           select: {
             id: true,
+            issuedAt: true,
             likelyWindowStartAt: true,
             likelyWindowEndAt: true,
           },
         });
 
       if (matchingPredictions.length > 0) {
+        const bookingAt =
+          triggerBooking.bookedAtTime;
+
         await prisma.$transaction(
-          matchingPredictions.map(
-            (prediction) => {
+          async (tx) => {
+            for (
+              const prediction
+              of matchingPredictions
+            ) {
               const timing =
                 evaluateLikelyWindow(
-                  triggerBooking.bookedAtTime!,
+                  bookingAt,
                   prediction
                     .likelyWindowStartAt,
                   prediction
                     .likelyWindowEndAt,
                 );
 
-              return prisma.customerBookingPrediction.updateMany({
-                where: {
-                  id: prediction.id,
-                  status: "PENDING",
-                },
-                data: {
-                  status: "HIT",
-                  matchedBookingId:
-                    triggerBooking.id,
-                  matchedBookingAt:
-                    triggerBooking.bookedAtTime,
-                  ...timing,
-                  evaluatedAt: now,
-                  activeKey: null,
-                },
-              });
-            },
-          ),
+              const updated =
+                await tx.customerBookingPrediction.updateMany({
+                  where: {
+                    id: prediction.id,
+                    status: "PENDING",
+                  },
+                  data: {
+                    status: "HIT",
+                    matchedBookingId:
+                      triggerBooking.id,
+                    matchedBookingAt:
+                      bookingAt,
+                    ...timing,
+                    evaluatedAt: now,
+                    activeKey: null,
+                  },
+                });
+
+              if (updated.count !== 1) {
+                continue;
+              }
+
+              const sharedEvidence = {
+                predictionId:
+                  prediction.id,
+                occurredAt:
+                  bookingAt,
+                source:
+                  "REAL_TIME" as const,
+                bookingId:
+                  triggerBooking.id,
+                minutesFromIssued:
+                  minutesBetween(
+                    prediction.issuedAt,
+                    bookingAt,
+                  ),
+              };
+
+              await recordPredictionEvidence(
+                tx,
+                [
+                  {
+                    ...sharedEvidence,
+                    eventType:
+                      "BOOKING_MATCHED",
+                    outcome:
+                      "BOOKING_OBSERVED",
+                  },
+                  {
+                    ...sharedEvidence,
+                    eventType:
+                      "HORIZON_24H_CONFIRMED",
+                    outcome:
+                      "HIT",
+                  },
+                  {
+                    ...sharedEvidence,
+                    eventType:
+                      timing.likelyWindowHit
+                        ? "TIME_SLOT_CONFIRMED"
+                        : "TIME_SLOT_MISSED",
+                    timeSlotDistanceMinutes:
+                      timing
+                        .likelyWindowDistanceMinutes,
+                    outcome:
+                      timing.likelyWindowHit
+                        ? "HIT"
+                        : "MISSED",
+                  },
+                ],
+              );
+            }
+          },
         );
       }
     }
   }
 
-  await prisma.customerBookingPrediction.updateMany({
-    where: {
-      normalCustomerId: customerId,
-      status: "PENDING",
-      windowEndAt: {
-        lt: now,
+  const expiredPredictions =
+    await prisma.customerBookingPrediction.findMany({
+      where: {
+        normalCustomerId:
+          customerId,
+        status: "PENDING",
+        windowEndAt: {
+          lt: now,
+        },
       },
-    },
-    data: {
-      status: "MISSED",
-      evaluatedAt: now,
-      activeKey: null,
-    },
-  });
+      select: {
+        id: true,
+        windowEndAt: true,
+      },
+    });
+
+  await markPredictionsMissed(
+    expiredPredictions,
+    now,
+  );
 }
 
 export async function refreshCustomerBookingPrediction(
@@ -327,73 +458,118 @@ export async function refreshCustomerBookingPrediction(
       PRIMARY_HORIZON_HOURS,
     ].join(":");
 
-    const existingActive =
-      await prisma.customerBookingPrediction.findUnique({
-        where: {
-          activeKey,
-        },
-      });
+    const predictionResult =
+      await prisma.$transaction(
+        async (tx) => {
+          const existingActive =
+            await tx.customerBookingPrediction.findUnique({
+              where: {
+                activeKey,
+              },
+            });
 
-    const prediction =
-      existingActive ??
-      await prisma.customerBookingPrediction.upsert({
-        where: {
-          activeKey,
-        },
-        create: {
-          normalCustomerId: customerId,
-          modelVersion:
-            MODEL_VERSION,
-          horizonHours:
-            PRIMARY_HORIZON_HOURS,
-          issuedAt: now,
-          windowStartAt:
-            new Date(primary.windowStartAt),
-          windowEndAt:
-            new Date(primary.windowEndAt),
-          likelyWindowStartAt:
-            likelyStartAt
-              ? new Date(likelyStartAt)
-              : null,
-          likelyWindowEndAt:
-            likelyEndAt
-              ? new Date(likelyEndAt)
-              : null,
-          score: primary.score,
-          level: primary.level,
-          observedRate:
-            primary.observedBenchmarkRate,
-          evidenceConfidence:
-            primary.evidenceConfidence,
-          calibrationSamples:
-            primary.calibrationSamples,
-          status: "PENDING",
-          inputFingerprint,
-          activeKey,
-        },
-        update: {},
-      });
+          const prediction =
+            existingActive ??
+            await tx.customerBookingPrediction.upsert({
+              where: {
+                activeKey,
+              },
+              create: {
+                normalCustomerId:
+                  customerId,
+                modelVersion:
+                  MODEL_VERSION,
+                horizonHours:
+                  PRIMARY_HORIZON_HOURS,
+                issuedAt: now,
+                windowStartAt:
+                  new Date(
+                    primary.windowStartAt,
+                  ),
+                windowEndAt:
+                  new Date(
+                    primary.windowEndAt,
+                  ),
+                likelyWindowStartAt:
+                  likelyStartAt
+                    ? new Date(
+                        likelyStartAt,
+                      )
+                    : null,
+                likelyWindowEndAt:
+                  likelyEndAt
+                    ? new Date(
+                        likelyEndAt,
+                      )
+                    : null,
+                score: primary.score,
+                level: primary.level,
+                observedRate:
+                  primary
+                    .observedBenchmarkRate,
+                evidenceConfidence:
+                  primary
+                    .evidenceConfidence,
+                calibrationSamples:
+                  primary
+                    .calibrationSamples,
+                status: "PENDING",
+                inputFingerprint,
+                activeKey,
+              },
+              update: {},
+            });
 
-    await prisma.customerIntelligenceState.update({
-      where: {
-        normalCustomerId: customerId,
-      },
-      data: {
-        status: "CURRENT",
-        inputFingerprint,
-        lastCalculatedAt: now,
-        nextRefreshAt:
-          prediction.windowEndAt,
-        lastError: null,
-        attemptCount: 0,
-      },
-    });
+          if (existingActive === null) {
+            await recordPredictionEvidence(
+              tx,
+              [
+                {
+                  predictionId:
+                    prediction.id,
+                  eventType:
+                    "PREDICTION_ISSUED",
+                  occurredAt:
+                    prediction.issuedAt,
+                  source:
+                    "REAL_TIME",
+                  outcome:
+                    prediction.level,
+                },
+              ],
+            );
+          }
+
+          await tx.customerIntelligenceState.update({
+            where: {
+              normalCustomerId:
+                customerId,
+            },
+            data: {
+              status: "CURRENT",
+              inputFingerprint,
+              lastCalculatedAt: now,
+              nextRefreshAt:
+                prediction.windowEndAt,
+              lastError: null,
+              attemptCount: 0,
+            },
+          });
+
+          return {
+            prediction,
+            created:
+              existingActive === null,
+          };
+        },
+      );
 
     return {
       status: "READY" as const,
       created:
-        existingActive === null,
-      prediction,
+        predictionResult.created,
+      prediction:
+        predictionResult.prediction,
     };
   } catch (error) {
     const message =
@@ -448,6 +624,7 @@ export async function evaluateExpiredBookingPredictions(
       select: {
         id: true,
         normalCustomerId: true,
+        windowEndAt: true,
       },
     });
 
@@ -459,23 +636,11 @@ export async function evaluateExpiredBookingPredictions(
     };
   }
 
-  const result =
-    await prisma.customerBookingPrediction.updateMany({
-      where: {
-        id: {
-          in: expired.map(
-            (prediction) =>
-              prediction.id,
-          ),
-        },
-        status: "PENDING",
-      },
-      data: {
-        status: "MISSED",
-        evaluatedAt: now,
-        activeKey: null,
-      },
-    });
+  const missed =
+    await markPredictionsMissed(
+      expired,
+      now,
+    );
 
   await prisma.customerIntelligenceState.updateMany({
     where: {
@@ -499,7 +664,7 @@ export async function evaluateExpiredBookingPredictions(
 
   return {
     evaluated: expired.length,
-    missed: result.count,
+    missed,
     hasMore:
       expired.length === safeLimit,
   };

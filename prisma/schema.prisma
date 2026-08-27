@@ -754,13 +754,39 @@ model CustomerBookingPrediction {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  customer NormalCustomer @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+  customer       NormalCustomer                    @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+  evidenceEvents CustomerPredictionEvidenceEvent[]
 
   @@unique([normalCustomerId, modelVersion, horizonHours, inputFingerprint])
   @@index([normalCustomerId, issuedAt])
   @@index([status, windowEndAt])
   @@index([matchedBookingId])
   @@index([modelVersion, horizonHours, status])
+}
+
+model CustomerPredictionEvidenceEvent {
+  id           String @id @default(cuid())
+  predictionId String
+  dedupeKey    String @unique
+  eventType    String
+  source       String @default("SYSTEM")
+
+  occurredAt DateTime
+  bookingId  String?
+
+  minutesFromIssued       Int?
+  timeSlotDistanceMinutes Int?
+  outcome                 String?
+  message                 String? @db.Text
+
+  createdAt DateTime @default(now())
+
+  prediction CustomerBookingPrediction @relation(fields: [predictionId], references: [id], onDelete: Cascade)
+
+  @@index([predictionId, occurredAt])
+  @@index([eventType, occurredAt])
+  @@index([bookingId])
+  @@index([occurredAt])
 }
 
 model CustomerIntelligenceState {
