@@ -2,7 +2,10 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
-import { enrichBookingLocation } from "@/lib/places/geoapify-place-enrichment";
+import {
+  enrichBookingLocation,
+  getGeoapifyDailyUsage,
+} from "@/lib/places/geoapify-place-enrichment";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -218,12 +221,32 @@ export async function POST(request: Request) {
     )) as {
       limit?: unknown;
       bookingId?: unknown;
+      scope?: unknown;
+      dailyCreditCeiling?: unknown;
     };
 
     const bookingId =
       typeof body.bookingId === "string"
         ? body.bookingId.trim()
         : "";
+
+    const historicalOnly =
+      body.scope === "HISTORICAL";
+
+    const dailyCreditCeiling =
+      typeof body.dailyCreditCeiling ===
+        "number" &&
+      Number.isInteger(
+        body.dailyCreditCeiling,
+      )
+        ? Math.min(
+            Math.max(
+              body.dailyCreditCeiling,
+              1,
+            ),
+            3000,
+          )
+        : null;
 
     const requestedLimit =
       typeof body.limit === "number" &&
@@ -243,7 +266,23 @@ export async function POST(request: Request) {
             ? {
                 externalId: bookingId,
               }
-            : undefined,
+            : historicalOnly
+              ? {
+                  OR: [
+                    {
+                      pickupDueTime: {
+                        lte: new Date(),
+                      },
+                    },
+                    {
+                      pickupDueTime: null,
+                      bookedAtTime: {
+                        lte: new Date(),
+                      },
+                    },
+                  ],
+                }
+              : undefined,
           latitude: {
             not: null,
           },
@@ -276,16 +315,27 @@ export async function POST(request: Request) {
             },
           ],
         },
-        orderBy: [
-          {
-            booking: {
-              pickupDueTime: "desc",
-            },
-          },
-          {
-            updatedAt: "desc",
-          },
-        ],
+        orderBy: historicalOnly
+          ? [
+              {
+                booking: {
+                  pickupDueTime: "asc",
+                },
+              },
+              {
+                updatedAt: "asc",
+              },
+            ]
+          : [
+              {
+                booking: {
+                  pickupDueTime: "desc",
+                },
+              },
+              {
+                updatedAt: "desc",
+              },
+            ],
         take: bookingId
           ? Math.min(limit, 10)
           : limit,
@@ -310,7 +360,26 @@ export async function POST(request: Request) {
       error?: string;
     }> = [];
 
+    let stoppedAtDailyCreditCeiling =
+      false;
+
     for (const location of locations) {
+      if (
+        dailyCreditCeiling !== null
+      ) {
+        const usage =
+          await getGeoapifyDailyUsage();
+
+        if (
+          usage.dailyUsed >=
+          dailyCreditCeiling
+        ) {
+          stoppedAtDailyCreditCeiling =
+            true;
+          break;
+        }
+      }
+
       try {
         const place =
           await enrichBookingLocation(
@@ -367,6 +436,13 @@ export async function POST(request: Request) {
       success: true,
       requested: limit,
       selected: locations.length,
+      processed: results.length,
+      scope:
+        historicalOnly
+          ? "HISTORICAL"
+          : "ALL",
+      dailyCreditCeiling,
+      stoppedAtDailyCreditCeiling,
       completed,
       failed,
       results,

@@ -440,6 +440,46 @@ async function reserveDailyCredit() {
   }
 }
 
+export async function getGeoapifyDailyUsage() {
+  const now = new Date();
+
+  const configuration =
+    await prisma.geoapifyApiConfiguration.findUnique({
+      where: {
+        provider: PROVIDER,
+      },
+      select: {
+        isEnabled: true,
+        dailyLimit: true,
+        dailyUsed: true,
+        usageDate: true,
+      },
+    });
+
+  if (!configuration) {
+    throw new Error(
+      "Geoapify configuration was not found.",
+    );
+  }
+
+  const isToday =
+    configuration.usageDate !== null &&
+    londonDateKey(
+      configuration.usageDate,
+    ) === londonDateKey(now);
+
+  return {
+    isEnabled:
+      configuration.isEnabled,
+    dailyLimit:
+      configuration.dailyLimit,
+    dailyUsed:
+      isToday
+        ? configuration.dailyUsed
+        : 0,
+  };
+}
+
 async function connectLocation(
   bookingLocationId: string,
   placeIntelligenceId: string,
