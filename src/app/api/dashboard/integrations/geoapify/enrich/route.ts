@@ -3,6 +3,13 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import {
+  completeCustomerIntelligenceJobRun,
+  CUSTOMER_INTELLIGENCE_JOBS,
+  failCustomerIntelligenceJobRun,
+  startCustomerIntelligenceJobRun,
+  type CustomerIntelligenceJobRun,
+} from "@/lib/customers/customer-intelligence-job-runs";
+import {
   enrichBookingLocation,
   getGeoapifyDailyUsage,
 } from "@/lib/places/geoapify-place-enrichment";
@@ -227,6 +234,10 @@ export async function POST(request: Request) {
     );
   }
 
+  let jobRun:
+    CustomerIntelligenceJobRun | null =
+      null;
+
   try {
     const body = (await request.json().catch(
       () => ({}),
@@ -244,6 +255,17 @@ export async function POST(request: Request) {
 
     const historicalOnly =
       body.scope === "HISTORICAL";
+
+    if (
+      cronAuthorized &&
+      historicalOnly
+    ) {
+      jobRun =
+        await startCustomerIntelligenceJobRun(
+          CUSTOMER_INTELLIGENCE_JOBS
+            .HISTORICAL_GEOAPIFY,
+        );
+    }
 
     const dailyCreditCeiling =
       typeof body.dailyCreditCeiling ===
@@ -444,6 +466,27 @@ export async function POST(request: Request) {
         result.status === "FAILED",
     ).length;
 
+    const hasMore =
+      locations.length === limit &&
+      !stoppedAtDailyCreditCeiling;
+
+    if (jobRun) {
+      await completeCustomerIntelligenceJobRun(
+        jobRun,
+        {
+          selected: locations.length,
+          processed: results.length,
+          succeeded: completed,
+          failed,
+          hasMore,
+          message:
+            stoppedAtDailyCreditCeiling
+              ? "Historical place enrichment stopped at the daily credit ceiling."
+              : "Historical place enrichment batch completed.",
+        },
+      );
+    }
+
     return NextResponse.json({
       success: failed === 0,
       requested: limit,
@@ -457,9 +500,7 @@ export async function POST(request: Request) {
       stoppedAtDailyCreditCeiling,
       completed,
       failed,
-      hasMore:
-        locations.length === limit &&
-        !stoppedAtDailyCreditCeiling,
+      hasMore,
       containsPersonalData:
         !cronAuthorized,
       results: cronAuthorized
@@ -467,6 +508,13 @@ export async function POST(request: Request) {
         : results,
     });
   } catch (error) {
+    if (jobRun) {
+      await failCustomerIntelligenceJobRun(
+        jobRun,
+        error,
+      );
+    }
+
     console.error(
       "Geoapify enrichment batch failed:",
       error,

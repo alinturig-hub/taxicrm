@@ -4,6 +4,12 @@ import {
 } from "next/server";
 
 import { runCustomerPredictionMaintenance } from "@/lib/customers/customer-booking-predictions";
+import {
+  completeCustomerIntelligenceJobRun,
+  CUSTOMER_INTELLIGENCE_JOBS,
+  failCustomerIntelligenceJobRun,
+  startCustomerIntelligenceJobRun,
+} from "@/lib/customers/customer-intelligence-job-runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +38,12 @@ export async function POST(
     );
   }
 
+  const jobRun =
+    await startCustomerIntelligenceJobRun(
+      CUSTOMER_INTELLIGENCE_JOBS
+        .BOOKING_PREDICTIONS,
+    );
+
   try {
     const body =
       (await request.json().catch(
@@ -53,8 +65,27 @@ export async function POST(
         minimumBookings: 5,
       });
 
+    await completeCustomerIntelligenceJobRun(
+      jobRun,
+      {
+        selected: result.selected,
+        processed:
+          result.refreshed +
+          result.failed,
+        succeeded: result.refreshed,
+        failed: result.failed,
+        hasMore: result.hasMore,
+        message:
+          "Customer booking prediction maintenance completed.",
+      },
+    );
+
     return NextResponse.json(result);
   } catch (error) {
+    await failCustomerIntelligenceJobRun(
+      jobRun,
+      error,
+    );
     console.error(
       "Customer prediction maintenance failed:",
       error,

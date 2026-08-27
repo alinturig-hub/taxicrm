@@ -4,6 +4,12 @@ import {
 } from "next/server";
 
 import { generateDailyProfileSnapshots } from "@/lib/customers/generate-daily-profile-snapshots";
+import {
+  completeCustomerIntelligenceJobRun,
+  CUSTOMER_INTELLIGENCE_JOBS,
+  failCustomerIntelligenceJobRun,
+  startCustomerIntelligenceJobRun,
+} from "@/lib/customers/customer-intelligence-job-runs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +38,12 @@ export async function POST(
     );
   }
 
+  const jobRun =
+    await startCustomerIntelligenceJobRun(
+      CUSTOMER_INTELLIGENCE_JOBS
+        .PROFILE_SNAPSHOTS,
+    );
+
   try {
     const body = (await request.json().catch(
       () => ({}),
@@ -52,8 +64,27 @@ export async function POST(
         minimumBookings: 5,
       });
 
+    await completeCustomerIntelligenceJobRun(
+      jobRun,
+      {
+        selected: result.selected,
+        processed:
+          result.saved +
+          result.failed,
+        succeeded: result.saved,
+        failed: result.failed,
+        hasMore: result.hasMore,
+        message:
+          "Daily customer profile snapshot batch completed.",
+      },
+    );
+
     return NextResponse.json(result);
   } catch (error) {
+    await failCustomerIntelligenceJobRun(
+      jobRun,
+      error,
+    );
     console.error(
       "Daily customer snapshot batch failed:",
       error,
