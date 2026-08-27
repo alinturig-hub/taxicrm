@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { CUSTOMER_INTELLIGENCE_JOBS } from "@/lib/customers/customer-intelligence-job-runs";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -109,6 +110,7 @@ export async function GET() {
       readyHistoricalLocations,
       protectedHistoricalLocations,
       geoapify,
+      recentJobRuns,
     ] = await Promise.all([
       prisma.customerIntelligenceState.groupBy({
         by: ["status"],
@@ -241,7 +243,68 @@ export async function GET() {
           lastError: true,
         },
       }),
+
+      prisma.customerIntelligenceJobRun.findMany({
+        where: {
+          jobKey: {
+            in: Object.values(
+              CUSTOMER_INTELLIGENCE_JOBS,
+            ),
+          },
+        },
+        orderBy: {
+          startedAt: "desc",
+        },
+        take: 30,
+        select: {
+          id: true,
+          jobKey: true,
+          status: true,
+          source: true,
+          startedAt: true,
+          finishedAt: true,
+          durationMs: true,
+          selected: true,
+          processed: true,
+          succeeded: true,
+          failed: true,
+          hasMore: true,
+          message: true,
+          error: true,
+        },
+      }),
     ]);
+
+    const latestRunByJob =
+      new Map(
+        Object.values(
+          CUSTOMER_INTELLIGENCE_JOBS,
+        ).map((jobKey) => [
+          jobKey,
+          recentJobRuns.find(
+            (run) =>
+              run.jobKey === jobKey,
+          ) ?? null,
+        ]),
+      );
+
+    const predictionRun =
+      latestRunByJob.get(
+        CUSTOMER_INTELLIGENCE_JOBS
+          .BOOKING_PREDICTIONS,
+      ) ?? null;
+
+    const snapshotRun =
+      latestRunByJob.get(
+        CUSTOMER_INTELLIGENCE_JOBS
+          .PROFILE_SNAPSHOTS,
+      ) ?? null;
+
+    const geoapifyRun =
+      latestRunByJob.get(
+        CUSTOMER_INTELLIGENCE_JOBS
+          .HISTORICAL_GEOAPIFY,
+      ) ?? null;
 
     const stateCounts =
       Object.fromEntries(
@@ -363,10 +426,66 @@ export async function GET() {
             ? "CRITICAL"
             : "HEALTHY";
 
+    const predictionJobHealth =
+      predictionRun?.status === "FAILED"
+        ? "CRITICAL"
+        : predictionRun?.status ===
+              "RUNNING" &&
+            now.getTime() -
+              predictionRun.startedAt.getTime() >
+              PREDICTION_STALE_MINUTES *
+                60 *
+                1000
+          ? "CRITICAL"
+          : predictionRun &&
+              now.getTime() -
+                predictionRun.startedAt.getTime() <=
+                PREDICTION_STALE_MINUTES *
+                  60 *
+                  1000
+            ? predictionHealth
+            : "WARNING";
+
+    const snapshotRunIsToday = Boolean(
+      snapshotRun &&
+        londonDateKey(
+          snapshotRun.startedAt,
+        ) === todayKey,
+    );
+
+    const snapshotJobHealth =
+      snapshotRunIsToday &&
+      snapshotRun?.status === "FAILED"
+        ? "CRITICAL"
+        : snapshotRunIsToday &&
+            snapshotRun?.status ===
+              "SUCCEEDED"
+          ? snapshotHealth
+          : snapshotExpected
+            ? "WARNING"
+            : "WAITING";
+
+    const geoapifyRunIsToday = Boolean(
+      geoapifyRun &&
+        londonDateKey(
+          geoapifyRun.startedAt,
+        ) === todayKey,
+    );
+
+    const geoapifyJobHealth =
+      geoapifyRunIsToday &&
+      geoapifyRun?.status === "FAILED"
+        ? "CRITICAL"
+        : geoapifyRunIsToday &&
+            geoapifyRun?.status ===
+              "RUNNING"
+          ? "WARNING"
+          : geoHealth;
+
     const healthLevels = [
-      predictionHealth,
-      snapshotHealth,
-      geoHealth,
+      predictionJobHealth,
+      snapshotJobHealth,
+      geoapifyJobHealth,
     ];
 
     const overallStatus =
@@ -383,7 +502,8 @@ export async function GET() {
       overallStatus,
       jobs: {
         predictions: {
-          status: predictionHealth,
+          status: predictionJobHealth,
+          lastRun: predictionRun,
           lastCalculatedAt:
             latestCalculation,
           minutesSinceActivity:
@@ -394,7 +514,8 @@ export async function GET() {
             predictionFailed,
         },
         snapshots: {
-          status: snapshotHealth,
+          status: snapshotJobHealth,
+          lastRun: snapshotRun,
           latestGeneratedAt:
             latestSnapshot._max
               .generatedAt,
@@ -405,7 +526,8 @@ export async function GET() {
           expectedAfterLondonHour: 4,
         },
         geoapify: {
-          status: geoHealth,
+          status: geoapifyJobHealth,
+          lastRun: geoapifyRun,
           lastSuccessfulLookupAt:
             geoapify
               ?.lastSuccessfulLookupAt ??

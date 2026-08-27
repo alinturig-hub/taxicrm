@@ -12,6 +12,23 @@ type HealthLevel =
   | "CRITICAL"
   | "WAITING";
 
+type JobRun = {
+  id: string;
+  jobKey: string;
+  status: string;
+  source: string;
+  startedAt: string;
+  finishedAt: string | null;
+  durationMs: number | null;
+  selected: number;
+  processed: number;
+  succeeded: number;
+  failed: number;
+  hasMore: boolean | null;
+  message: string | null;
+  error: string | null;
+};
+
 type HealthResponse = {
   success: boolean;
   containsPersonalData: boolean;
@@ -20,6 +37,7 @@ type HealthResponse = {
   jobs: {
     predictions: {
       status: HealthLevel;
+      lastRun: JobRun | null;
       lastCalculatedAt: string | null;
       minutesSinceActivity: number | null;
       staleAfterMinutes: number;
@@ -27,6 +45,7 @@ type HealthResponse = {
     };
     snapshots: {
       status: HealthLevel;
+      lastRun: JobRun | null;
       latestGeneratedAt: string | null;
       completedToday: number;
       eligibleActiveCustomers: number;
@@ -34,11 +53,13 @@ type HealthResponse = {
     };
     geoapify: {
       status: HealthLevel;
+      lastRun: JobRun | null;
       lastSuccessfulLookupAt: string | null;
       lastError: string | null;
       enabled: boolean;
     };
   };
+  recentJobRuns: JobRun[];
   intelligenceStates: {
     dirty: number;
     current: number;
@@ -100,6 +121,63 @@ function formatPercent(
   return value === null
     ? "Learning"
     : `${value.toFixed(1)}%`;
+}
+
+function formatDuration(
+  value: number | null,
+) {
+  if (value === null) {
+    return "Running";
+  }
+
+  if (value < 1000) {
+    return `${value} ms`;
+  }
+
+  if (value < 60_000) {
+    return `${(value / 1000).toFixed(1)} sec`;
+  }
+
+  return `${(value / 60_000).toFixed(1)} min`;
+}
+
+function jobLabel(jobKey: string) {
+  if (
+    jobKey ===
+    "CUSTOMER_BOOKING_PREDICTIONS"
+  ) {
+    return "Booking predictions";
+  }
+
+  if (
+    jobKey ===
+    "CUSTOMER_PROFILE_SNAPSHOTS"
+  ) {
+    return "Profile snapshots";
+  }
+
+  if (
+    jobKey ===
+    "HISTORICAL_GEOAPIFY_BACKFILL"
+  ) {
+    return "Historical Geoapify";
+  }
+
+  return jobKey;
+}
+
+function jobStatusLevel(
+  status: string,
+): HealthLevel {
+  if (status === "SUCCEEDED") {
+    return "HEALTHY";
+  }
+
+  if (status === "FAILED") {
+    return "CRITICAL";
+  }
+
+  return "WAITING";
 }
 
 function statusClasses(
@@ -341,6 +419,116 @@ export default function CustomerIntelligenceHealthDashboard() {
             </p>
           </article>
         ))}
+      </section>
+
+      <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+            Execution ledger
+          </p>
+          <h2 className="mt-2 text-xl font-bold text-white">
+            Recent automated jobs
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            Exact execution status, duration and
+            aggregate processing totals. Errors are
+            redacted before storage.
+          </p>
+        </div>
+
+        <div className="mt-6 overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-800 text-left text-sm">
+            <thead>
+              <tr className="text-xs uppercase tracking-[0.12em] text-slate-500">
+                <th className="px-3 py-3 font-semibold">
+                  Job
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Status
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Started
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Duration
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Processed
+                </th>
+                <th className="px-3 py-3 font-semibold">
+                  Result
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-800/70">
+              {health.recentJobRuns
+                .slice(0, 12)
+                .map((run) => (
+                  <tr key={run.id}>
+                    <td className="whitespace-nowrap px-3 py-4">
+                      <p className="font-semibold text-white">
+                        {jobLabel(run.jobKey)}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {run.source}
+                      </p>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4">
+                      <span
+                        className={`rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(
+                          jobStatusLevel(
+                            run.status,
+                          ),
+                        )}`}
+                      >
+                        {run.status}
+                      </span>
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-slate-300">
+                      {formatDate(
+                        run.startedAt,
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-slate-300">
+                      {formatDuration(
+                        run.durationMs,
+                      )}
+                    </td>
+                    <td className="whitespace-nowrap px-3 py-4 text-slate-300">
+                      {run.processed} /{" "}
+                      {run.selected}
+                    </td>
+                    <td className="min-w-[220px] px-3 py-4">
+                      <p className="text-emerald-300">
+                        {run.succeeded} succeeded
+                      </p>
+                      <p
+                        className={
+                          run.failed > 0
+                            ? "mt-1 text-rose-300"
+                            : "mt-1 text-slate-500"
+                        }
+                      >
+                        {run.failed} failed
+                      </p>
+                      {run.error ? (
+                        <p className="mt-2 text-xs text-rose-300/80">
+                          {run.error}
+                        </p>
+                      ) : null}
+                    </td>
+                  </tr>
+                ))}
+            </tbody>
+          </table>
+
+          {health.recentJobRuns.length === 0 ? (
+            <p className="py-8 text-center text-sm text-slate-500">
+              No automated job executions have been
+              recorded yet.
+            </p>
+          ) : null}
+        </div>
       </section>
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
