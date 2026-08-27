@@ -538,6 +538,7 @@ export async function GET() {
             geoapify?.isEnabled ?? false,
         },
       },
+      recentJobRuns,
       intelligenceStates: {
         dirty: stateCounts.DIRTY ?? 0,
         current: stateCounts.CURRENT ?? 0,
