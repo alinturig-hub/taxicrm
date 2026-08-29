@@ -43,6 +43,38 @@ type HealthResponse = {
       staleAfterMinutes: number;
       failedProfiles: number;
     };
+    demandForecast: {
+      status: HealthLevel;
+      lastRun: JobRun | null;
+      minutesSinceRun: number | null;
+      staleAfterMinutes: number;
+      active: {
+        id: string;
+        issuedAt: string;
+        windowStartAt: string;
+        windowEndAt: string;
+        predictedCount: number;
+        lowerBound: number;
+        upperBound: number;
+        observedSoFar: number;
+        calibrationDays: number;
+        backtestMape: number;
+        slotTotal: number;
+        slotTotalsMatch: boolean;
+      } | null;
+      rangeEvidence: {
+        historical: {
+          evaluated: number;
+          insideRange: number;
+          coverageRate: number | null;
+        };
+        live: {
+          evaluated: number;
+          insideRange: number;
+          coverageRate: number | null;
+        };
+      };
+    };
     snapshots: {
       status: HealthLevel;
       lastRun: JobRun | null;
@@ -147,6 +179,13 @@ function jobLabel(jobKey: string) {
     "CUSTOMER_BOOKING_PREDICTIONS"
   ) {
     return "Booking predictions";
+  }
+
+  if (
+    jobKey ===
+    "BOOKING_DEMAND_FORECAST"
+  ) {
+    return "Booking demand forecast";
   }
 
   if (
@@ -315,6 +354,22 @@ export default function CustomerIntelligenceHealthDashboard() {
           .lastCalculatedAt,
     },
     {
+      title: "Booking demand forecast",
+      status:
+        health.jobs.demandForecast.status,
+      primary:
+        health.jobs.demandForecast.active
+          ? `${health.jobs.demandForecast.active.predictedCount} expected`
+          : "No active forecast",
+      secondary:
+        health.jobs.demandForecast.active
+          ? `${health.jobs.demandForecast.active.lowerBound}–${health.jobs.demandForecast.active.upperBound} expected range`
+          : "A current 24-hour forecast is required",
+      lastActivity:
+        health.jobs.demandForecast.lastRun
+          ?.startedAt ?? null,
+    },
+    {
       title: "Daily snapshots",
       status:
         health.jobs.snapshots.status,
@@ -396,7 +451,7 @@ export default function CustomerIntelligenceHealthDashboard() {
         ) : null}
       </section>
 
-      <section className="grid gap-4 lg:grid-cols-3">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {jobCards.map((job) => (
           <article
             key={job.title}
@@ -426,6 +481,159 @@ export default function CustomerIntelligenceHealthDashboard() {
             </p>
           </article>
         ))}
+      </section>
+
+      <section className="rounded-2xl border border-blue-500/20 bg-slate-900 p-6">
+        <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-blue-400">
+              Booking demand evidence
+            </p>
+            <h2 className="mt-2 text-xl font-bold text-white">
+              Realistic 24-hour volume forecast
+            </h2>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              One forecast for unique booking requests.
+              Individual customer signals are not added
+              together. Range coverage is measured from
+              completed forecasts.
+            </p>
+          </div>
+          <span
+            className={`w-fit rounded-full border px-3 py-1 text-xs font-semibold ${statusClasses(
+              health.jobs.demandForecast.status,
+            )}`}
+          >
+            {health.jobs.demandForecast.status}
+          </span>
+        </div>
+
+        {health.jobs.demandForecast.active ? (
+          <>
+            <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard
+                label="Central estimate"
+                value={String(
+                  health.jobs.demandForecast
+                    .active.predictedCount,
+                )}
+                detail="Unique booking requests expected"
+              />
+              <MetricCard
+                label="Expected range"
+                value={`${health.jobs.demandForecast.active.lowerBound}–${health.jobs.demandForecast.active.upperBound}`}
+                detail="Supported by measured historical errors"
+              />
+              <MetricCard
+                label="Observed so far"
+                value={String(
+                  health.jobs.demandForecast
+                    .active.observedSoFar,
+                )}
+                detail={`Window ends ${formatDate(
+                  health.jobs.demandForecast
+                    .active.windowEndAt,
+                )}`}
+              />
+              <MetricCard
+                label="Backtest error"
+                value={formatPercent(
+                  health.jobs.demandForecast
+                    .active.backtestMape,
+                )}
+                detail={`${health.jobs.demandForecast.active.calibrationDays} complete calibration days`}
+              />
+            </div>
+
+            <div className="mt-4 grid gap-4 md:grid-cols-2">
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Historical range coverage
+                </p>
+                <p className="mt-3 text-2xl font-bold text-white">
+                  {formatPercent(
+                    health.jobs.demandForecast
+                      .rangeEvidence.historical
+                      .coverageRate,
+                  )}
+                </p>
+                <p className="mt-2 text-sm text-slate-400">
+                  {
+                    health.jobs.demandForecast
+                      .rangeEvidence.historical
+                      .insideRange
+                  }{" "}
+                  of{" "}
+                  {
+                    health.jobs.demandForecast
+                      .rangeEvidence.historical
+                      .evaluated
+                  }{" "}
+                  completed backtests finished inside
+                  their stated range.
+                </p>
+              </div>
+
+              <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-5">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                  Live verified range coverage
+                </p>
+                <p className="mt-3 text-2xl font-bold text-white">
+                  {formatPercent(
+                    health.jobs.demandForecast
+                      .rangeEvidence.live
+                      .coverageRate,
+                  )}
+                </p>
+                <p className="mt-2 text-sm text-slate-400">
+                  {
+                    health.jobs.demandForecast
+                      .rangeEvidence.live
+                      .insideRange
+                  }{" "}
+                  of{" "}
+                  {
+                    health.jobs.demandForecast
+                      .rangeEvidence.live
+                      .evaluated
+                  }{" "}
+                  completed live forecasts finished
+                  inside their stated range.
+                </p>
+              </div>
+            </div>
+
+            <div
+              className={`mt-4 rounded-xl border px-4 py-3 text-sm ${
+                health.jobs.demandForecast
+                  .active.slotTotalsMatch
+                  ? "border-emerald-500/20 bg-emerald-500/5 text-emerald-200"
+                  : "border-rose-500/30 bg-rose-500/10 text-rose-200"
+              }`}
+            >
+              {health.jobs.demandForecast
+                .active.slotTotalsMatch
+                ? `Verified: all three-hour slots total ${health.jobs.demandForecast.active.slotTotal}, matching the central forecast.`
+                : "Forecast integrity warning: interval totals do not match the central estimate."}
+            </div>
+          </>
+        ) : (
+          <div className="mt-6 rounded-xl border border-rose-500/30 bg-rose-500/10 p-5 text-sm text-rose-200">
+            No active booking-demand forecast exists.
+          </div>
+        )}
+
+        <p className="mt-4 text-xs leading-5 text-slate-500">
+          The range is not a guarantee. Historical and
+          live coverage are shown separately so an early
+          model cannot present backtesting as live proof.
+          Job health becomes late after{" "}
+          {
+            health.jobs.demandForecast
+              .staleAfterMinutes
+          }{" "}
+          minutes without a run.
+        </p>
       </section>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-6">

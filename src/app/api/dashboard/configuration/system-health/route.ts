@@ -12,6 +12,9 @@ export const revalidate = 0;
 const MODEL_VERSION = "HAZARD_SLOT_V1";
 const HORIZON_HOURS = 24;
 const PREDICTION_STALE_MINUTES = 30;
+const DEMAND_FORECAST_STALE_MINUTES = 210;
+const DEMAND_MODEL_VERSION =
+  "BOOKING_DEMAND_V1";
 const GEOAPIFY_BACKFILL_CEILING = 2000;
 
 function percentage(
@@ -275,6 +278,156 @@ export async function GET() {
       }),
     ]);
 
+    const [
+      activeDemandForecast,
+      evaluatedDemandForecasts,
+    ] = await Promise.all([
+      prisma.bookingDemandForecast.findFirst({
+        where: {
+          modelVersion:
+            DEMAND_MODEL_VERSION,
+          targetType:
+            "BOOKING_REQUESTS",
+          status: "PENDING",
+          windowEndAt: {
+            gt: now,
+          },
+          forecastKey: {
+            not: {
+              contains:
+                "HISTORICAL_BACKTEST",
+            },
+          },
+        },
+        orderBy: {
+          issuedAt: "desc",
+        },
+        select: {
+          id: true,
+          issuedAt: true,
+          windowStartAt: true,
+          windowEndAt: true,
+          predictedCount: true,
+          lowerBound: true,
+          upperBound: true,
+          calibrationDays: true,
+          backtestMape: true,
+          slotForecasts: true,
+        },
+      }),
+
+      prisma.bookingDemandForecast.findMany({
+        where: {
+          modelVersion:
+            DEMAND_MODEL_VERSION,
+          status: {
+            not: "PENDING",
+          },
+          actualCount: {
+            not: null,
+          },
+        },
+        select: {
+          forecastKey: true,
+          lowerBound: true,
+          upperBound: true,
+          actualCount: true,
+        },
+      }),
+    ]);
+
+    const observedDemandSoFar =
+      activeDemandForecast
+        ? await prisma.booking.count({
+            where: {
+              bookedAtTime: {
+                gte:
+                  activeDemandForecast
+                    .windowStartAt,
+                lte: new Date(
+                  Math.min(
+                    now.getTime(),
+                    activeDemandForecast
+                      .windowEndAt
+                      .getTime(),
+                  ),
+                ),
+              },
+            },
+          })
+        : 0;
+
+    const historicalDemandResults =
+      evaluatedDemandForecasts.filter(
+        (forecast) =>
+          forecast.forecastKey.includes(
+            "HISTORICAL_BACKTEST",
+          ),
+      );
+
+    const liveDemandResults =
+      evaluatedDemandForecasts.filter(
+        (forecast) =>
+          !forecast.forecastKey.includes(
+            "HISTORICAL_BACKTEST",
+          ),
+      );
+
+    const insideDemandRange = (
+      forecast: {
+        lowerBound: number;
+        upperBound: number;
+        actualCount: number | null;
+      },
+    ) =>
+      forecast.actualCount !== null &&
+      forecast.actualCount >=
+        forecast.lowerBound &&
+      forecast.actualCount <=
+        forecast.upperBound;
+
+    const historicalRangeHits =
+      historicalDemandResults.filter(
+        insideDemandRange,
+      ).length;
+
+    const liveRangeHits =
+      liveDemandResults.filter(
+        insideDemandRange,
+      ).length;
+
+    const demandSlots =
+      activeDemandForecast &&
+      Array.isArray(
+        activeDemandForecast.slotForecasts,
+      )
+        ? activeDemandForecast
+            .slotForecasts as Array<{
+              predictedCount?: unknown;
+            }>
+        : [];
+
+    const demandSlotTotal =
+      demandSlots.reduce(
+        (total, slot) => {
+          const value = Number(
+            slot.predictedCount,
+          );
+
+          return total +
+            (Number.isFinite(value)
+              ? value
+              : 0);
+        },
+        0,
+      );
+
+    const demandSlotTotalsMatch =
+      activeDemandForecast === null ||
+      demandSlotTotal ===
+        activeDemandForecast
+          .predictedCount;
+
     const latestRunByJob =
       new Map(
         Object.values(
@@ -292,6 +445,12 @@ export async function GET() {
       latestRunByJob.get(
         CUSTOMER_INTELLIGENCE_JOBS
           .BOOKING_PREDICTIONS,
+      ) ?? null;
+
+    const demandForecastRun =
+      latestRunByJob.get(
+        CUSTOMER_INTELLIGENCE_JOBS
+          .BOOKING_DEMAND_FORECAST,
       ) ?? null;
 
     const snapshotRun =
@@ -446,6 +605,40 @@ export async function GET() {
             ? predictionHealth
             : "WARNING";
 
+    const demandForecastMinutesSinceRun =
+      demandForecastRun
+        ? Math.round(
+            (
+              now.getTime() -
+              demandForecastRun
+                .startedAt
+                .getTime()
+            ) /
+              60000,
+          )
+        : null;
+
+    const demandForecastJobHealth =
+      demandForecastRun?.status ===
+        "FAILED"
+        ? "CRITICAL"
+        : demandForecastRun?.status ===
+              "RUNNING" &&
+            demandForecastMinutesSinceRun !==
+              null &&
+            demandForecastMinutesSinceRun >
+              DEMAND_FORECAST_STALE_MINUTES
+          ? "CRITICAL"
+          : !activeDemandForecast ||
+              !demandSlotTotalsMatch
+            ? "CRITICAL"
+            : demandForecastMinutesSinceRun ===
+                  null ||
+                demandForecastMinutesSinceRun >
+                  DEMAND_FORECAST_STALE_MINUTES
+              ? "WARNING"
+              : "HEALTHY";
+
     const snapshotRunIsToday = Boolean(
       snapshotRun &&
         londonDateKey(
@@ -484,6 +677,7 @@ export async function GET() {
 
     const healthLevels = [
       predictionJobHealth,
+      demandForecastJobHealth,
       snapshotJobHealth,
       geoapifyJobHealth,
     ];
@@ -512,6 +706,81 @@ export async function GET() {
             PREDICTION_STALE_MINUTES,
           failedProfiles:
             predictionFailed,
+        },
+        demandForecast: {
+          status:
+            demandForecastJobHealth,
+          lastRun:
+            demandForecastRun,
+          minutesSinceRun:
+            demandForecastMinutesSinceRun,
+          staleAfterMinutes:
+            DEMAND_FORECAST_STALE_MINUTES,
+          active:
+            activeDemandForecast
+              ? {
+                  id:
+                    activeDemandForecast.id,
+                  issuedAt:
+                    activeDemandForecast
+                      .issuedAt,
+                  windowStartAt:
+                    activeDemandForecast
+                      .windowStartAt,
+                  windowEndAt:
+                    activeDemandForecast
+                      .windowEndAt,
+                  predictedCount:
+                    activeDemandForecast
+                      .predictedCount,
+                  lowerBound:
+                    activeDemandForecast
+                      .lowerBound,
+                  upperBound:
+                    activeDemandForecast
+                      .upperBound,
+                  observedSoFar:
+                    observedDemandSoFar,
+                  calibrationDays:
+                    activeDemandForecast
+                      .calibrationDays,
+                  backtestMape:
+                    Number(
+                      activeDemandForecast
+                        .backtestMape,
+                    ),
+                  slotTotal:
+                    demandSlotTotal,
+                  slotTotalsMatch:
+                    demandSlotTotalsMatch,
+                }
+              : null,
+          rangeEvidence: {
+            historical: {
+              evaluated:
+                historicalDemandResults
+                  .length,
+              insideRange:
+                historicalRangeHits,
+              coverageRate:
+                percentage(
+                  historicalRangeHits,
+                  historicalDemandResults
+                    .length,
+                ),
+            },
+            live: {
+              evaluated:
+                liveDemandResults.length,
+              insideRange:
+                liveRangeHits,
+              coverageRate:
+                percentage(
+                  liveRangeHits,
+                  liveDemandResults.length,
+                ),
+            },
+          },
         },
         snapshots: {
           status: snapshotJobHealth,
