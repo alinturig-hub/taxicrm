@@ -87,6 +87,8 @@ export async function GET(
       periodPredictions,
       pendingPredictions,
       lifetimeStatusGroups,
+      currentDemandForecast,
+      evaluatedDemandForecasts,
     ] = await Promise.all([
       prisma.customerBookingPrediction.findMany({
         where: baseWhere,
@@ -160,7 +162,60 @@ export async function GET(
           _all: true,
         },
       }),
+      prisma.bookingDemandForecast.findFirst({
+        where: {
+          modelVersion:
+            "BOOKING_DEMAND_V1",
+          targetType:
+            "BOOKING_REQUESTS",
+          status: "PENDING",
+          windowEndAt: {
+            gt: now,
+          },
+        },
+        orderBy: {
+          issuedAt: "desc",
+        },
+      }),
+
+      prisma.bookingDemandForecast.findMany({
+        where: {
+          modelVersion:
+            "BOOKING_DEMAND_V1",
+          targetType:
+            "BOOKING_REQUESTS",
+          status: "EVALUATED",
+          issuedAt: {
+            gte: periodStart,
+          },
+        },
+        orderBy: {
+          issuedAt: "desc",
+        },
+        take: 12,
+      }),
     ]);
+
+    const demandObservedSoFar =
+      currentDemandForecast
+        ? await prisma.booking.count({
+            where: {
+              bookedAtTime: {
+                gte:
+                  currentDemandForecast
+                    .windowStartAt,
+                lt: new Date(
+                  Math.min(
+                    now.getTime(),
+                    currentDemandForecast
+                      .windowEndAt
+                      .getTime(),
+                  ),
+                ),
+              },
+            },
+          })
+        : 0;
 
     const resolved =
       periodPredictions.filter(
@@ -317,6 +372,86 @@ export async function GET(
               )
             : null,
       },
+      demandForecast:
+        currentDemandForecast
+          ? {
+              id:
+                currentDemandForecast.id,
+              modelVersion:
+                currentDemandForecast
+                  .modelVersion,
+              status:
+                currentDemandForecast.status,
+              issuedAt:
+                currentDemandForecast
+                  .issuedAt,
+              windowStartAt:
+                currentDemandForecast
+                  .windowStartAt,
+              windowEndAt:
+                currentDemandForecast
+                  .windowEndAt,
+              predictedBookings:
+                currentDemandForecast
+                  .predictedCount,
+              lowerBound:
+                currentDemandForecast
+                  .lowerBound,
+              upperBound:
+                currentDemandForecast
+                  .upperBound,
+              observedSoFar:
+                demandObservedSoFar,
+              calibrationDays:
+                currentDemandForecast
+                  .calibrationDays,
+              backtestMae:
+                Number(
+                  currentDemandForecast
+                    .backtestMae,
+                ),
+              backtestMape:
+                Number(
+                  currentDemandForecast
+                    .backtestMape,
+                ),
+              confidence:
+                "EARLY",
+              slots:
+                currentDemandForecast
+                  .slotForecasts,
+            }
+          : null,
+      demandHistory:
+        evaluatedDemandForecasts.map(
+          (forecast) => ({
+            id: forecast.id,
+            issuedAt:
+              forecast.issuedAt,
+            windowStartAt:
+              forecast.windowStartAt,
+            windowEndAt:
+              forecast.windowEndAt,
+            predictedBookings:
+              forecast.predictedCount,
+            actualBookings:
+              forecast.actualCount,
+            absoluteError:
+              forecast.absoluteError,
+            percentageError:
+              forecast.percentageError ===
+              null
+                ? null
+                : Number(
+                    forecast
+                      .percentageError,
+                  ),
+            slots:
+              forecast.slotForecasts,
+            slotActuals:
+              forecast.slotActuals,
+          }),
+        ),
       performanceByLevel,
       opportunities:
         pendingPredictions.map(

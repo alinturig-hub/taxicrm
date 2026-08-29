@@ -724,6 +724,44 @@ model CustomerProfileSnapshot {
   @@index([serviceOutcomeLevel, snapshotDate])
 }
 
+model BookingDemandForecast {
+  id           String @id @default(cuid())
+  forecastKey  String @unique
+  modelVersion String
+  targetType   String @default("BOOKING_REQUESTS")
+  horizonHours Int    @default(24)
+
+  issuedAt      DateTime
+  windowStartAt DateTime
+  windowEndAt   DateTime
+
+  predictedCount Int
+  lowerBound     Int
+  upperBound     Int
+
+  status          String    @default("PENDING")
+  actualCount     Int?
+  absoluteError   Int?
+  percentageError Decimal?  @db.Decimal(7, 2)
+  evaluatedAt     DateTime?
+
+  calibrationDays Int
+  backtestMae     Decimal @db.Decimal(8, 2)
+  backtestMape    Decimal @db.Decimal(6, 2)
+  averageBias     Decimal @db.Decimal(8, 2)
+
+  slotForecasts Json
+  slotActuals   Json?
+  methodology   Json
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, windowEndAt])
+  @@index([issuedAt])
+  @@index([modelVersion, horizonHours, status])
+}
+
 model CustomerBookingPrediction {
   id               String   @id @default(cuid())
   normalCustomerId String

@@ -20,7 +20,10 @@ export async function backfillCustomerPredictionEvidence({
     await prisma.customerBookingPrediction.findMany({
       where: {
         evidenceEvents: {
-          none: {},
+          none: {
+            eventType:
+              "PREDICTION_ISSUED",
+          },
         },
       },
       orderBy: {

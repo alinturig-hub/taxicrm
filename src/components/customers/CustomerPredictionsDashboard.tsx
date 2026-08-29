@@ -8,6 +8,37 @@ import {
 type DashboardData = {
   success: boolean;
   message?: string;
+  demandForecast?: {
+    id: string;
+    modelVersion: string;
+    status: string;
+    issuedAt: string;
+    windowStartAt: string;
+    windowEndAt: string;
+    predictedBookings: number;
+    lowerBound: number;
+    upperBound: number;
+    observedSoFar: number;
+    calibrationDays: number;
+    backtestMae: number;
+    backtestMape: number;
+    confidence: string;
+    slots: Array<{
+      startAt: string;
+      endAt: string;
+      predictedCount: number;
+    }>;
+  } | null;
+  demandHistory?: Array<{
+    id: string;
+    issuedAt: string;
+    windowStartAt: string;
+    windowEndAt: string;
+    predictedBookings: number;
+    actualBookings: number | null;
+    absoluteError: number | null;
+    percentageError: number | null;
+  }>;
   summary?: {
     pending: number;
     evaluated: number;
@@ -183,6 +214,10 @@ export default function CustomerPredictionsDashboard({
   const summary = data?.summary;
   const opportunities =
     data?.opportunities ?? [];
+  const demandForecast =
+    data?.demandForecast ?? null;
+  const demandHistory =
+    data?.demandHistory ?? [];
 
   return (
     <div className="space-y-6 p-5">
@@ -219,6 +254,204 @@ export default function CustomerPredictionsDashboard({
           )}
         </div>
       </div>
+
+      <section className="overflow-hidden rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950">
+        <div className="border-b border-slate-800 px-5 py-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-300">
+                Booking demand forecast
+              </p>
+              <h3 className="mt-2 text-xl font-bold text-white">
+                Unique booking requests expected in the next 24 hours
+              </h3>
+              <p className="mt-2 text-sm text-slate-400">
+                One operational volume forecast.
+                Customer signals are not added together.
+              </p>
+            </div>
+            <span className="rounded-full border border-amber-400/30 bg-amber-400/10 px-3 py-1 text-xs font-semibold text-amber-200">
+              {demandForecast?.confidence ??
+                "LEARNING"}
+            </span>
+          </div>
+        </div>
+
+        {demandForecast ? (
+          <div className="space-y-5 p-5">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <Metric
+                label="Predicted bookings"
+                value={String(
+                  demandForecast
+                    .predictedBookings,
+                )}
+                detail="Unique Booking IDs expected"
+              />
+              <Metric
+                label="Expected range"
+                value={`${demandForecast.lowerBound}–${demandForecast.upperBound}`}
+                detail="80% historical error band"
+              />
+              <Metric
+                label="Observed so far"
+                value={String(
+                  demandForecast
+                    .observedSoFar,
+                )}
+                detail="Inside the active forecast window"
+              />
+              <Metric
+                label="Backtest error"
+                value={`${demandForecast.backtestMape}%`}
+                detail={`${demandForecast.calibrationDays} complete calibration days`}
+              />
+            </div>
+
+            <div>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <p className="text-sm font-semibold text-white">
+                  Three-hour demand intervals
+                </p>
+                <p className="text-xs text-slate-500">
+                  {dateFormatter.format(
+                    new Date(
+                      demandForecast
+                        .windowStartAt,
+                    ),
+                  )}{" "}
+                  →{" "}
+                  {dateFormatter.format(
+                    new Date(
+                      demandForecast
+                        .windowEndAt,
+                    ),
+                  )}
+                </p>
+              </div>
+
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                {demandForecast.slots.map(
+                  (slot) => (
+                    <div
+                      key={slot.startAt}
+                      className="rounded-xl border border-slate-800 bg-slate-900/70 p-4"
+                    >
+                      <p className="text-xs text-slate-500">
+                        {timeSlot(
+                          slot.startAt,
+                          slot.endAt,
+                        )}
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-white">
+                        {
+                          slot.predictedCount
+                        }
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        predicted bookings
+                      </p>
+                    </div>
+                  ),
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="p-8 text-center text-slate-500">
+            The first demand forecast is
+            being prepared.
+          </div>
+        )}
+      </section>
+
+      {demandHistory.length > 0 ? (
+        <section className="overflow-hidden rounded-2xl border border-slate-800">
+          <div className="bg-slate-950 px-5 py-4">
+            <h3 className="font-semibold text-white">
+              Forecast proof
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              Predicted booking volume compared
+              with unique bookings actually
+              observed.
+            </p>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="min-w-full text-left text-sm">
+              <thead className="text-xs uppercase text-slate-500">
+                <tr>
+                  {[
+                    "Window",
+                    "Predicted",
+                    "Actual",
+                    "Difference",
+                    "Error",
+                  ].map((label) => (
+                    <th
+                      key={label}
+                      className="px-5 py-3"
+                    >
+                      {label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {demandHistory.map(
+                  (forecast) => (
+                    <tr
+                      key={forecast.id}
+                      className="border-t border-slate-800 text-slate-300"
+                    >
+                      <td className="px-5 py-4">
+                        {dateFormatter.format(
+                          new Date(
+                            forecast
+                              .windowStartAt,
+                          ),
+                        )}{" "}
+                        →{" "}
+                        {dateFormatter.format(
+                          new Date(
+                            forecast
+                              .windowEndAt,
+                          ),
+                        )}
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-white">
+                        {
+                          forecast
+                            .predictedBookings
+                        }
+                      </td>
+                      <td className="px-5 py-4 font-semibold text-emerald-300">
+                        {forecast.actualBookings ??
+                          "—"}
+                      </td>
+                      <td className="px-5 py-4">
+                        {forecast.actualBookings ===
+                        null
+                          ? "—"
+                          : forecast
+                                .actualBookings -
+                              forecast
+                                .predictedBookings}
+                      </td>
+                      <td className="px-5 py-4">
+                        {forecast.percentageError ===
+                        null
+                          ? "—"
+                          : `${forecast.percentageError}%`}
+                      </td>
+                    </tr>
+                  ),
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
