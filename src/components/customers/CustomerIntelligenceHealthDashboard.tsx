@@ -29,6 +29,20 @@ type JobRun = {
   error: string | null;
 };
 
+type DemandAlert = {
+  id: string;
+  alertKey: string;
+  type: string;
+  severity: string;
+  status: string;
+  forecastId: string | null;
+  message: string;
+  evidence: Record<string, unknown>;
+  detectedAt: string;
+  lastSeenAt: string;
+  resolvedAt: string | null;
+};
+
 type HealthResponse = {
   success: boolean;
   containsPersonalData: boolean;
@@ -62,6 +76,13 @@ type HealthResponse = {
         slotTotal: number;
         slotTotalsMatch: boolean;
       } | null;
+      alerts: {
+        open: number;
+        critical: number;
+        warning: number;
+        current: DemandAlert[];
+        recent: DemandAlert[];
+      };
       rangeEvidence: {
         historical: {
           evaluated: number;
@@ -153,6 +174,74 @@ function formatPercent(
   return value === null
     ? "Learning"
     : `${value.toFixed(1)}%`;
+}
+
+function alertEvidence(
+  alert: DemandAlert,
+) {
+  const expected =
+    Number(
+      alert.evidence.predictedCount,
+    );
+  const actual =
+    Number(
+      alert.evidence.actualCount,
+    );
+  const lower =
+    Number(
+      alert.evidence.lowerBound,
+    );
+  const upper =
+    Number(
+      alert.evidence.upperBound,
+    );
+  const error =
+    Number(
+      alert.evidence.percentageError,
+    );
+  const slotTotal =
+    Number(
+      alert.evidence.slotTotal,
+    );
+
+  const parts: string[] = [];
+
+  if (Number.isFinite(expected)) {
+    parts.push(
+      `Expected ${expected}`,
+    );
+  }
+
+  if (Number.isFinite(actual)) {
+    parts.push(
+      `Actual ${actual}`,
+    );
+  }
+
+  if (
+    Number.isFinite(lower) &&
+    Number.isFinite(upper)
+  ) {
+    parts.push(
+      `Range ${lower}–${upper}`,
+    );
+  }
+
+  if (Number.isFinite(error)) {
+    parts.push(
+      `Error ${error.toFixed(1)}%`,
+    );
+  }
+
+  if (Number.isFinite(slotTotal)) {
+    parts.push(
+      `Slot total ${slotTotal}`,
+    );
+  }
+
+  return parts.length > 0
+    ? parts.join(" · ")
+    : "Operational check recorded";
 }
 
 function formatDuration(
@@ -615,6 +704,140 @@ export default function CustomerIntelligenceHealthDashboard() {
                 .active.slotTotalsMatch
                 ? `Verified: all three-hour slots total ${health.jobs.demandForecast.active.slotTotal}, matching the central forecast.`
                 : "Forecast integrity warning: interval totals do not match the central estimate."}
+            </div>
+
+            <div className="mt-6 rounded-xl border border-slate-800 bg-slate-950/30 p-5">
+              <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Demand alerts
+                  </p>
+                  <h3 className="mt-2 font-semibold text-white">
+                    Active operational exceptions
+                  </h3>
+                </div>
+                <p className="text-sm text-slate-400">
+                  {
+                    health.jobs.demandForecast
+                      .alerts.open
+                  }{" "}
+                  open ·{" "}
+                  {
+                    health.jobs.demandForecast
+                      .alerts.critical
+                  }{" "}
+                  critical ·{" "}
+                  {
+                    health.jobs.demandForecast
+                      .alerts.warning
+                  }{" "}
+                  warning
+                </p>
+              </div>
+
+              {health.jobs.demandForecast
+                .alerts.current.length > 0 ? (
+                <div className="mt-4 space-y-3">
+                  {health.jobs.demandForecast
+                    .alerts.current.map(
+                      (alert) => (
+                        <article
+                          key={alert.id}
+                          className={`rounded-lg border p-4 ${
+                            alert.severity ===
+                            "CRITICAL"
+                              ? "border-rose-500/30 bg-rose-500/10"
+                              : "border-amber-500/30 bg-amber-500/10"
+                          }`}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-3">
+                            <p className="font-semibold text-white">
+                              {alert.type
+                                .split("_")
+                                .map(
+                                  (word) =>
+                                    word.charAt(0) +
+                                    word
+                                      .slice(1)
+                                      .toLowerCase(),
+                                )
+                                .join(" ")}
+                            </p>
+                            <span
+                              className={`rounded-full border px-3 py-1 text-xs font-semibold ${
+                                alert.severity ===
+                                "CRITICAL"
+                                  ? "border-rose-400/30 text-rose-300"
+                                  : "border-amber-400/30 text-amber-300"
+                              }`}
+                            >
+                              {alert.severity}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-sm text-slate-300">
+                            {alert.message}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-400">
+                            {alertEvidence(
+                              alert,
+                            )}
+                          </p>
+                          <p className="mt-2 text-xs text-slate-500">
+                            Detected{" "}
+                            {formatDate(
+                              alert.detectedAt,
+                            )}
+                          </p>
+                        </article>
+                      ),
+                    )}
+                </div>
+              ) : (
+                <div className="mt-4 rounded-lg border border-emerald-500/20 bg-emerald-500/5 px-4 py-3 text-sm text-emerald-200">
+                  No active booking-demand alerts.
+                </div>
+              )}
+
+              {health.jobs.demandForecast
+                .alerts.recent.some(
+                  (alert) =>
+                    alert.status ===
+                    "RESOLVED",
+                ) ? (
+                <div className="mt-5 border-t border-slate-800 pt-4">
+                  <p className="text-xs font-semibold uppercase tracking-[0.14em] text-slate-500">
+                    Recently resolved
+                  </p>
+                  <div className="mt-3 space-y-2">
+                    {health.jobs.demandForecast
+                      .alerts.recent
+                      .filter(
+                        (alert) =>
+                          alert.status ===
+                          "RESOLVED",
+                      )
+                      .slice(0, 5)
+                      .map((alert) => (
+                        <div
+                          key={alert.id}
+                          className="flex flex-col justify-between gap-1 rounded-lg border border-slate-800 px-3 py-2 text-sm sm:flex-row"
+                        >
+                          <span className="text-slate-300">
+                            {alert.type
+                              .split("_")
+                              .join(" ")}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            Resolved{" "}
+                            {formatDate(
+                              alert.resolvedAt,
+                            )}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              ) : null}
             </div>
           </>
         ) : (

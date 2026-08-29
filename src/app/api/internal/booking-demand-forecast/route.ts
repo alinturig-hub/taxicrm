@@ -3,6 +3,7 @@ import {
   NextResponse,
 } from "next/server";
 
+import { evaluateBookingDemandAlerts } from "@/lib/customers/booking-demand-alerts";
 import { maintainBookingDemandForecast } from "@/lib/customers/booking-demand-forecast";
 import {
   completeCustomerIntelligenceJobRun,
@@ -47,6 +48,9 @@ export async function POST(
   try {
     const result =
       await maintainBookingDemandForecast();
+
+    const alerts =
+      await evaluateBookingDemandAlerts();
 
     const completed =
       result.evaluation.evaluated;
@@ -117,6 +121,7 @@ export async function POST(
           result.forecast
             .slotForecasts,
       },
+      alerts,
       containsPersonalData: false,
     });
   } catch (error) {

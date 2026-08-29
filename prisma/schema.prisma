@@ -757,9 +757,37 @@ model BookingDemandForecast {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  alerts BookingDemandAlert[]
+
   @@index([status, windowEndAt])
   @@index([issuedAt])
   @@index([modelVersion, horizonHours, status])
+}
+
+model BookingDemandAlert {
+  id       String @id @default(cuid())
+  alertKey String @unique
+  type     String
+  severity String
+  status   String @default("OPEN")
+
+  forecastId String?
+  message    String  @db.Text
+  evidence   Json
+
+  detectedAt DateTime  @default(now())
+  lastSeenAt DateTime  @default(now())
+  resolvedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  forecast BookingDemandForecast? @relation(fields: [forecastId], references: [id], onDelete: SetNull)
+
+  @@index([status, severity, detectedAt])
+  @@index([type, status])
+  @@index([forecastId])
+  @@index([lastSeenAt])
 }
 
 model CustomerBookingPrediction {

@@ -428,6 +428,72 @@ export async function GET() {
         activeDemandForecast
           .predictedCount;
 
+    const [
+      openDemandAlerts,
+      recentDemandAlerts,
+    ] = await Promise.all([
+      prisma.bookingDemandAlert.findMany({
+        where: {
+          status: "OPEN",
+        },
+        orderBy: [
+          {
+            severity: "asc",
+          },
+          {
+            detectedAt: "desc",
+          },
+        ],
+        select: {
+          id: true,
+          alertKey: true,
+          type: true,
+          severity: true,
+          status: true,
+          forecastId: true,
+          message: true,
+          evidence: true,
+          detectedAt: true,
+          lastSeenAt: true,
+          resolvedAt: true,
+        },
+      }),
+
+      prisma.bookingDemandAlert.findMany({
+        orderBy: {
+          detectedAt: "desc",
+        },
+        take: 20,
+        select: {
+          id: true,
+          alertKey: true,
+          type: true,
+          severity: true,
+          status: true,
+          forecastId: true,
+          message: true,
+          evidence: true,
+          detectedAt: true,
+          lastSeenAt: true,
+          resolvedAt: true,
+        },
+      }),
+    ]);
+
+    const criticalDemandAlerts =
+      openDemandAlerts.filter(
+        (alert) =>
+          alert.severity ===
+          "CRITICAL",
+      ).length;
+
+    const warningDemandAlerts =
+      openDemandAlerts.filter(
+        (alert) =>
+          alert.severity ===
+          "WARNING",
+      ).length;
+
     const latestRunByJob =
       new Map(
         Object.values(
@@ -620,8 +686,11 @@ export async function GET() {
 
     const demandForecastJobHealth =
       demandForecastRun?.status ===
-        "FAILED"
+          "FAILED" ||
+        criticalDemandAlerts > 0
         ? "CRITICAL"
+        : warningDemandAlerts > 0
+          ? "WARNING"
         : demandForecastRun?.status ===
               "RUNNING" &&
             demandForecastMinutesSinceRun !==
@@ -755,6 +824,18 @@ export async function GET() {
                     demandSlotTotalsMatch,
                 }
               : null,
+          alerts: {
+            open:
+              openDemandAlerts.length,
+            critical:
+              criticalDemandAlerts,
+            warning:
+              warningDemandAlerts,
+            current:
+              openDemandAlerts,
+            recent:
+              recentDemandAlerts,
+          },
           rangeEvidence: {
             historical: {
               evaluated:
