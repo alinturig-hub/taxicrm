@@ -9,14 +9,14 @@ const TARGET_TYPE =
 const HORIZON_HOURS = 24;
 const SLOT_HOURS = 3;
 const HISTORY_START =
-  new Date("2026-08-05T00:00:00.000Z");
+  new Date("2026-08-04T23:00:00.000Z");
 
 const SAME_WEEKDAY_WEIGHT = 0.65;
 const RECENT_AVERAGE_WEIGHT = 0.35;
-const BACKTEST_MAE = 156.3;
-const BACKTEST_MAPE = 11.7;
+const BACKTEST_MAE = 157.7;
+const BACKTEST_MAPE = 11.0;
 const AVERAGE_BIAS = 35.4;
-const EIGHTY_PERCENT_ERROR = 243.3;
+const EIGHTY_PERCENT_ERROR = 246.8;
 const MINIMUM_COMPLETE_DAYS = 8;
 
 const londonFormatter =

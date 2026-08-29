@@ -38,6 +38,9 @@ type DashboardData = {
     actualBookings: number | null;
     absoluteError: number | null;
     percentageError: number | null;
+    source:
+      | "HISTORICAL_BACKTEST"
+      | "LIVE_VERIFIED";
   }>;
   summary?: {
     pending: number;
@@ -383,6 +386,7 @@ export default function CustomerPredictionsDashboard({
                 <tr>
                   {[
                     "Window",
+                    "Evidence",
                     "Predicted",
                     "Actual",
                     "Difference",
@@ -418,6 +422,22 @@ export default function CustomerPredictionsDashboard({
                               .windowEndAt,
                           ),
                         )}
+                      </td>
+                      <td className="px-5 py-4">
+                        <span
+                          className={[
+                            "rounded-full border px-2 py-1 text-xs font-semibold",
+                            forecast.source ===
+                            "LIVE_VERIFIED"
+                              ? "border-emerald-400/30 bg-emerald-400/10 text-emerald-200"
+                              : "border-blue-400/30 bg-blue-400/10 text-blue-200",
+                          ].join(" ")}
+                        >
+                          {forecast.source ===
+                          "LIVE_VERIFIED"
+                            ? "LIVE VERIFIED"
+                            : "HISTORICAL BACKTEST"}
+                        </span>
                       </td>
                       <td className="px-5 py-4 font-semibold text-white">
                         {

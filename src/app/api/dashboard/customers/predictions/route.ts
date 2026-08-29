@@ -34,6 +34,23 @@ function percentage(
     : null;
 }
 
+function demandForecastSource(
+  methodology: unknown,
+) {
+  if (
+    methodology !== null &&
+    typeof methodology === "object" &&
+    !Array.isArray(methodology) &&
+    "source" in methodology &&
+    methodology.source ===
+      "HISTORICAL_BACKTEST"
+  ) {
+    return "HISTORICAL_BACKTEST";
+  }
+
+  return "LIVE_VERIFIED";
+}
+
 export async function GET(
   request: NextRequest,
 ) {
@@ -192,7 +209,7 @@ export async function GET(
         orderBy: {
           issuedAt: "desc",
         },
-        take: 12,
+        take: 30,
       }),
     ]);
 
@@ -446,6 +463,10 @@ export async function GET(
                     forecast
                       .percentageError,
                   ),
+            source:
+              demandForecastSource(
+                forecast.methodology,
+              ),
             slots:
               forecast.slotForecasts,
             slotActuals:
