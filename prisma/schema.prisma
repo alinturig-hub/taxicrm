@@ -59,14 +59,97 @@ enum WebhookConditionOperator {
 }
 
 model User {
-  id           String   @id @default(cuid())
-  name         String
-  email        String   @unique
-  passwordHash String
-  role         UserRole @default(OPERATOR)
-  isActive     Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                 String    @id @default(cuid())
+  name               String
+  email              String    @unique
+  passwordHash       String
+  role               UserRole  @default(OPERATOR)
+  isActive           Boolean   @default(true)
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  passwordChangedAt  DateTime?
+  deactivatedAt      DateTime?
+
+  roleAssignments AdministrationUserRole[]
+  auditEvents     AdministrationAuditEvent[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model AdministrationRole {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  name        String
+  description String? @db.Text
+  isSystem    Boolean @default(false)
+  isActive    Boolean @default(true)
+
+  users       AdministrationUserRole[]
+  permissions AdministrationRolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([isActive, name])
+}
+
+model AdministrationPermission {
+  id          String  @id @default(cuid())
+  key         String  @unique
+  module      String
+  action      String
+  name        String
+  description String? @db.Text
+
+  roles AdministrationRolePermission[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([module, action])
+}
+
+model AdministrationUserRole {
+  userId           String
+  roleId           String
+  assignedByUserId String?
+  assignedAt       DateTime @default(now())
+
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role AdministrationRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@id([userId, roleId])
+  @@index([roleId])
+  @@index([assignedAt])
+}
+
+model AdministrationRolePermission {
+  roleId       String
+  permissionId String
+  grantedAt    DateTime @default(now())
+
+  role       AdministrationRole       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission AdministrationPermission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@index([permissionId])
+}
+
+model AdministrationAuditEvent {
+  id          String   @id @default(cuid())
+  actorUserId String?
+  action      String
+  targetType  String
+  targetId    String?
+  evidence    Json
+  occurredAt  DateTime @default(now())
+
+  actor User? @relation(fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([actorUserId, occurredAt])
+  @@index([targetType, targetId, occurredAt])
+  @@index([action, occurredAt])
 }
 
 model Booking {

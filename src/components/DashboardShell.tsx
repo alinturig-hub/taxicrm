@@ -206,13 +206,13 @@ const navigationGroups: NavigationGroup[] = [
         label: "Users",
         href: "/dashboard/administration/users",
         icon: "users",
-        available: false,
+        available: true,
       },
       {
         label: "Roles",
         href: "/dashboard/administration/roles",
         icon: "roles",
-        available: false,
+        available: true,
       },
       {
         label: "Company",

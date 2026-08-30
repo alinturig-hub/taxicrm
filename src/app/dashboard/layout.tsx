@@ -15,6 +15,17 @@ export default async function DashboardLayout({
     redirect("/login");
   }
 
+  const sessionUser =
+    session.user as typeof session.user & {
+      mustChangePassword?: boolean;
+    };
+
+  if (
+    sessionUser.mustChangePassword
+  ) {
+    redirect("/change-password");
+  }
+
   return (
     <DashboardShell userEmail={session.user.email}>
       {children}

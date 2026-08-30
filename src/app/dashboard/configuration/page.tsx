@@ -61,8 +61,8 @@ const configurationModules = [
     title: "Users & Roles",
     description:
       "Control user access, roles and permissions across the TaxiCRM platform.",
-    href: "/dashboard/configuration/users-roles",
-    status: "Planned",
+    href: "/dashboard/administration/users",
+    status: "Active",
   },
   {
     title: "Audit Logs",

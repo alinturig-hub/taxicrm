@@ -55,11 +55,23 @@ export const authOptions: NextAuthOptions = {
           return null;
         }
 
+        await prisma.user.update({
+          where: {
+            id: user.id,
+          },
+          data: {
+            lastLoginAt:
+              new Date(),
+          },
+        });
+
         return {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          mustChangePassword:
+            user.mustChangePassword,
         };
       },
     }),
@@ -69,7 +81,17 @@ export const authOptions: NextAuthOptions = {
     async jwt({ token, user }) {
       if (user) {
         token.id = user.id;
-        token.role = (user as typeof user & { role: string }).role;
+        token.role = (
+          user as typeof user & {
+            role: string;
+          }
+        ).role;
+        token.mustChangePassword = (
+          user as typeof user & {
+            mustChangePassword:
+              boolean;
+          }
+        ).mustChangePassword;
       }
 
       return token;
@@ -80,10 +102,16 @@ export const authOptions: NextAuthOptions = {
         const sessionUser = session.user as typeof session.user & {
           id: string;
           role: string;
+          mustChangePassword:
+            boolean;
         };
 
         sessionUser.id = String(token.id);
         sessionUser.role = String(token.role);
+        sessionUser.mustChangePassword =
+          Boolean(
+            token.mustChangePassword,
+          );
       }
 
       return session;
