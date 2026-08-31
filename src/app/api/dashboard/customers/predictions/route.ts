@@ -4,6 +4,10 @@ import {
   NextResponse,
 } from "next/server";
 
+import {
+  ADMINISTRATION_PERMISSIONS,
+  requireAdministrationPermission,
+} from "@/lib/administration-access";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -65,6 +69,25 @@ export async function GET(
       },
       {
         status: 401,
+      },
+    );
+  }
+
+  const access =
+    await requireAdministrationPermission(
+      session.user.email,
+      ADMINISTRATION_PERMISSIONS
+        .INTELLIGENCE_VIEW,
+    );
+
+  if (!access) {
+    return NextResponse.json(
+      {
+        success: false,
+        error: "FORBIDDEN",
+      },
+      {
+        status: 403,
       },
     );
   }
