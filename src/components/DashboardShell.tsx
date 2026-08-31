@@ -146,7 +146,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Insights",
         href: "/dashboard/ai/insights",
         icon: "insights",
-        available: false,
+        available: true,
       },
       {
         label: "Predictions",
