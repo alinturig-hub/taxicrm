@@ -140,7 +140,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Copilot",
         href: "/dashboard/ai/copilot",
         icon: "copilot",
-        available: false,
+        available: true,
       },
       {
         label: "Insights",
