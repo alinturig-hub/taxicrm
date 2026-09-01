@@ -25,6 +25,7 @@ type Intent =
   | "ACCURACY"
   | "AUTOMATION"
   | "HEALTH"
+  | "PROVENANCE"
   | "HELP";
 
 function percentage(
@@ -49,6 +50,14 @@ function classify(
     question
       .trim()
       .toLowerCase();
+
+  if (
+    /is this real|are these real|what.*based on|basis|data source|source data|proof|evidence|date reale|sunt reale|este real|pe ce.*baz|dovad|provenien/.test(
+      normalized,
+    )
+  ) {
+    return "PROVENANCE";
+  }
 
   if (
     /warning|alert|exception|eroare|avert|problem|outside range|overestimate|supraestimat/.test(
@@ -715,6 +724,42 @@ async function healthAnswer() {
   };
 }
 
+function provenanceAnswer() {
+  return {
+    headline:
+      "The displayed figures come from real TaxiCRM records",
+    summary:
+      "TaxiCRM calculates the answer from governed operational database records. The language model receives only the resulting aggregate metrics and explanations; it cannot change the figures, source links or stored evidence.",
+    metrics: [],
+    evidence: [
+      "Operational figures are calculated by TaxiCRM before the language model is called.",
+      "The language model receives aggregate evidence only.",
+      "Metrics, evidence and source links remain controlled by TaxiCRM.",
+      "If model output fails validation, the deterministic answer is used.",
+    ],
+    sources: [
+      {
+        label:
+          "AI Insights",
+        href:
+          "/dashboard/ai/insights",
+      },
+      {
+        label:
+          "AI Predictions",
+        href:
+          "/dashboard/ai/predictions",
+      },
+      {
+        label:
+          "System Health",
+        href:
+          "/dashboard/configuration/system-health",
+      },
+    ],
+  };
+}
+
 function helpAnswer() {
   return {
     headline:
@@ -817,7 +862,10 @@ export async function POST(
               : intent ===
                   "HEALTH"
                 ? await healthAnswer()
-                : helpAnswer();
+                : intent ===
+                    "PROVENANCE"
+                  ? provenanceAnswer()
+                  : helpAnswer();
 
     const refinement =
       await refineCopilotAnswer({

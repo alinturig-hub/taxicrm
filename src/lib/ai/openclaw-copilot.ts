@@ -22,6 +22,29 @@ type RefinementResult = {
     | "DETERMINISTIC_EVIDENCE_V1";
 };
 
+function requestedLanguage(
+  question: string,
+) {
+  return (
+    /[ăâîșț]/i.test(
+      question,
+    ) ||
+    /\b(câte|cate|de ce|avem|următoarele|urmatoarele|dovezi|bazat|bazează|bazeaza|date reale|este real|sunt reale)\b/i.test(
+      question,
+    )
+  )
+    ? "Romanian"
+    : "English";
+}
+
+function containsUnsupportedScript(
+  value: string,
+) {
+  return /[\u3400-\u9fff\u0400-\u04ff\u0600-\u06ff]/.test(
+    value,
+  );
+}
+
 function numericFingerprints(
   value: string,
 ) {
@@ -70,6 +93,17 @@ function validRefinement(
     candidate.headline.length > 180 ||
     candidate.summary.length < 1 ||
     candidate.summary.length > 900
+  ) {
+    return false;
+  }
+
+  if (
+    containsUnsupportedScript(
+      [
+        candidate.headline,
+        candidate.summary,
+      ].join(" "),
+    )
   ) {
     return false;
   }
@@ -160,6 +194,11 @@ export async function refineCopilotAnswer({
     };
   }
 
+  const language =
+    requestedLanguage(
+      question,
+    );
+
   const groundedText =
     JSON.stringify({
       intent,
@@ -184,7 +223,7 @@ export async function refineCopilotAnswer({
               {
                 role: "system",
                 content:
-                  "You are TaxiCRM Copilot. Rewrite only the supplied grounded headline and summary in the language used by the user. Do not add facts, numbers, names, predictions, advice or assumptions. Never claim database, filesystem, terminal or external-system access. Return JSON only with exactly two string fields: headline and summary.",
+                  `You are TaxiCRM Copilot. Rewrite only the supplied grounded headline and summary. You MUST answer in ${language} only. Do not use Chinese, Cyrillic or Arabic scripts. Do not add facts, numbers, names, predictions, advice or assumptions. Never claim database, filesystem, terminal or external-system access. Return JSON only with exactly two string fields: headline and summary.`,
               },
               {
                 role: "user",
