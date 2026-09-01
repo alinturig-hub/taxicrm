@@ -8,6 +8,7 @@ import {
   ADMINISTRATION_PERMISSIONS,
   requireAdministrationPermission,
 } from "@/lib/administration-access";
+import { refineCopilotAnswer } from "@/lib/ai/openclaw-copilot";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
@@ -723,7 +724,7 @@ function helpAnswer() {
     metrics: [],
     evidence: [
       "Answers are assembled from governed TaxiCRM records.",
-      "No external language model is currently connected.",
+      "Language generation cannot change governed metrics, evidence or source links.",
     ],
     sources: [
       {
@@ -801,7 +802,7 @@ export async function POST(
     const now =
       new Date();
 
-    const answer =
+    const groundedAnswer =
       intent === "DEMAND"
         ? await demandAnswer(now)
         : intent === "WARNING"
@@ -818,15 +819,25 @@ export async function POST(
                 ? await healthAnswer()
                 : helpAnswer();
 
+    const refinement =
+      await refineCopilotAnswer({
+        question,
+        intent,
+        answer:
+          groundedAnswer,
+      });
+
     return NextResponse.json({
       success: true,
       generatedAt: now,
       intent,
       method:
-        "DETERMINISTIC_EVIDENCE_V1",
-      answer,
+        refinement.method,
+      answer:
+        refinement.answer,
       safeguards: {
-        externalModelUsed: false,
+        externalModelUsed:
+          refinement.externalModelUsed,
         questionStored: false,
         writeActionsEnabled: false,
         customerContactEnabled: false,

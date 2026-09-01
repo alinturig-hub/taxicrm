@@ -242,7 +242,7 @@ export default function AICopilotWorkspace() {
               VERIFIED SOURCES
             </span>
             <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-              NO EXTERNAL MODEL
+              GROUNDED LLM + SAFE FALLBACK
             </span>
           </div>
         </div>
