@@ -9,6 +9,8 @@ export const ADMINISTRATION_PERMISSIONS = {
   CUSTOMERS_VIEW: "customers.view",
   CUSTOMERS_MANAGE: "customers.manage",
   INTELLIGENCE_VIEW: "intelligence.view",
+  AUTOMATION_VIEW: "automation.view",
+  AUTOMATION_MANAGE: "automation.manage",
   DRIVERS_VIEW: "drivers.view",
   DRIVERS_MANAGE: "drivers.manage",
   FLEET_VIEW: "fleet.view",
@@ -58,6 +60,10 @@ function legacyPermissions(
         .CUSTOMERS_MANAGE,
       ADMINISTRATION_PERMISSIONS
         .INTELLIGENCE_VIEW,
+      ADMINISTRATION_PERMISSIONS
+        .AUTOMATION_VIEW,
+      ADMINISTRATION_PERMISSIONS
+        .AUTOMATION_MANAGE,
       ADMINISTRATION_PERMISSIONS
         .DRIVERS_VIEW,
       ADMINISTRATION_PERMISSIONS

@@ -158,7 +158,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Automation",
         href: "/dashboard/ai/automation",
         icon: "automation",
-        available: false,
+        available: true,
       },
     ],
   },
