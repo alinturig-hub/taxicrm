@@ -271,114 +271,143 @@ export async function evaluateBookingDemandAlerts({
     }
   }
 
-  for (const forecast of evaluatedForecasts) {
-    const actual =
-      forecast.actualCount;
+  const legacyAlerts =
+    await prisma.bookingDemandAlert.updateMany({
+      where: {
+        status: "OPEN",
+        type: {
+          in: [
+            "ACTUAL_OUTSIDE_RANGE",
+            "LIVE_ERROR_ABOVE_20_PERCENT",
+          ],
+        },
+      },
+      data: {
+        status: "RESOLVED",
+        resolvedAt: now,
+        lastSeenAt: now,
+      },
+    });
 
-    if (actual === null) {
-      continue;
-    }
+  resolved += legacyAlerts.count;
+
+  const accuracyAlertKey =
+    "BOOKING_DEMAND:FORECAST_ACCURACY";
+  const latestEvaluated =
+    evaluatedForecasts[0] ?? null;
+
+  if (
+    latestEvaluated?.actualCount !==
+    null &&
+    latestEvaluated !== null
+  ) {
+    const actual =
+      latestEvaluated.actualCount;
 
     const outsideRange =
-      actual < forecast.lowerBound ||
-      actual > forecast.upperBound;
-
-    const rangeAlertKey =
-      `BOOKING_DEMAND:ACTUAL_OUTSIDE_RANGE:${forecast.id}`;
-
-    if (outsideRange) {
-      await openAlert(
-        {
-          alertKey:
-            rangeAlertKey,
-          type:
-            "ACTUAL_OUTSIDE_RANGE",
-          severity: "WARNING",
-          forecastId: forecast.id,
-          message:
-            "Verified booking demand finished outside the forecast range.",
-          evidence: {
-            predictedCount:
-              forecast.predictedCount,
-            lowerBound:
-              forecast.lowerBound,
-            upperBound:
-              forecast.upperBound,
-            actualCount: actual,
-            absoluteError:
-              forecast.absoluteError,
-            percentageError:
-              forecast.percentageError ===
-                null
-                ? null
-                : Number(
-                    forecast
-                      .percentageError,
-                  ),
-            evaluatedAt:
-              forecast.evaluatedAt
-                ?.toISOString() ??
-              null,
-          },
-        },
-        now,
-      );
-      opened += 1;
-    } else {
-      resolved +=
-        await resolveAlert(
-          rangeAlertKey,
-          now,
-        );
-    }
+      actual <
+        latestEvaluated.lowerBound ||
+      actual >
+        latestEvaluated.upperBound;
 
     const errorPercent =
-      forecast.percentageError === null
+      latestEvaluated
+        .percentageError === null
         ? null
         : Number(
-            forecast.percentageError,
+            latestEvaluated
+              .percentageError,
           );
 
-    const errorAlertKey =
-      `BOOKING_DEMAND:LIVE_ERROR_ABOVE_20_PERCENT:${forecast.id}`;
-
-    if (
+    const highError =
       errorPercent !== null &&
       errorPercent >
-        HIGH_ERROR_PERCENT
-    ) {
+        HIGH_ERROR_PERCENT;
+
+    const reasons = [
+      ...(outsideRange
+        ? [
+            "ACTUAL_OUTSIDE_RANGE",
+          ]
+        : []),
+      ...(highError
+        ? [
+            "LIVE_ERROR_ABOVE_20_PERCENT",
+          ]
+        : []),
+    ];
+
+    if (reasons.length > 0) {
+      const difference =
+        actual -
+        latestEvaluated
+          .predictedCount;
+
       await openAlert(
         {
           alertKey:
-            errorAlertKey,
+            accuracyAlertKey,
           type:
-            "LIVE_ERROR_ABOVE_20_PERCENT",
-          severity: "WARNING",
-          forecastId: forecast.id,
+            "FORECAST_ACCURACY_WARNING",
+          severity:
+            "WARNING",
+          forecastId:
+            latestEvaluated.id,
           message:
-            "Verified live booking-demand error exceeded 20 percent.",
+            difference < 0
+              ? "The latest verified booking-demand forecast overestimated actual demand."
+              : "The latest verified booking-demand forecast underestimated actual demand.",
           evidence: {
             predictedCount:
-              forecast.predictedCount,
-            actualCount: actual,
+              latestEvaluated
+                .predictedCount,
+            lowerBound:
+              latestEvaluated
+                .lowerBound,
+            upperBound:
+              latestEvaluated
+                .upperBound,
+            actualCount:
+              actual,
+            difference,
             absoluteError:
-              forecast.absoluteError,
+              latestEvaluated
+                .absoluteError,
             percentageError:
               errorPercent,
             thresholdPercent:
               HIGH_ERROR_PERCENT,
+            reasons,
+            direction:
+              difference < 0
+                ? "OVERESTIMATED"
+                : "UNDERESTIMATED",
+            evaluatedAt:
+              latestEvaluated
+                .evaluatedAt
+                ?.toISOString() ??
+              null,
+            containsPersonalData:
+              false,
           },
         },
         now,
       );
+
       opened += 1;
     } else {
       resolved +=
         await resolveAlert(
-          errorAlertKey,
+          accuracyAlertKey,
           now,
         );
     }
+  } else {
+    resolved +=
+      await resolveAlert(
+        accuracyAlertKey,
+        now,
+      );
   }
 
   const openAlerts =

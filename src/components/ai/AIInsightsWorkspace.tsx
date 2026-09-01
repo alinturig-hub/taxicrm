@@ -6,6 +6,17 @@ import {
   useState,
 } from "react";
 
+type InsightAlert = {
+  id: string;
+  type: string;
+  severity: string;
+  forecastId: string | null;
+  message: string;
+  evidence: unknown;
+  detectedAt: string;
+  lastSeenAt: string;
+};
+
 type InsightData = {
   success: true;
   generatedAt: string;
@@ -66,14 +77,7 @@ type InsightData = {
       hitRate: number | null;
     } | null;
   };
-  alerts: Array<{
-    id: string;
-    type: string;
-    severity: string;
-    message: string;
-    detectedAt: string;
-    lastSeenAt: string;
-  }>;
+  alerts: InsightAlert[];
 };
 
 function formatNumber(
@@ -138,6 +142,146 @@ function MetricCard({
       </p>
       <p className="mt-2 text-sm leading-6 text-slate-400">
         {detail}
+      </p>
+    </article>
+  );
+}
+
+function InsightAlertCard({
+  alert,
+}: {
+  alert: InsightAlert;
+}) {
+  const evidence =
+    alert.evidence !== null &&
+    typeof alert.evidence === "object" &&
+    !Array.isArray(
+      alert.evidence,
+    )
+      ? alert.evidence as Record<
+          string,
+          unknown
+        >
+      : {};
+
+  const numeric = (
+    key: string,
+  ) =>
+    typeof evidence[key] === "number"
+      ? evidence[key] as number
+      : null;
+
+  const predicted =
+    numeric("predictedCount");
+  const actual =
+    numeric("actualCount");
+  const lower =
+    numeric("lowerBound");
+  const upper =
+    numeric("upperBound");
+  const difference =
+    numeric("difference");
+  const errorPercent =
+    numeric("percentageError");
+  const direction =
+    typeof evidence.direction ===
+      "string"
+      ? evidence.direction
+      : null;
+
+  return (
+    <article className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-5">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <p className="font-semibold text-amber-200">
+            {alert.type ===
+            "FORECAST_ACCURACY_WARNING"
+              ? direction ===
+                "OVERESTIMATED"
+                ? "Demand overestimated"
+                : "Demand underestimated"
+              : alert.type.replaceAll(
+                  "_",
+                  " ",
+                )}
+          </p>
+          <p className="mt-1 text-sm text-slate-400">
+            {alert.message}
+          </p>
+        </div>
+        <span className="rounded-full border border-amber-500/30 px-3 py-1 text-xs font-semibold text-amber-300">
+          {alert.severity}
+        </span>
+      </div>
+
+      {predicted !== null &&
+      actual !== null ? (
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div>
+            <p className="text-2xl font-bold text-white">
+              {formatNumber(predicted)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Estimated
+            </p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-white">
+              {formatNumber(actual)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Actual
+            </p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-white">
+              {difference !== null &&
+              difference > 0
+                ? "+"
+                : ""}
+              {difference === null
+                ? "—"
+                : formatNumber(
+                    difference,
+                  )}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Difference
+            </p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-white">
+              {formatPercent(
+                errorPercent,
+              )}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Absolute error
+            </p>
+          </div>
+          <div>
+            <p className="text-2xl font-bold text-white">
+              {lower === null ||
+              upper === null
+                ? "—"
+                : `${formatNumber(
+                    lower,
+                  )}–${formatNumber(
+                    upper,
+                  )}`}
+            </p>
+            <p className="mt-1 text-xs text-slate-500">
+              Expected range
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      <p className="mt-4 text-xs text-slate-500">
+        Last observed{" "}
+        {formatDateTime(
+          alert.lastSeenAt,
+        )}
       </p>
     </article>
   );
@@ -559,31 +703,10 @@ export default function AIInsightsWorkspace() {
           <div className="mt-5 space-y-3">
             {data.alerts.map(
               (alert) => (
-                <article
+                <InsightAlertCard
                   key={alert.id}
-                  className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4"
-                >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <p className="font-semibold text-amber-200">
-                      {alert.type.replaceAll(
-                        "_",
-                        " ",
-                      )}
-                    </p>
-                    <span className="rounded-full border border-amber-500/30 px-3 py-1 text-xs font-semibold text-amber-300">
-                      {alert.severity}
-                    </span>
-                  </div>
-                  <p className="mt-2 text-sm leading-6 text-slate-300">
-                    {alert.message}
-                  </p>
-                  <p className="mt-2 text-xs text-slate-500">
-                    Last observed{" "}
-                    {formatDateTime(
-                      alert.lastSeenAt,
-                    )}
-                  </p>
-                </article>
+                  alert={alert}
+                />
               ),
             )}
           </div>

@@ -237,6 +237,8 @@ export async function GET() {
           id: true,
           type: true,
           severity: true,
+          forecastId: true,
+          evidence: true,
           message: true,
           detectedAt: true,
           lastSeenAt: true,
