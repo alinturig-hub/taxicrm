@@ -57,6 +57,7 @@ type Message =
     };
 
 const SUGGESTIONS = [
+  "How many drivers are online right now?",
   "How many bookings are expected in the next 24 hours?",
   "Why is there a forecast warning?",
   "How accurate are customer predictions?",
@@ -259,9 +260,10 @@ export default function AICopilotWorkspace() {
                 What would you like to understand?
               </h2>
               <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-slate-400">
-                Copilot can explain demand forecasts,
-                verified warnings, prediction accuracy,
-                automation safeguards and job health.
+                Copilot can explain live drivers and fleet activity,
+                demand forecasts, verified warnings,
+                prediction accuracy, automation safeguards
+                and job health.
               </p>
 
               <div className="mt-7 grid gap-3 text-left md:grid-cols-2">
@@ -434,7 +436,7 @@ export default function AICopilotWorkspace() {
                 )
               }
               maxLength={500}
-              placeholder="Ask about demand, warnings, accuracy, automation or system health…"
+              placeholder="Ask about live drivers, demand, warnings, accuracy, automation or system health…"
               className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500/60"
             />
             <button

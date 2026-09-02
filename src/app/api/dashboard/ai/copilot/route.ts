@@ -10,6 +10,7 @@ import {
 } from "@/lib/administration-access";
 import { refineCopilotAnswer } from "@/lib/ai/openclaw-copilot";
 import { authOptions } from "@/lib/auth";
+import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -20,6 +21,7 @@ const DAY_MS =
   24 * 60 * 60 * 1000;
 
 type Intent =
+  | "LIVE_OPERATIONS"
   | "DEMAND"
   | "WARNING"
   | "ACCURACY"
@@ -57,6 +59,14 @@ function classify(
     )
   ) {
     return "PROVENANCE";
+  }
+
+  if (
+    /driver|drivers|online driver|on shift|live vehicle|vehicles|fleet|clear vehicle|busy vehicle|șofer|sofer|șoferi|soferi|în tură|in tura|vehicul|mașin|masin|flotă|flota|liberi|ocupat/.test(
+      normalized,
+    )
+  ) {
+    return "LIVE_OPERATIONS";
   }
 
   if (
@@ -623,6 +633,91 @@ async function automationAnswer() {
   };
 }
 
+async function liveOperationsAnswer() {
+  const operations =
+    await getLiveOperations({
+      pastMinutes: 60,
+      futureMinutes: 120,
+    });
+
+  const driversOnShift =
+    operations.drivers.onShift;
+  const driversWithVehicle =
+    operations.drivers.withVehicle;
+  const driversWithoutVehicle =
+    operations.drivers.withoutVehicle;
+  const liveVehicles =
+    operations.fleet.live;
+
+  return {
+    headline:
+      `${driversOnShift.toLocaleString(
+        "en-GB",
+      )} drivers currently on shift`,
+    summary:
+      `${driversWithVehicle.toLocaleString(
+        "en-GB",
+      )} drivers have an assigned vehicle and ${driversWithoutVehicle.toLocaleString(
+        "en-GB",
+      )} do not. ${liveVehicles.toLocaleString(
+        "en-GB",
+      )} vehicles have reported during the last two minutes. Live vehicles and drivers on shift are separate measurements.`,
+    metrics: [
+      {
+        label:
+          "Drivers on shift",
+        value:
+          driversOnShift,
+      },
+      {
+        label:
+          "With vehicle",
+        value:
+          driversWithVehicle,
+      },
+      {
+        label:
+          "Without vehicle",
+        value:
+          driversWithoutVehicle,
+      },
+      {
+        label:
+          "Live vehicles (2 min)",
+        value:
+          liveVehicles,
+      },
+      {
+        label:
+          "Clear vehicles",
+        value:
+          operations.fleet.clear,
+      },
+      {
+        label:
+          "Busy vehicles",
+        value:
+          operations.fleet.busy,
+      },
+    ],
+    evidence: [
+      "Drivers on shift are unique drivers with an active DriverShift record.",
+      "With vehicle means the active shift has an assigned vehicle.",
+      "Live vehicles reported operational data during the last two minutes.",
+      "A live vehicle count is not treated as a driver count.",
+      "Only aggregate counts are provided to the language model; driver identities and locations are excluded.",
+    ],
+    sources: [
+      {
+        label:
+          "Live Operations",
+        href:
+          "/dashboard/live",
+      },
+    ],
+  };
+}
+
 async function healthAnswer() {
   const jobKeys = [
     "CUSTOMER_BOOKING_PREDICTIONS",
@@ -765,7 +860,7 @@ function helpAnswer() {
     headline:
       "Ask about measured TaxiCRM operations",
     summary:
-      "I can explain booking demand, active warnings, prediction accuracy, automation safety and system health.",
+      "I can explain live drivers and fleet activity, booking demand, active warnings, prediction accuracy, automation safety and system health.",
     metrics: [],
     evidence: [
       "Answers are assembled from governed TaxiCRM records.",
@@ -792,6 +887,7 @@ function helpAnswer() {
       },
     ],
     suggestions: [
+      "How many drivers are online right now?",
       "How many bookings are expected in the next 24 hours?",
       "Why is there a forecast warning?",
       "How accurate are customer predictions?",
@@ -848,8 +944,11 @@ export async function POST(
       new Date();
 
     const groundedAnswer =
-      intent === "DEMAND"
-        ? await demandAnswer(now)
+      intent ===
+        "LIVE_OPERATIONS"
+        ? await liveOperationsAnswer()
+        : intent === "DEMAND"
+          ? await demandAnswer(now)
         : intent === "WARNING"
           ? await warningAnswer()
           : intent === "ACCURACY"
