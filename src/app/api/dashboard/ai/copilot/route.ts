@@ -67,7 +67,7 @@ function classify(
   }
 
   if (
-    /driver|drivers|online driver|on shift|live vehicle|vehicles|fleet|clear vehicle|busy vehicle|șofer|sofer|șoferi|soferi|în tură|in tura|vehicul|mașin|masin|flotă|flota|liberi|ocupat/.test(
+    /driver|drivers|online driver|on shift|live vehicle|vehicles|fleet|clear vehicle|busy vehicle|allocated|allocation|assigned job|job assigned|with passenger|passenger on board|passengers|\bpob\b|șofer|sofer|șoferi|soferi|în tură|in tura|vehicul|mașin|masin|flotă|flota|liberi|ocupat|job alocat|curse alocate|cu pasager/.test(
       normalized,
     )
   ) {
@@ -646,12 +646,108 @@ async function automationAnswer() {
   };
 }
 
-async function liveOperationsAnswer() {
+async function liveOperationsAnswer(
+  question: string,
+) {
   const operations =
     await getLiveOperations({
       pastMinutes: 60,
       futureMinutes: 120,
     });
+
+  const normalized =
+    question.trim().toLowerCase();
+
+  const asksAboutAllocatedJobs =
+    /allocated|allocation|assigned job|job assigned|with passenger|passenger on board|passengers|\bpob\b|job alocat|curse alocate|cu pasager/.test(
+      normalized,
+    );
+
+  const allocatedActiveJobs =
+    Math.max(
+      0,
+      operations.bookings.active -
+        operations.bookings.withoutDriver,
+    );
+
+  if (asksAboutAllocatedJobs) {
+    return {
+      headline:
+        `${allocatedActiveJobs.toLocaleString(
+          "en-GB",
+        )} active jobs have a driver allocated`,
+      summary:
+        `${operations.bookings.passengerOnBoard.toLocaleString(
+          "en-GB",
+        )} active jobs currently have a passenger on board. ${operations.bookings.withoutDriver.toLocaleString(
+          "en-GB",
+        )} active jobs do not currently have a driver assigned.`,
+      metrics: [
+        {
+          label:
+            "Active jobs",
+          value:
+            operations.bookings.active,
+        },
+        {
+          label:
+            "Driver allocated",
+          value:
+            allocatedActiveJobs,
+        },
+        {
+          label:
+            "Passenger on board",
+          value:
+            operations.bookings
+              .passengerOnBoard,
+        },
+        {
+          label:
+            "Without driver",
+          value:
+            operations.bookings
+              .withoutDriver,
+        },
+        {
+          label:
+            "Dispatched",
+          value:
+            operations.bookings
+              .dispatched,
+        },
+        {
+          label:
+            "Accepted",
+          value:
+            operations.bookings
+              .accepted,
+        },
+        {
+          label:
+            "Arrived",
+          value:
+            operations.bookings
+              .arrived,
+        },
+      ],
+      evidence: [
+        "Driver allocated is calculated as active bookings minus active bookings without a driver.",
+        "Passenger on board counts only bookings whose current TaxiCRM status is POB.",
+        "Active booking statuses are CREATED, DISPATCHED, ACCEPTED, ARRIVED and POB.",
+        "The live operational window covers the configured recent and upcoming interval.",
+        "Only aggregate counts are supplied to the language model; customer, driver and location identities are excluded.",
+      ],
+      sources: [
+        {
+          label:
+            "Live Operations",
+          href:
+            "/dashboard/live",
+        },
+      ],
+    };
+  }
 
   const driversOnShift =
     operations.drivers.onShift;
@@ -1033,7 +1129,9 @@ export async function POST(
           )
         : intent ===
             "LIVE_OPERATIONS"
-          ? await liveOperationsAnswer()
+          ? await liveOperationsAnswer(
+              question,
+            )
         : intent === "DEMAND"
           ? await demandAnswer(now)
         : intent === "WARNING"
