@@ -8,6 +8,10 @@ import {
   ADMINISTRATION_PERMISSIONS,
   requireAdministrationPermission,
 } from "@/lib/administration-access";
+import {
+  executeAnalyticsQuery,
+  planAnalyticsQuestion,
+} from "@/lib/ai/analytics-query-engine";
 import { refineCopilotAnswer } from "@/lib/ai/openclaw-copilot";
 import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
@@ -21,6 +25,7 @@ const DAY_MS =
   24 * 60 * 60 * 1000;
 
 type Intent =
+  | "ANALYTICS"
   | "LIVE_OPERATIONS"
   | "DEMAND"
   | "WARNING"
@@ -102,11 +107,19 @@ function classify(
   }
 
   if (
-    /demand|forecast|booking|bookings|cerere|următoarele 24|urmatoarele 24|volum|estimate/.test(
+    /demand forecast|booking forecast|forecast|predicted bookings|expected bookings|cerere estimată|cerere estimata|prognoz|următoarele 24|urmatoarele 24|volum estimat/.test(
       normalized,
     )
   ) {
     return "DEMAND";
+  }
+
+  if (
+    planAnalyticsQuestion(
+      question,
+    )
+  ) {
+    return "ANALYTICS";
   }
 
   return "HELP";
@@ -860,7 +873,7 @@ function helpAnswer() {
     headline:
       "Ask about measured TaxiCRM operations",
     summary:
-      "I can explain live drivers and fleet activity, booking demand, active warnings, prediction accuracy, automation safety and system health.",
+      "I can explain revenue, booking volumes and outcomes, period comparisons, live drivers and fleet activity, demand forecasts, warnings, prediction accuracy, automation safety and system health.",
     metrics: [],
     evidence: [
       "Answers are assembled from governed TaxiCRM records.",
@@ -887,6 +900,9 @@ function helpAnswer() {
       },
     ],
     suggestions: [
+      "What is today revenue?",
+      "How many bookings did we have yesterday?",
+      "Compare revenue this week with last week",
       "How many drivers are online right now?",
       "How many bookings are expected in the next 24 hours?",
       "Why is there a forecast warning?",
@@ -940,13 +956,84 @@ export async function POST(
     const intent =
       classify(question);
 
+    const analyticsPlan =
+      intent === "ANALYTICS"
+        ? planAnalyticsQuestion(
+            question,
+          )
+        : null;
+
+    if (
+      analyticsPlan &&
+      (
+        analyticsPlan.metric ===
+          "REVENUE" ||
+        (
+          analyticsPlan.metric ===
+            "PERIOD_COMPARISON" &&
+          analyticsPlan
+            .comparisonMetric ===
+            "REVENUE"
+        )
+      ) &&
+      !access.isSuperAdmin &&
+      !access.permissions.includes(
+        ADMINISTRATION_PERMISSIONS
+          .REVENUE_VIEW,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "REVENUE_PERMISSION_REQUIRED",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
+    if (
+      analyticsPlan &&
+      analyticsPlan.metric !==
+        "REVENUE" &&
+      !(
+        analyticsPlan.metric ===
+          "PERIOD_COMPARISON" &&
+        analyticsPlan
+          .comparisonMetric ===
+          "REVENUE"
+      ) &&
+      !access.isSuperAdmin &&
+      !access.permissions.includes(
+        ADMINISTRATION_PERMISSIONS
+          .BOOKINGS_VIEW,
+      )
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "BOOKINGS_PERMISSION_REQUIRED",
+        },
+        {
+          status: 403,
+        },
+      );
+    }
+
     const now =
       new Date();
 
     const groundedAnswer =
-      intent ===
-        "LIVE_OPERATIONS"
-        ? await liveOperationsAnswer()
+      analyticsPlan
+        ? await executeAnalyticsQuery(
+            analyticsPlan,
+          )
+        : intent ===
+            "LIVE_OPERATIONS"
+          ? await liveOperationsAnswer()
         : intent === "DEMAND"
           ? await demandAnswer(now)
         : intent === "WARNING"
