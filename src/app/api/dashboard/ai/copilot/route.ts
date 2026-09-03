@@ -12,7 +12,10 @@ import {
   executeAnalyticsQuery,
   planAnalyticsQuestion,
 } from "@/lib/ai/analytics-query-engine";
-import { refineCopilotAnswer } from "@/lib/ai/openclaw-copilot";
+import {
+  answerGeneralCopilotQuestion,
+  refineCopilotAnswer,
+} from "@/lib/ai/openclaw-copilot";
 import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +28,8 @@ const DAY_MS =
   24 * 60 * 60 * 1000;
 
 type Intent =
+  | "GENERAL_GUIDANCE"
+  | "RESTRICTED"
   | "ANALYTICS"
   | "LIVE_OPERATIONS"
   | "DEMAND"
@@ -57,6 +62,14 @@ function classify(
     question
       .trim()
       .toLowerCase();
+
+  if (
+    /password|parolă|parola|secret|api key|token|credential|database dump|dump database|export database|phone numbers|telephone numbers|numere de telefon|customer addresses|adresele clienților|adresele clientilor|exact driver location|precise driver location|locația exactă|locatia exacta|coordinates|coordonate|run sql|execute sql|sql query|delete from|drop table|truncate|update database|modify database|șterge date|sterge date|shell command|bash command|execute command|contact customers|sună clienții|suna clientii/.test(
+      normalized,
+    )
+  ) {
+    return "RESTRICTED";
+  }
 
   if (
     /is this real|are these real|what.*based on|basis|data source|source data|proof|evidence|date reale|sunt reale|este real|pe ce.*baz|dovad|provenien/.test(
@@ -122,7 +135,9 @@ function classify(
     return "ANALYTICS";
   }
 
-  return "HELP";
+  return normalized.length > 0
+    ? "GENERAL_GUIDANCE"
+    : "HELP";
 }
 
 function evidenceObject(
@@ -964,6 +979,28 @@ function provenanceAnswer() {
   };
 }
 
+function restrictedAnswer() {
+  return {
+    headline:
+      "This request is restricted",
+    summary:
+      "Copilot cannot provide secrets, personal contact details, precise driver locations, unrestricted database access, SQL execution or instructions that modify TaxiCRM data. Use the authorized TaxiCRM workspace for permitted operational tasks.",
+    metrics: [],
+    evidence: [
+      "The request was blocked before it reached the language model.",
+      "No database query or external action was executed.",
+      "No personal data, secret or precise location was disclosed.",
+    ],
+    sources: [],
+    suggestions: [
+      "How many drivers are online right now?",
+      "What is today revenue?",
+      "How many jobs have a passenger on board?",
+      "Explain how completion rate is calculated",
+    ],
+  };
+}
+
 function helpAnswer() {
   return {
     headline:
@@ -1149,20 +1186,48 @@ export async function POST(
                 : intent ===
                     "PROVENANCE"
                   ? provenanceAnswer()
-                  : helpAnswer();
+                  : intent ===
+                      "RESTRICTED"
+                    ? restrictedAnswer()
+                    : helpAnswer();
 
     const refinement =
-      await refineCopilotAnswer({
-        question,
-        intent,
-        answer:
-          groundedAnswer,
-      });
+      intent ===
+        "GENERAL_GUIDANCE"
+        ? await answerGeneralCopilotQuestion(
+            question,
+          )
+        : intent ===
+            "RESTRICTED"
+          ? {
+              answer:
+                groundedAnswer,
+              externalModelUsed:
+                false,
+              method:
+                "POLICY_RESTRICTED_V1",
+            }
+          : await refineCopilotAnswer({
+              question,
+              intent,
+              answer:
+                groundedAnswer,
+            });
+
+    const answerType =
+      intent ===
+        "GENERAL_GUIDANCE"
+        ? "GENERAL_GUIDANCE"
+        : intent ===
+            "RESTRICTED"
+          ? "RESTRICTED"
+          : "VERIFIED";
 
     return NextResponse.json({
       success: true,
       generatedAt: now,
       intent,
+      answerType,
       method:
         refinement.method,
       answer:

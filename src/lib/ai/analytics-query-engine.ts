@@ -159,7 +159,7 @@ export function planAnalyticsQuestion(
     );
 
   const asksBookingStatus =
-    /completed|cancelled|canceled|no fare|no-fare|status|finalizat|terminat|anulat|neprezent/.test(
+    /completed|completion rate|cancelled|canceled|cancellation rate|no fare|no-fare|no fare rate|status|finalizat|rata de finalizare|terminat|anulat|rata de anulare|neprezent/.test(
       normalized,
     );
 

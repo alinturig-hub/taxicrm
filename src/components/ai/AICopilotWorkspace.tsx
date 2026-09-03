@@ -32,6 +32,10 @@ type CopilotResponse = {
   success: true;
   generatedAt: string;
   intent: string;
+  answerType:
+    | "VERIFIED"
+    | "GENERAL_GUIDANCE"
+    | "RESTRICTED";
   method: string;
   answer: CopilotAnswer;
   safeguards: {
@@ -53,6 +57,10 @@ type Message =
       role: "COPILOT";
       answer: CopilotAnswer;
       generatedAt: string;
+      answerType:
+        | "VERIFIED"
+        | "GENERAL_GUIDANCE"
+        | "RESTRICTED";
       method: string;
     };
 
@@ -190,6 +198,8 @@ export default function AICopilotWorkspace() {
               result.answer,
             generatedAt:
               result.generatedAt,
+            answerType:
+              result.answerType,
             method:
               result.method,
           },
@@ -231,10 +241,10 @@ export default function AICopilotWorkspace() {
               Evidence Copilot
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              Ask operational questions in English or
-              Romanian. Every answer is calculated from
-              governed TaxiCRM records and linked to its
-              source.
+              Ask operational or general questions in English or
+              Romanian. Verified answers use governed
+              TaxiCRM records; general guidance is clearly
+              labelled and does not claim live data.
             </p>
           </div>
 
@@ -308,8 +318,26 @@ export default function AICopilotWorkspace() {
                     key={message.id}
                     className="mr-auto max-w-4xl rounded-2xl rounded-bl-md border border-slate-700 bg-slate-950/45 p-5"
                   >
-                    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-blue-400">
-                      Verified answer
+                    <p
+                      className={`text-xs font-semibold uppercase tracking-[0.16em] ${
+                        message.answerType ===
+                        "RESTRICTED"
+                          ? "text-amber-400"
+                          : message.answerType ===
+                              "GENERAL_GUIDANCE"
+                            ? "text-violet-400"
+                            : "text-blue-400"
+                      }`}
+                    >
+                      {
+                        message.answerType ===
+                        "RESTRICTED"
+                          ? "Restricted request"
+                          : message.answerType ===
+                              "GENERAL_GUIDANCE"
+                            ? "General guidance"
+                            : "Verified answer"
+                      }
                     </p>
                     <h2 className="mt-3 text-xl font-bold text-white">
                       {
