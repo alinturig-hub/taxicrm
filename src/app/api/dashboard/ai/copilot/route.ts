@@ -14,6 +14,7 @@ import {
 } from "@/lib/ai/analytics-query-engine";
 import {
   answerGeneralCopilotQuestion,
+  planCopilotQuestion,
   refineCopilotAnswer,
 } from "@/lib/ai/openclaw-copilot";
 import { authOptions } from "@/lib/auth";
@@ -674,7 +675,7 @@ async function liveOperationsAnswer(
     question.trim().toLowerCase();
 
   const asksAboutAllocatedJobs =
-    /allocated|allocation|assigned job|job assigned|with passenger|passenger on board|passengers|\bpob\b|job alocat|curse alocate|cu pasager/.test(
+    /allocated|allocation|assigned job|job assigned|have work|has work|carrying passenger|carrying passengers|with passenger|passenger on board|passengers|\bpob\b|job alocat|curse alocate|au de lucru|cu pasager/.test(
       normalized,
     );
 
@@ -1086,15 +1087,37 @@ export async function POST(
             .slice(0, 500)
         : "";
 
-    const intent =
+    let intent =
       classify(question);
 
-    const analyticsPlan =
+    let analyticsPlan =
       intent === "ANALYTICS"
         ? planAnalyticsQuestion(
             question,
           )
         : null;
+
+    let semanticPlannerUsed =
+      false;
+
+    if (
+      intent ===
+        "GENERAL_GUIDANCE"
+    ) {
+      const semanticPlan =
+        await planCopilotQuestion(
+          question,
+        );
+
+      if (semanticPlan) {
+        intent =
+          semanticPlan.intent;
+        analyticsPlan =
+          semanticPlan.analyticsPlan;
+        semanticPlannerUsed =
+          true;
+      }
+    }
 
     if (
       analyticsPlan &&
@@ -1235,6 +1258,7 @@ export async function POST(
       safeguards: {
         externalModelUsed:
           refinement.externalModelUsed,
+        semanticPlannerUsed,
         questionStored: false,
         writeActionsEnabled: false,
         customerContactEnabled: false,

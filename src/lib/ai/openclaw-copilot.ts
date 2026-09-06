@@ -560,3 +560,292 @@ export async function answerGeneralCopilotQuestion(
     };
   }
 }
+
+export type SemanticCopilotPlan = {
+  intent:
+    | "ANALYTICS"
+    | "LIVE_OPERATIONS"
+    | "DEMAND"
+    | "WARNING"
+    | "ACCURACY"
+    | "AUTOMATION"
+    | "HEALTH"
+    | "PROVENANCE"
+    | "GENERAL_GUIDANCE"
+    | "RESTRICTED";
+  analyticsPlan: {
+    metric:
+      | "REVENUE"
+      | "BOOKINGS"
+      | "BOOKING_STATUS"
+      | "PERIOD_COMPARISON";
+    period:
+      | "TODAY"
+      | "YESTERDAY"
+      | "THIS_WEEK"
+      | "LAST_WEEK"
+      | "THIS_MONTH"
+      | "LAST_MONTH";
+    comparisonMetric?:
+      | "REVENUE"
+      | "BOOKINGS";
+  } | null;
+};
+
+const SEMANTIC_INTENTS =
+  new Set([
+    "ANALYTICS",
+    "LIVE_OPERATIONS",
+    "DEMAND",
+    "WARNING",
+    "ACCURACY",
+    "AUTOMATION",
+    "HEALTH",
+    "PROVENANCE",
+    "GENERAL_GUIDANCE",
+    "RESTRICTED",
+  ]);
+
+const ANALYTICS_METRICS =
+  new Set([
+    "REVENUE",
+    "BOOKINGS",
+    "BOOKING_STATUS",
+    "PERIOD_COMPARISON",
+  ]);
+
+const ANALYTICS_PERIODS =
+  new Set([
+    "TODAY",
+    "YESTERDAY",
+    "THIS_WEEK",
+    "LAST_WEEK",
+    "THIS_MONTH",
+    "LAST_MONTH",
+  ]);
+
+function validSemanticPlan(
+  value: unknown,
+): value is SemanticCopilotPlan {
+  if (
+    value === null ||
+    typeof value !== "object" ||
+    Array.isArray(value)
+  ) {
+    return false;
+  }
+
+  const candidate =
+    value as Record<
+      string,
+      unknown
+    >;
+
+  if (
+    typeof candidate.intent !==
+      "string" ||
+    !SEMANTIC_INTENTS.has(
+      candidate.intent,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    candidate.intent !==
+      "ANALYTICS"
+  ) {
+    return (
+      candidate.analyticsPlan ===
+        null ||
+      candidate.analyticsPlan ===
+        undefined
+    );
+  }
+
+  if (
+    candidate.analyticsPlan ===
+      null ||
+    typeof candidate.analyticsPlan !==
+      "object" ||
+    Array.isArray(
+      candidate.analyticsPlan,
+    )
+  ) {
+    return false;
+  }
+
+  const analytics =
+    candidate.analyticsPlan as Record<
+      string,
+      unknown
+    >;
+
+  if (
+    typeof analytics.metric !==
+      "string" ||
+    !ANALYTICS_METRICS.has(
+      analytics.metric,
+    ) ||
+    typeof analytics.period !==
+      "string" ||
+    !ANALYTICS_PERIODS.has(
+      analytics.period,
+    )
+  ) {
+    return false;
+  }
+
+  if (
+    analytics.metric ===
+      "PERIOD_COMPARISON"
+  ) {
+    return (
+      analytics.comparisonMetric ===
+        "REVENUE" ||
+      analytics.comparisonMetric ===
+        "BOOKINGS"
+    );
+  }
+
+  return (
+    analytics.comparisonMetric ===
+      undefined ||
+    analytics.comparisonMetric ===
+      null
+  );
+}
+
+export async function planCopilotQuestion(
+  question: string,
+): Promise<SemanticCopilotPlan | null> {
+  const baseUrl =
+    process.env
+      .OPENCLAW_COPILOT_BASE_URL
+      ?.trim()
+      .replace(/\/+$/, "");
+
+  const token =
+    process.env
+      .OPENCLAW_COPILOT_TOKEN
+      ?.trim();
+
+  const model =
+    process.env
+      .OPENCLAW_COPILOT_MODEL
+      ?.trim() ||
+    "openclaw/taxicrm-copilot";
+
+  if (!baseUrl || !token) {
+    return null;
+  }
+
+  try {
+    const response =
+      await fetch(
+        `${baseUrl}/v1/chat/completions`,
+        {
+          method: "POST",
+          headers: {
+            authorization:
+              `Bearer ${token}`,
+            "content-type":
+              "application/json",
+          },
+          body: JSON.stringify({
+            model,
+            messages: [
+              {
+                role: "system",
+                content:
+                  `Classify one TaxiCRM Copilot question into a controlled JSON plan. Never answer the question. Never generate SQL or tool calls.
+
+Allowed intent rules:
+ANALYTICS: revenue, historical booking counts, completed/cancelled/no-fare outcomes, or period comparisons.
+LIVE_OPERATIONS: drivers on shift, live vehicles, allocated jobs, bookings without drivers, dispatched, accepted, arrived, passenger on board or current fleet state.
+DEMAND: future booking-demand forecasts.
+WARNING: forecast alerts or operational exceptions.
+ACCURACY: prediction or forecast accuracy.
+AUTOMATION: automation rules, simulation or execution safety.
+HEALTH: monitored jobs, service health or schedule freshness.
+PROVENANCE: whether figures are real, their evidence or source.
+GENERAL_GUIDANCE: explanations, recommendations or general conversation that does not require current TaxiCRM figures.
+RESTRICTED: secrets, passwords, tokens, API keys, personal contact details, customer addresses, precise driver locations, raw database access, SQL, shell commands, data modification or operational execution.
+
+For ANALYTICS select one metric:
+REVENUE, BOOKINGS, BOOKING_STATUS, PERIOD_COMPARISON.
+
+Select one period:
+TODAY, YESTERDAY, THIS_WEEK, LAST_WEEK, THIS_MONTH, LAST_MONTH.
+Default to TODAY when no period is given.
+For PERIOD_COMPARISON set comparisonMetric to REVENUE or BOOKINGS.
+For every non-ANALYTICS intent analyticsPlan must be null.
+
+Return JSON only:
+{"intent":"...","analyticsPlan":null}`,
+              },
+              {
+                role: "user",
+                content:
+                  JSON.stringify({
+                    question:
+                      question.slice(
+                        0,
+                        500,
+                      ),
+                  }),
+              },
+            ],
+            temperature: 0,
+            max_completion_tokens:
+              180,
+          }),
+          signal:
+            AbortSignal.timeout(
+              8000,
+            ),
+        },
+      );
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload =
+      await response.json() as {
+        choices?: Array<{
+          message?: {
+            content?: unknown;
+            tool_calls?: unknown[];
+          };
+        }>;
+      };
+
+    const message =
+      payload.choices?.[0]
+        ?.message;
+
+    if (
+      !message ||
+      typeof message.content !==
+        "string" ||
+      (
+        message.tool_calls
+          ?.length ?? 0
+      ) > 0
+    ) {
+      return null;
+    }
+
+    const plan =
+      parseJsonObject(
+        message.content,
+      );
+
+    return validSemanticPlan(plan)
+      ? plan
+      : null;
+  } catch {
+    return null;
+  }
+}
