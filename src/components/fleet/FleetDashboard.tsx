@@ -19,6 +19,11 @@ type Vehicle = {
   vehicleType: string | null;
   size: number | null;
   capabilityCount: number;
+  capabilities: Array<{
+    id: string;
+    name: string;
+    shortCode: string | null;
+  }>;
   registration: string | null;
   plateNumber: string | null;
   ownerDriverId: number | null;
@@ -207,6 +212,10 @@ export default function FleetDashboard() {
         vehicle.model,
         vehicle.colour,
         vehicle.vehicleType,
+        ...vehicle.capabilities.map(
+          (capability) =>
+            capability.name,
+        ),
         ...vehicle.assignedDrivers.flatMap(
           (driver) => [
             driver.callsign,
@@ -407,9 +416,45 @@ export default function FleetDashboard() {
                     </td>
 
                     <td className="px-5 py-4 text-slate-300">
-                      {vehicle.capabilityCount > 0
-                        ? `${vehicle.capabilityCount} configured`
-                        : "None recorded"}
+                      {vehicle.capabilities.length > 0 ? (
+                        <div className="flex max-w-md flex-wrap gap-1.5">
+                          {vehicle.capabilities
+                            .slice(0, 3)
+                            .map((capability) => (
+                              <span
+                                key={capability.id}
+                                title={
+                                  capability.shortCode
+                                    ? `${capability.name} (${capability.shortCode})`
+                                    : capability.name
+                                }
+                                className="rounded-full border border-blue-500/25 bg-blue-500/10 px-2 py-1 text-[11px] font-medium text-blue-200"
+                              >
+                                {capability.name}
+                              </span>
+                            ))}
+
+                          {vehicle.capabilities.length > 3 ? (
+                            <span
+                              title={vehicle.capabilities
+                                .slice(3)
+                                .map(
+                                  (capability) =>
+                                    capability.name,
+                                )
+                                .join(", ")}
+                              className="rounded-full border border-slate-700 bg-slate-950 px-2 py-1 text-[11px] font-medium text-slate-400"
+                            >
+                              +
+                              {vehicle.capabilities.length -
+                                3}{" "}
+                              more
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : (
+                        "None recorded"
+                      )}
                     </td>
 
                     <td className="px-5 py-4 text-slate-300">

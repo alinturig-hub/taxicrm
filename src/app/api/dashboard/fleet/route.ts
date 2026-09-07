@@ -90,6 +90,69 @@ export async function GET() {
         })
       : [];
 
+  const capabilityRecords =
+    await prisma.apiEndpointRecord.findMany({
+      where: {
+        isActive: true,
+        endpoint: {
+          name: "Capabilities",
+        },
+      },
+      select: {
+        externalId: true,
+        data: true,
+      },
+    });
+
+  const capabilityByExternalId =
+    new Map<
+      string,
+      {
+        id: string;
+        name: string;
+        shortCode: string | null;
+      }
+    >();
+
+  for (
+    const record
+    of capabilityRecords
+  ) {
+    if (
+      record.data === null ||
+      typeof record.data !== "object" ||
+      Array.isArray(record.data)
+    ) {
+      continue;
+    }
+
+    const data =
+      record.data as Record<
+        string,
+        unknown
+      >;
+
+    if (
+      typeof data.name !== "string" ||
+      data.name.trim().length === 0
+    ) {
+      continue;
+    }
+
+    capabilityByExternalId.set(
+      record.externalId,
+      {
+        id: record.externalId,
+        name: data.name.trim(),
+        shortCode:
+          typeof data.shortCode === "string" &&
+          data.shortCode.trim().length > 0
+            ? data.shortCode.trim()
+            : null,
+      },
+    );
+  }
+
   const driverByExternalId =
     new Map(
       assignedDrivers.map(
@@ -105,10 +168,31 @@ export async function GET() {
 
   const vehicles =
     vehicleRecords.map((vehicle) => {
-      const capabilityCount =
+      const capabilityIds =
         Array.isArray(vehicle.capabilities)
-          ? vehicle.capabilities.length
-          : 0;
+          ? vehicle.capabilities
+              .map(String)
+              .filter(
+                (capabilityId) =>
+                  capabilityId.length > 0,
+              )
+          : [];
+
+      const resolvedCapabilities =
+        capabilityIds.map(
+          (capabilityId) =>
+            capabilityByExternalId.get(
+              capabilityId,
+            ) ?? {
+              id: capabilityId,
+              name:
+                `Capability ${capabilityId}`,
+              shortCode: null,
+            },
+        );
+
+      const capabilityCount =
+        resolvedCapabilities.length;
 
       const assignedVehicleDrivers = [
         vehicle.ownerDriverId,
@@ -140,6 +224,8 @@ export async function GET() {
       return {
         ...vehicle,
         capabilityCount,
+        capabilities:
+          resolvedCapabilities,
         assignedDrivers:
           assignedVehicleDrivers,
       };
