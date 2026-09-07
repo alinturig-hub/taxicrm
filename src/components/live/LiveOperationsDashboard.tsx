@@ -52,6 +52,8 @@ type LiveOperations = {
     total: number;
     staleVehicles: number;
     bookingsWithoutDriver: number;
+    overdueWithoutDriver: number;
+    dueSoonWithoutDriver: number;
     acceptedOver15Minutes: number;
     driversWithoutVehicle: number;
     items: Array<{
@@ -890,7 +892,7 @@ export default function LiveOperationsDashboard() {
               </div>
 
               <span className="rounded-full border border-red-500/30 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200">
-                {alertItems.length} active
+                {operations.alerts.total.toLocaleString("en-GB")} exceptions
               </span>
             </div>
 

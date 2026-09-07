@@ -57,6 +57,8 @@ export type LiveOperationsData = {
     total: number;
     staleVehicles: number;
     bookingsWithoutDriver: number;
+    overdueWithoutDriver: number;
+    dueSoonWithoutDriver: number;
     acceptedOver15Minutes: number;
     driversWithoutVehicle: number;
 
@@ -186,6 +188,8 @@ export async function getLiveOperations(
     noFareToday,
     waitingPickup,
     withoutDriver,
+    overdueWithoutDriver,
+    dueSoonWithoutDriver,
     acceptedOver15Minutes,
     trackedVehicles,
     activeShifts,
@@ -354,6 +358,32 @@ export async function getLiveOperations(
 
     prisma.booking.count({
       where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        driverId: null,
+        pickupDueTime: {
+          gte: liveWindowStart,
+          lt: now,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
+        status: {
+          in: ACTIVE_BOOKING_STATUSES,
+        },
+        driverId: null,
+        pickupDueTime: {
+          gte: now,
+          lte: dueSoonEnd,
+        },
+      },
+    }),
+
+    prisma.booking.count({
+      where: {
         status: "ACCEPTED",
         acceptedAt: {
           lte: acceptedWarningThreshold,
@@ -490,7 +520,8 @@ export async function getLiveOperations(
     passengerOnBoard;
 
   const totalAlerts =
-    withoutDriver +
+    overdueWithoutDriver +
+    dueSoonWithoutDriver +
     acceptedOver15Minutes +
     driversWithoutVehicle;
 
@@ -591,15 +622,32 @@ export async function getLiveOperations(
       total: totalAlerts,
       staleVehicles: fleet.stale,
       bookingsWithoutDriver: withoutDriver,
+      overdueWithoutDriver,
+      dueSoonWithoutDriver,
       acceptedOver15Minutes,
       driversWithoutVehicle,
 
       items: [
-        ...(withoutDriver > 0
+        ...(overdueWithoutDriver > 0
           ? [{
-              id: "bookings-without-driver",
+              id: "overdue-without-driver",
               severity: "critical" as const,
-              title: `${withoutDriver} bookings without driver`,
+              title:
+                `${overdueWithoutDriver} overdue bookings without driver`,
+              subtitle:
+                "Pickup time has passed and no driver is allocated",
+              occurredAt: now.toISOString(),
+            }]
+          : []),
+
+        ...(dueSoonWithoutDriver > 0
+          ? [{
+              id: "due-soon-without-driver",
+              severity: "warning" as const,
+              title:
+                `${dueSoonWithoutDriver} bookings due soon without driver`,
+              subtitle:
+                "Pickup is due within the next 10 minutes",
               occurredAt: now.toISOString(),
             }]
           : []),
