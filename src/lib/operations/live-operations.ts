@@ -490,7 +490,6 @@ export async function getLiveOperations(
     passengerOnBoard;
 
   const totalAlerts =
-    fleet.stale +
     withoutDriver +
     acceptedOver15Minutes +
     driversWithoutVehicle;
@@ -596,17 +595,6 @@ export async function getLiveOperations(
       driversWithoutVehicle,
 
       items: [
-        ...(fleet.stale > 0
-          ? [{
-              id: "stale-vehicles",
-              severity: "warning" as const,
-              title: `${fleet.stale} stale vehicles`,
-              subtitle:
-                "Vehicles offline for more than 2 minutes",
-              occurredAt: now.toISOString(),
-            }]
-          : []),
-
         ...(withoutDriver > 0
           ? [{
               id: "bookings-without-driver",
