@@ -17,22 +17,22 @@ type Vehicle = {
   colour: string | null;
   yearOfManufacture: number | null;
   vehicleType: string | null;
+  size: number | null;
+  capabilityCount: number;
   registration: string | null;
   plateNumber: string | null;
-  isSuspended: boolean;
-  isActive: boolean;
-  currentStatus: string | null;
-  currentBookingId: number | null;
-  currentLatitude: string | number | null;
-  currentLongitude: string | number | null;
-  lastSeenAt: string | null;
-  currentDriver: {
+  ownerDriverId: number | null;
+  secondOwnerDriverId: number | null;
+  assignedDrivers: Array<{
     id: string;
     externalId: string;
     callsign: string | null;
     forename: string | null;
     surname: string | null;
-  } | null;
+    resolved: boolean;
+  }>;
+  isSuspended: boolean;
+  isActive: boolean;
 };
 
 type FleetResponse = {
@@ -42,27 +42,52 @@ type FleetResponse = {
   message?: string;
 };
 
-function driverName(vehicle: Vehicle) {
-  const driver = vehicle.currentDriver;
-
-  if (!driver) {
-    return "—";
+function assignedDriverNames(
+  vehicle: Vehicle,
+) {
+  if (
+    vehicle.assignedDrivers.length === 0
+  ) {
+    return "Not assigned";
   }
 
-  const name = [driver.forename, driver.surname]
-    .filter(Boolean)
-    .join(" ");
+  return vehicle.assignedDrivers
+    .map((driver) => {
+      if (!driver.resolved) {
+        return `Autocab driver ${driver.externalId}`;
+      }
 
-  return (
-    driver.callsign ||
-    name ||
-    driver.externalId
-  );
+      const name = [
+        driver.forename,
+        driver.surname,
+      ]
+        .filter(Boolean)
+        .join(" ");
+
+      if (driver.callsign && name) {
+        return `${driver.callsign} · ${name}`;
+      }
+
+      return (
+        name ||
+        driver.callsign ||
+        driver.externalId
+      );
+    })
+    .join(", ");
 }
 
 export default function FleetDashboard() {
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
   const [search, setSearch] = useState("");
+  const [filter, setFilter] =
+    useState<
+      | "ALL"
+      | "ACTIVE"
+      | "SUSPENDED"
+      | "WITH_DRIVER"
+      | "WITHOUT_DRIVER"
+    >("ALL");
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -142,40 +167,84 @@ export default function FleetDashboard() {
   }
 
   const filteredVehicles = useMemo(() => {
-    const query = search.trim().toLowerCase();
+    const query =
+      search.trim().toLowerCase();
 
-    if (!query) {
-      return vehicles;
-    }
+    return vehicles.filter((vehicle) => {
+      const matchesFilter =
+        filter === "ALL" ||
+        (
+          filter === "ACTIVE" &&
+          vehicle.isActive &&
+          !vehicle.isSuspended
+        ) ||
+        (
+          filter === "SUSPENDED" &&
+          vehicle.isSuspended
+        ) ||
+        (
+          filter === "WITH_DRIVER" &&
+          vehicle.assignedDrivers.length > 0
+        ) ||
+        (
+          filter === "WITHOUT_DRIVER" &&
+          vehicle.assignedDrivers.length === 0
+        );
 
-    return vehicles.filter((vehicle) =>
-      [
+      if (!matchesFilter) {
+        return false;
+      }
+
+      if (!query) {
+        return true;
+      }
+
+      return [
         vehicle.callsign,
         vehicle.registration,
         vehicle.plateNumber,
         vehicle.make,
         vehicle.model,
+        vehicle.colour,
         vehicle.vehicleType,
-        vehicle.currentStatus,
-        vehicle.currentDriver?.callsign,
-        vehicle.currentDriver?.forename,
-        vehicle.currentDriver?.surname,
+        ...vehicle.assignedDrivers.flatMap(
+          (driver) => [
+            driver.callsign,
+            driver.forename,
+            driver.surname,
+          ],
+        ),
       ].some((value) =>
-        value?.toLowerCase().includes(query),
-      ),
-    );
-  }, [vehicles, search]);
+        value
+          ?.toLowerCase()
+          .includes(query),
+      );
+    });
+  }, [filter, vehicles, search]);
 
   const suspended = vehicles.filter(
-    (vehicle) => vehicle.isSuspended,
+    (vehicle) =>
+      vehicle.isSuspended,
   ).length;
+
+  const active = vehicles.filter(
+    (vehicle) =>
+      vehicle.isActive &&
+      !vehicle.isSuspended,
+  ).length;
+
+  const withAssignedDriver =
+    vehicles.filter(
+      (vehicle) =>
+        vehicle.assignedDrivers.length > 0,
+    ).length;
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.25em] text-blue-400">
-            Operations
+            Fleet Registry
           </p>
 
           <h1 className="mt-2 text-4xl font-bold text-white">
@@ -183,7 +252,7 @@ export default function FleetDashboard() {
           </h1>
 
           <p className="mt-3 text-slate-400">
-            Active Autocab vehicles and current operational state.
+            Vehicle records, capabilities and assigned drivers.
           </p>
         </div>
 
@@ -221,24 +290,66 @@ export default function FleetDashboard() {
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-3">
-        <Metric label="Active Vehicles" value={vehicles.length} />
-        <Metric label="Suspended" value={suspended} />
         <Metric
-          label="With Driver"
-          value={vehicles.filter((v) => v.currentDriver).length}
+          label="Active Vehicles"
+          value={active}
+        />
+        <Metric
+          label="Suspended"
+          value={suspended}
+        />
+        <Metric
+          label="With Assigned Driver"
+          value={withAssignedDriver}
         />
       </div>
 
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-        <input
-          type="search"
-          value={search}
-          onChange={(event) =>
-            setSearch(event.target.value)
-          }
-          placeholder="Search callsign, registration, driver..."
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
-        />
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) =>
+              setSearch(event.target.value)
+            }
+            placeholder="Search callsign, registration, vehicle or driver..."
+            className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+          />
+
+          <select
+            value={filter}
+            onChange={(event) =>
+              setFilter(
+                event.target.value as typeof filter,
+              )
+            }
+            className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none focus:border-blue-500"
+          >
+            <option value="ALL">
+              All vehicles
+            </option>
+            <option value="ACTIVE">
+              Active
+            </option>
+            <option value="SUSPENDED">
+              Suspended
+            </option>
+            <option value="WITH_DRIVER">
+              With assigned driver
+            </option>
+            <option value="WITHOUT_DRIVER">
+              Without assigned driver
+            </option>
+          </select>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Showing{" "}
+          <span className="font-semibold text-slate-300">
+            {filteredVehicles.length}
+          </span>{" "}
+          of {vehicles.length} vehicle records
+        </p>
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
@@ -254,8 +365,10 @@ export default function FleetDashboard() {
                   <th className="px-5 py-3">Callsign</th>
                   <th className="px-5 py-3">Vehicle</th>
                   <th className="px-5 py-3">Registration</th>
-                  <th className="px-5 py-3">Driver</th>
-                  <th className="px-5 py-3">Status</th>
+                  <th className="px-5 py-3">Type / Seats</th>
+                  <th className="px-5 py-3">Capabilities</th>
+                  <th className="px-5 py-3">Assigned Driver</th>
+                  <th className="px-5 py-3">Record Status</th>
                 </tr>
               </thead>
 
@@ -282,15 +395,39 @@ export default function FleetDashboard() {
                     </td>
 
                     <td className="px-5 py-4 text-slate-300">
-                      {driverName(vehicle)}
+                      <p>
+                        {vehicle.vehicleType?.trim() ||
+                          "Standard"}
+                      </p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        {vehicle.size
+                          ? `${vehicle.size} seats`
+                          : "Seats not recorded"}
+                      </p>
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-300">
+                      {vehicle.capabilityCount > 0
+                        ? `${vehicle.capabilityCount} configured`
+                        : "None recorded"}
+                    </td>
+
+                    <td className="px-5 py-4 text-slate-300">
+                      {assignedDriverNames(vehicle)}
                     </td>
 
                     <td className="px-5 py-4">
-                      <span className="rounded-full border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs text-slate-300">
-                        {vehicle.currentStatus ??
-                          (vehicle.isSuspended
-                            ? "Suspended"
-                            : "Unknown")}
+                      <span
+                        className={[
+                          "rounded-full border px-2.5 py-1 text-xs font-semibold",
+                          vehicle.isSuspended
+                            ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                            : "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+                        ].join(" ")}
+                      >
+                        {vehicle.isSuspended
+                          ? "Suspended"
+                          : "Active"}
                       </span>
                     </td>
                   </tr>
@@ -299,7 +436,7 @@ export default function FleetDashboard() {
                 {filteredVehicles.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={5}
+                      colSpan={7}
                       className="px-5 py-10 text-center text-slate-500"
                     >
                       No vehicles found.

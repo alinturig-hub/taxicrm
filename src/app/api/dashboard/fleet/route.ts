@@ -20,7 +20,7 @@ export async function GET() {
     );
   }
 
-  const vehicles = await prisma.vehicle.findMany({
+  const vehicleRecords = await prisma.vehicle.findMany({
     where: {
       provider: "AUTOCAB",
       isActive: true,
@@ -43,26 +43,107 @@ export async function GET() {
       colour: true,
       yearOfManufacture: true,
       vehicleType: true,
+      size: true,
+      capabilities: true,
       registration: true,
       plateNumber: true,
+      ownerDriverId: true,
+      secondOwnerDriverId: true,
       isSuspended: true,
       isActive: true,
-      currentStatus: true,
-      currentBookingId: true,
-      currentLatitude: true,
-      currentLongitude: true,
-      lastSeenAt: true,
-      currentDriver: {
-        select: {
-          id: true,
-          externalId: true,
-          callsign: true,
-          forename: true,
-          surname: true,
-        },
-      },
     },
   });
+
+  const assignedDriverExternalIds =
+    Array.from(
+      new Set(
+        vehicleRecords.flatMap(
+          (vehicle) => [
+            vehicle.ownerDriverId,
+            vehicle.secondOwnerDriverId,
+          ],
+        )
+          .filter(
+            (driverId): driverId is number =>
+              driverId !== null,
+          )
+          .map(String),
+      ),
+    );
+
+  const assignedDrivers =
+    assignedDriverExternalIds.length > 0
+      ? await prisma.driver.findMany({
+          where: {
+            provider: "AUTOCAB",
+            externalId: {
+              in: assignedDriverExternalIds,
+            },
+          },
+          select: {
+            id: true,
+            externalId: true,
+            callsign: true,
+            forename: true,
+            surname: true,
+          },
+        })
+      : [];
+
+  const driverByExternalId =
+    new Map(
+      assignedDrivers.map(
+        (driver) => [
+          driver.externalId,
+          {
+            ...driver,
+            resolved: true,
+          },
+        ],
+      ),
+    );
+
+  const vehicles =
+    vehicleRecords.map((vehicle) => {
+      const capabilityCount =
+        Array.isArray(vehicle.capabilities)
+          ? vehicle.capabilities.length
+          : 0;
+
+      const assignedVehicleDrivers = [
+        vehicle.ownerDriverId,
+        vehicle.secondOwnerDriverId,
+      ]
+        .filter(
+          (driverId): driverId is number =>
+            driverId !== null,
+        )
+        .map((driverId) => {
+          const externalId =
+            String(driverId);
+
+          return (
+            driverByExternalId.get(
+              externalId,
+            ) ?? {
+              id:
+                `autocab-${externalId}`,
+              externalId,
+              callsign: null,
+              forename: null,
+              surname: null,
+              resolved: false,
+            }
+          );
+        });
+
+      return {
+        ...vehicle,
+        capabilityCount,
+        assignedDrivers:
+          assignedVehicleDrivers,
+      };
+    });
 
   return NextResponse.json({
     success: true,
