@@ -1,10 +1,23 @@
+import type { Prisma } from "@/generated/prisma/client";
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const BOOKING_BATCH_SIZE = 1000;
 const OPERATIONAL_TIME_ZONE = "Europe/London";
+
+type BookingWithDetails =
+  Prisma.BookingGetPayload<{
+    include: {
+      locations: true;
+      vias: true;
+    };
+  }>;
 
 function getLondonDateParts(date: Date) {
   const parts = new Intl.DateTimeFormat("en-GB", {
@@ -170,6 +183,23 @@ function getRequestedLondonDayRange(
 
 export async function GET(request: Request) {
   try {
+    const session =
+      await getServerSession(
+        authOptions,
+      );
+
+    if (!session?.user) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: "UNAUTHORIZED",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
     const url = new URL(request.url);
 
     const { start, end } =
@@ -178,37 +208,88 @@ export async function GET(request: Request) {
         url.searchParams.get("to"),
       );
 
-    const bookings = await prisma.booking.findMany({
-      where: {
-        pickupDueTime: {
-          gte: start,
-          lt: end,
-        },
-      },
-      orderBy: [
-        {
+    const bookingIdentifiers =
+      await prisma.booking.findMany({
+        where: {
           pickupDueTime: {
-            sort: "desc",
-            nulls: "last",
+            gte: start,
+            lt: end,
           },
         },
-        {
-          updatedAt: "desc",
-        },
-      ],
-      include: {
-        locations: {
-          orderBy: {
-            type: "asc",
+        orderBy: [
+          {
+            pickupDueTime: {
+              sort: "desc",
+              nulls: "last",
+            },
           },
-        },
-        vias: {
-          orderBy: {
-            position: "asc",
+          {
+            updatedAt: "desc",
           },
+        ],
+        select: {
+          id: true,
         },
-      },
-    });
+      });
+
+    const bookings:
+      BookingWithDetails[] = [];
+
+    for (
+      let index = 0;
+      index <
+      bookingIdentifiers.length;
+      index +=
+        BOOKING_BATCH_SIZE
+    ) {
+      const identifiers =
+        bookingIdentifiers
+          .slice(
+            index,
+            index +
+              BOOKING_BATCH_SIZE,
+          )
+          .map(
+            (booking) =>
+              booking.id,
+          );
+
+      const batch =
+        await prisma.booking.findMany({
+          where: {
+            id: {
+              in: identifiers,
+            },
+          },
+          orderBy: [
+            {
+              pickupDueTime: {
+                sort: "desc",
+                nulls: "last",
+              },
+            },
+            {
+              updatedAt: "desc",
+            },
+          ],
+          include: {
+            locations: {
+              orderBy: {
+                type: "asc",
+              },
+            },
+            vias: {
+              orderBy: {
+                position: "asc",
+              },
+            },
+          },
+        });
+
+      bookings.push(
+        ...batch,
+      );
+    }
 
     return NextResponse.json({
       success: true,
