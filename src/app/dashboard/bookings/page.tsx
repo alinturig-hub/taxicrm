@@ -21,6 +21,7 @@ import StatusBadge from "@/components/ui/StatusBadge";
 import TablePagination from "@/components/ui/TablePagination";
 import TableToolbar from "@/components/ui/TableToolbar";
 import BookingWorkspace from "@/components/bookings/BookingWorkspace";
+import DispatchDifficultyPanel from "@/components/bookings/DispatchDifficultyPanel";
 import type { BookingWorkspaceData } from "@/components/bookings/types";
 import WorkspacePanel, {
   type WorkspaceTab,
@@ -54,6 +55,16 @@ type RejectionRankingResponse = {
   totalRejections: number;
   attributedRejections: number;
   attributionPercent: number;
+  rawRejectionAttempts: number;
+  attributedRejectionAttempts: number;
+  unattributedRejectionAttempts: number;
+  duplicateRejectionAttempts: number;
+  uniqueBookingDriverPairs: number;
+  recoveredBySameDriver: number;
+  effectiveDriverRejections: number;
+  jobsRejectedAtLeastOnce: number;
+  driversWhoRejected: number;
+  averageEffectiveRejectionsPerAffectedJob: number;
   ranking: RejectionRankingEntry[];
   error?: string;
   message?: string;
@@ -1371,18 +1382,30 @@ export default function BookingsPage() {
               description={`Estimated lost revenue: £${bookingStats.cancelledLostRevenue.toFixed(2)}`}
             />
             <KpiCard
-              title="Rejected"
-              onClick={() => applyCardFilter("REJECTED")}
-              active={cardFilter === "REJECTED"}
-              value={
-                activeBookings
-                  .filter(
-                    (booking) =>
-                      booking.status.toUpperCase() === "REJECTED",
+              title="Driver Rejections"
+              onClick={() =>
+                document
+                  .getElementById(
+                    "rejection-ranking",
                   )
-                  .length.toString()
+                  ?.scrollIntoView({
+                    behavior: "smooth",
+                    block: "start",
+                  })
               }
-              description="Rejected bookings to review"
+              active={false}
+              value={
+                (
+                  rejectionRanking
+                    ?.effectiveDriverRejections ??
+                  activeBookings.filter(
+                    (booking) =>
+                      booking.status.toUpperCase() ===
+                      "REJECTED",
+                  ).length
+                ).toString()
+              }
+              description="Unique unrecovered driver refusals"
             />
             <KpiCard
               title="Stuck or Late"
@@ -1395,25 +1418,38 @@ export default function BookingsPage() {
         ) : null}
 
         {bookingView === "exceptions" ? (
-          <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60">
+          <section
+            id="rejection-ranking"
+            className="scroll-mt-6 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/60"
+          >
             <div className="flex flex-col gap-3 border-b border-slate-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold text-white">
-                  Rejected Driver Ranking
+                  Effective Driver Rejections
                 </h2>
                 <p className="mt-1 text-xs text-slate-400">
-                  Derived from the last driver assignment before each rejection.
+                  Each job and driver counts once. Repeated refusals and later acceptance by the same driver are excluded.
                 </p>
               </div>
 
               {rejectionRanking ? (
                 <div className="text-xs text-slate-400">
-                  {rejectionRanking.attributedRejections.toLocaleString("en-GB")}
-                  {" of "}
-                  {rejectionRanking.totalRejections.toLocaleString("en-GB")}
-                  {" attributed · "}
-                  {rejectionRanking.attributionPercent.toFixed(2)}
-                  %
+                  {rejectionRanking.effectiveDriverRejections.toLocaleString(
+                    "en-GB",
+                  )}
+                  {" effective · "}
+                  {rejectionRanking.recoveredBySameDriver.toLocaleString(
+                    "en-GB",
+                  )}
+                  {" recovered · "}
+                  {rejectionRanking.duplicateRejectionAttempts.toLocaleString(
+                    "en-GB",
+                  )}
+                  {" duplicate attempts · "}
+                  {rejectionRanking.unattributedRejectionAttempts.toLocaleString(
+                    "en-GB",
+                  )}
+                  {" unattributed"}
                 </div>
               ) : null}
             </div>
@@ -1573,6 +1609,18 @@ export default function BookingsPage() {
               </div>
             ) : null}
           </section>
+        ) : null}
+
+        {bookingView === "exceptions" ? (
+          <DispatchDifficultyPanel
+            fromDate={fromDate}
+            toDate={toDate}
+            onOpenBooking={(bookingId) => {
+              void openBookingWorkspace(
+                bookingId,
+              );
+            }}
+          />
         ) : null}
 
         {bookingView === "saved" ? (

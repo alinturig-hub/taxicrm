@@ -1,4 +1,7 @@
 import { prisma } from "@/lib/prisma";
+import {
+  getEffectiveDriverRejectionDetails,
+} from "@/lib/refusals/effective-driver-rejections";
 
 export type RefusalPoint = {
   lat: number;
@@ -215,38 +218,248 @@ export async function getRefusalDetail(
 /**
  * Toate refuzurile unui șofer (pe callsign), corelate cu poziția la refuz + pickup.
  */
+
+async function getEffectiveRefusalDetail(
+  externalBookingId: string,
+  externalDriverId: string,
+  callsign: string,
+  refusedAt: Date,
+): Promise<RefusalDetail | null> {
+  const booking =
+    await prisma.booking.findUnique({
+      where: {
+        provider_externalId: {
+          provider: "AUTOCAB",
+          externalId:
+            externalBookingId,
+        },
+      },
+    });
+
+  if (!booking) {
+    return null;
+  }
+
+  const [
+    pickupLocation,
+    driver,
+  ] = await Promise.all([
+    prisma.bookingLocation.findUnique({
+      where: {
+        bookingId_type: {
+          bookingId:
+            booking.id,
+          type: "PICKUP",
+        },
+      },
+    }),
+    prisma.driver.findFirst({
+      where: {
+        provider:
+          "AUTOCAB",
+        externalId:
+          externalDriverId,
+      },
+      select: {
+        id: true,
+        fullName: true,
+        forename: true,
+        surname: true,
+      },
+    }),
+  ]);
+
+  const driverPosition =
+    driver
+      ? await nearestVehiclePosition(
+          driver.id,
+          refusedAt,
+        )
+      : null;
+
+  const pickupPoint:
+    RefusalPoint | null =
+      pickupLocation?.latitude != null &&
+      pickupLocation.longitude != null
+        ? {
+            lat:
+              Number(
+                pickupLocation.latitude,
+              ),
+            lng:
+              Number(
+                pickupLocation.longitude,
+              ),
+          }
+        : null;
+
+  const distanceKm =
+    driverPosition &&
+    pickupPoint
+      ? haversineKm(
+          driverPosition.lat,
+          driverPosition.lng,
+          pickupPoint.lat,
+          pickupPoint.lng,
+        )
+      : null;
+
+  const deltaSeconds =
+    driverPosition
+      ? Math.abs(
+          (
+            refusedAt.getTime() -
+            driverPosition.at.getTime()
+          ) /
+            1000,
+        )
+      : null;
+
+  const driverName =
+    driver
+      ? driver.fullName ??
+        (
+          [
+            driver.forename,
+            driver.surname,
+          ]
+            .filter(Boolean)
+            .join(" ") ||
+          null
+        )
+      : null;
+
+  return {
+    bookingId:
+      booking.id,
+    externalId:
+      booking.externalId,
+    status:
+      booking.status,
+    typeOfBooking:
+      booking.typeOfBooking,
+    bookingSource:
+      booking.bookingSource,
+    accountName:
+      booking.accountName,
+    customerName:
+      booking.customerName,
+    telephoneNumber:
+      booking.telephoneNumber,
+    pickup:
+      pickupPoint,
+    pickupAddress:
+      pickupLocation?.address ??
+      null,
+    pickupZone:
+      pickupLocation?.zoneName ??
+      null,
+    driver: {
+      callsign,
+      name:
+        driverName,
+    },
+    driverPosition:
+      driverPosition
+        ? {
+            lat:
+              driverPosition.lat,
+            lng:
+              driverPosition.lng,
+          }
+        : null,
+    driverPositionAt:
+      driverPosition
+        ? driverPosition.at.toISOString()
+        : null,
+    refusedAt:
+      refusedAt.toISOString(),
+    deltaSeconds,
+    distanceKm,
+    outcome: {
+      completedAt:
+        booking.completedAt
+          ?.toISOString() ??
+        null,
+      noFareAt:
+        booking.noFareAt
+          ?.toISOString() ??
+        null,
+      cancelledAt:
+        booking.cancelledAt
+          ?.toISOString() ??
+        null,
+    },
+  };
+}
+
+/**
+ * Effective refusals for one driver.
+ *
+ * The same booking and driver appear at most once.
+ * A later acceptance by that driver removes the refusal.
+ */
 export async function getDriverRefusals(
   callsign: string,
 ): Promise<RefusalDetail[]> {
-  const driver = await prisma.driver.findFirst({
-    where: { callsign },
-    select: { id: true },
-  });
+  const driver =
+    await prisma.driver.findFirst({
+      where: {
+        provider:
+          "AUTOCAB",
+        callsign,
+      },
+      select: {
+        externalId:
+          true,
+      },
+    });
 
   if (!driver) {
     return [];
   }
 
-  // Toate booking-urile din al caror timeline apare un refuz, ordonat desc
-  const bookings = (await prisma.$queryRaw`
-    SELECT DISTINCT b.id AS id
-    FROM "Booking" b
-    JOIN "BookingTimelineEvent" t ON t."bookingId" = b.id
-    JOIN "BookingTimelineEvent" d ON d."bookingId" = b.id AND d."eventType" = 'BookingDispatched'
-    WHERE b.status = 'REJECTED'
-      AND d.metadata->'DriverDetails'->'Driver'->>'Callsign' = ${callsign}
-      AND t."eventType" = 'BookingRejected'
-    ORDER BY b."createdAt" DESC
-  `) as Array<{ id: string }>;
+  const to =
+    new Date();
 
-  const details: RefusalDetail[] = [];
+  const from =
+    new Date(
+      to.getTime() -
+        30 *
+          24 *
+          60 *
+          60 *
+          1000,
+    );
 
-  for (const b of bookings) {
-    const detail = await getRefusalDetail(b.id);
+  const rejections =
+    await getEffectiveDriverRejectionDetails(
+      driver.externalId,
+      from,
+      to,
+    );
+
+  const details:
+    RefusalDetail[] = [];
+
+  for (
+    const rejection
+    of rejections
+  ) {
+    const detail =
+      await getEffectiveRefusalDetail(
+        rejection.bookingId,
+        rejection.driverId,
+        callsign,
+        rejection.rejectedAt,
+      );
+
     if (detail) {
-      details.push(detail);
+      details.push(
+        detail,
+      );
     }
   }
 
-  return details.filter((d) => d.driver?.callsign === callsign);
+  return details;
 }

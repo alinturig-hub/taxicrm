@@ -13,6 +13,9 @@ import {
   startOfLondonDay,
   startOfLondonWeek,
 } from "@/lib/time/london-calendar";
+import {
+  countEffectiveDriverRejections,
+} from "@/lib/refusals/effective-driver-rejections";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -263,42 +266,11 @@ async function calculateRejections(
   from: Date,
   to: Date,
 ) {
-  const rows = await prisma.$queryRaw<
-    Array<{ total: bigint }>
-  >`
-    SELECT COUNT(*)::bigint AS total
-    FROM "WebhookEvent" rejected
-    WHERE rejected."eventType" = 'BookingRejected'
-      AND rejected.status = 'PROCESSED'
-      AND rejected."receivedAt" >= ${from}
-      AND rejected."receivedAt" < ${to}
-      AND EXISTS (
-        SELECT 1
-        FROM "WebhookEvent" modified
-        WHERE modified."externalBookingId" =
-              rejected."externalBookingId"
-          AND modified."eventType" =
-              'BookingModified'
-          AND modified."receivedAt" <
-              rejected."receivedAt"
-          AND modified.payload->'Driver'->>'Id' =
-              ${externalDriverId}
-          AND modified."receivedAt" = (
-            SELECT MAX(previous."receivedAt")
-            FROM "WebhookEvent" previous
-            WHERE previous."externalBookingId" =
-                  rejected."externalBookingId"
-              AND previous."eventType" =
-                  'BookingModified'
-              AND previous."receivedAt" <
-                  rejected."receivedAt"
-              AND previous.payload->'Driver'->>'Id'
-                  IS NOT NULL
-          )
-      )
-  `;
-
-  return Number(rows[0]?.total ?? 0);
+  return countEffectiveDriverRejections(
+    externalDriverId,
+    from,
+    to,
+  );
 }
 
 export async function GET(

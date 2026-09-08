@@ -26,7 +26,7 @@ export default async function DriverRefusalsPage({
           Refuzuri șofer #{callsign}
         </h1>
         <p className="text-sm text-slate-400">
-          Unde era șoferul când a refuzat vs pickup-ul joburilor · {refusals.length} refuzuri
+          Refuzuri efective din ultimele 30 de zile · {refusals.length} refuzuri
         </p>
       </div>
 
