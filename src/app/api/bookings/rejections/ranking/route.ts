@@ -2,12 +2,16 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
 import {
   getEffectiveDriverRejectionReport,
 } from "@/lib/refusals/effective-driver-rejections";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const BOOKING_OUTCOME_BATCH_SIZE =
+  1000;
 
 const OPERATIONAL_TIME_ZONE =
   "Europe/London";
@@ -79,6 +83,39 @@ function isValidDate(
       month &&
     parsed.getUTCDate() ===
       day
+  );
+}
+
+function getFinalOutcome(
+  booking: {
+    status: string;
+    acceptedAt: Date | null;
+    completedAt: Date | null;
+    cancelledAt: Date | null;
+    noFareAt: Date | null;
+  },
+) {
+  if (booking.completedAt) {
+    return "COMPLETED";
+  }
+
+  if (booking.cancelledAt) {
+    return "CANCELLED";
+  }
+
+  if (booking.noFareAt) {
+    return "NO_FARE";
+  }
+
+  if (booking.acceptedAt) {
+    return "ACCEPTED";
+  }
+
+  return (
+    booking.status
+      .trim()
+      .toUpperCase() ||
+    "ACTIVE"
   );
 }
 
@@ -162,6 +199,68 @@ export async function GET(
     const summary =
       report.summary;
 
+    const bookingIds =
+      Array.from(
+        new Set(
+          report.details.map(
+            (rejection) =>
+              rejection.bookingId,
+          ),
+        ),
+      );
+
+    const outcomeByBookingId =
+      new Map<
+        string,
+        string
+      >();
+
+    for (
+      let index = 0;
+      index <
+      bookingIds.length;
+      index +=
+        BOOKING_OUTCOME_BATCH_SIZE
+    ) {
+      const batchIds =
+        bookingIds.slice(
+          index,
+          index +
+            BOOKING_OUTCOME_BATCH_SIZE,
+        );
+
+      const bookings =
+        await prisma.booking.findMany({
+          where: {
+            provider:
+              "AUTOCAB",
+            externalId: {
+              in: batchIds,
+            },
+          },
+          select: {
+            externalId: true,
+            status: true,
+            acceptedAt: true,
+            completedAt: true,
+            cancelledAt: true,
+            noFareAt: true,
+          },
+        });
+
+      for (
+        const booking
+        of bookings
+      ) {
+        outcomeByBookingId.set(
+          booking.externalId,
+          getFinalOutcome(
+            booking,
+          ),
+        );
+      }
+    }
+
     return NextResponse.json({
       success: true,
       from,
@@ -200,6 +299,22 @@ export async function GET(
                 "Unknown Driver",
               rejectedJobs:
                 driver.rejectedJobs,
+              cancelledAfterRejection:
+                driver.rejections.filter(
+                  (rejection) =>
+                    outcomeByBookingId.get(
+                      rejection.bookingId,
+                    ) ===
+                    "CANCELLED",
+                ).length,
+              noFareAfterRejection:
+                driver.rejections.filter(
+                  (rejection) =>
+                    outcomeByBookingId.get(
+                      rejection.bookingId,
+                    ) ===
+                    "NO_FARE",
+                ).length,
               estimatedLostRevenue:
                 driver.estimatedLostRevenue,
               rejections:
@@ -214,6 +329,11 @@ export async function GET(
                         .toISOString(),
                     estimatedValue:
                       rejection.estimatedValue,
+                    finalOutcome:
+                      outcomeByBookingId.get(
+                        rejection.bookingId,
+                      ) ??
+                      "UNKNOWN",
                   }),
                 ),
             }),

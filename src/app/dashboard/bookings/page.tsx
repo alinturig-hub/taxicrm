@@ -42,11 +42,14 @@ type RejectionRankingEntry = {
   callsign: string | null;
   driverName: string;
   rejectedJobs: number;
+  cancelledAfterRejection: number;
+  noFareAfterRejection: number;
   estimatedLostRevenue: number;
   rejections: Array<{
     bookingId: string;
     rejectedAt: string;
     estimatedValue: number;
+    finalOutcome: string;
   }>;
 };
 
@@ -864,6 +867,21 @@ export default function BookingsPage() {
   }, [activeBookings]);
 
 
+  const openBookingHistoryWithFilter = (
+    filter: string,
+  ) => {
+    setBookingView(
+      "history",
+    );
+    setStatusFilter(
+      "all",
+    );
+    setCardFilter(
+      filter,
+    );
+    setPage(1);
+  };
+
   const applyCardFilter = (filter: string) => {
     setStatusFilter("all");
     setCardFilter((current) =>
@@ -1312,7 +1330,11 @@ export default function BookingsPage() {
             />
             <KpiCard
               title="Cancelled"
-              onClick={() => applyCardFilter("CANCELLED")}
+              onClick={() =>
+                openBookingHistoryWithFilter(
+                  "CANCELLED",
+                )
+              }
               active={cardFilter === "CANCELLED"}
               value={bookingStats.cancelledToday.toString()}
               description={`Estimated lost revenue: £${bookingStats.cancelledLostRevenue.toFixed(2)}`}
@@ -1369,7 +1391,11 @@ export default function BookingsPage() {
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <KpiCard
               title="No Fare"
-              onClick={() => applyCardFilter("NO_FARE")}
+              onClick={() =>
+                openBookingHistoryWithFilter(
+                  "NO_FARE",
+                )
+              }
               active={cardFilter === "NO_FARE"}
               value={bookingStats.noFareToday.toString()}
               description={`No-fare revenue: £${bookingStats.noFareCompanyRevenue.toFixed(2)} · Estimated cash loss: £${bookingStats.noFareEstimatedCashLoss.toFixed(2)}`}
@@ -1480,6 +1506,12 @@ export default function BookingsPage() {
                         Rejected Jobs
                       </th>
                       <th className="px-5 py-3 text-right">
+                        Cancelled
+                      </th>
+                      <th className="px-5 py-3 text-right">
+                        No Fare
+                      </th>
+                      <th className="px-5 py-3 text-right">
                         Estimated Value
                       </th>
                     </tr>
@@ -1531,6 +1563,16 @@ export default function BookingsPage() {
                                   "en-GB",
                                 )}
                               </td>
+                              <td className="px-5 py-4 text-right text-sm font-semibold text-red-300">
+                                {driver.cancelledAfterRejection.toLocaleString(
+                                  "en-GB",
+                                )}
+                              </td>
+                              <td className="px-5 py-4 text-right text-sm font-semibold text-amber-300">
+                                {driver.noFareAfterRejection.toLocaleString(
+                                  "en-GB",
+                                )}
+                              </td>
                               <td className="px-5 py-4 text-right text-sm text-slate-300">
                                 £
                                 {driver.estimatedLostRevenue.toLocaleString(
@@ -1546,13 +1588,14 @@ export default function BookingsPage() {
                             {expanded ? (
                               <tr>
                                 <td
-                                  colSpan={5}
+                                  colSpan={7}
                                   className="bg-slate-950/50 px-5 py-4"
                                 >
                                   <div className="overflow-hidden rounded-xl border border-slate-800">
-                                    <div className="grid grid-cols-[1fr_1fr_auto] gap-4 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                       <span>Job ID</span>
                                       <span>Rejected At</span>
+                                      <span>Final Outcome</span>
                                       <span className="text-right">
                                         Estimated Value
                                       </span>
@@ -1563,7 +1606,7 @@ export default function BookingsPage() {
                                         (rejection, index) => (
                                           <div
                                             key={`${rejection.bookingId}-${rejection.rejectedAt}-${index}`}
-                                            className="grid grid-cols-[1fr_1fr_auto] items-center gap-4 px-4 py-3 text-sm"
+                                            className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 px-4 py-3 text-sm"
                                           >
                                             <button
                                               type="button"
@@ -1580,6 +1623,26 @@ export default function BookingsPage() {
                                             <span className="text-slate-300">
                                               {formatDateTime(
                                                 rejection.rejectedAt,
+                                              )}
+                                            </span>
+
+                                            <span
+                                              className={
+                                                rejection.finalOutcome ===
+                                                "CANCELLED"
+                                                  ? "font-semibold text-red-300"
+                                                  : rejection.finalOutcome ===
+                                                      "NO_FARE"
+                                                    ? "font-semibold text-amber-300"
+                                                    : rejection.finalOutcome ===
+                                                        "COMPLETED"
+                                                      ? "font-semibold text-emerald-300"
+                                                      : "text-slate-300"
+                                              }
+                                            >
+                                              {rejection.finalOutcome.replace(
+                                                /_/g,
+                                                " ",
                                               )}
                                             </span>
 

@@ -42,6 +42,7 @@ type DifficultyResponse = {
     effectiveDriverRejections: number;
     recoveredBySameDriver: number;
     cancelledAfterRejection: number;
+    noFareAfterRejection: number;
     cancellationRateAfterRejection: number;
     averageSecondsToAcceptance:
       number | null;
@@ -291,6 +292,16 @@ export default function DispatchDifficultyPanel({
     },
     {
       label:
+        "No Fare / No Show afterwards",
+      value:
+        summary.noFareAfterRejection.toLocaleString(
+          "en-GB",
+        ),
+      detail:
+        "Observed final outcome",
+    },
+    {
+      label:
         "Cancellation rate",
       value:
         `${summary.cancellationRateAfterRejection.toFixed(
@@ -323,7 +334,7 @@ export default function DispatchDifficultyPanel({
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         {metrics.map(
           (metric) => (
             <div
