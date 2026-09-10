@@ -1318,7 +1318,7 @@ export default function BookingsPage() {
               description={`Estimated lost revenue: £${bookingStats.cancelledLostRevenue.toFixed(2)}`}
             />
             <KpiCard
-              title="Rejected"
+              title="Rejected Bookings"
               onClick={() => applyCardFilter("REJECTED")}
               active={cardFilter === "REJECTED"}
               value={
@@ -1329,7 +1329,7 @@ export default function BookingsPage() {
                   )
                   .length.toString()
               }
-              description="Rejected in selected period"
+              description="Bookings with final rejected outcome"
             />
             <KpiCard
               title="No Fare"
