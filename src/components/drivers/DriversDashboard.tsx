@@ -36,6 +36,12 @@ type DriverRecord = {
   vehicle: DriverVehicle | null;
 };
 
+type DriverFilter =
+  | "all"
+  | "on_shift"
+  | "off_shift"
+  | "suspended";
+
 type DriversResponse = {
   success: boolean;
   drivers?: DriverRecord[];
@@ -67,6 +73,13 @@ export default function DriversDashboard() {
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [search, setSearch] = useState("");
+  const [
+    driverFilter,
+    setDriverFilter,
+  ] =
+    useState<DriverFilter>(
+      "all",
+    );
 
   const loadDrivers = useCallback(async () => {
     try {
@@ -145,29 +158,69 @@ export default function DriversDashboard() {
   }
 
   const filteredDrivers = useMemo(() => {
-    const term = search.trim().toLowerCase();
+    const term =
+      search
+        .trim()
+        .toLowerCase();
 
-    if (!term) {
-      return drivers;
-    }
+    return drivers.filter(
+      (driver) => {
+        const matchesFilter =
+          driverFilter ===
+            "all" ||
+          (
+            driverFilter ===
+              "on_shift" &&
+            driver.shift !==
+              null
+          ) ||
+          (
+            driverFilter ===
+              "off_shift" &&
+            driver.shift ===
+              null &&
+            !driver.suspended
+          ) ||
+          (
+            driverFilter ===
+              "suspended" &&
+            driver.suspended
+          );
 
-    return drivers.filter((driver) => {
-      const values = [
-        driver.callsign,
-        driver.fullName,
-        driver.mobile,
-        driver.badgeNumber,
-        driver.licenceNumber,
-        driver.vehicle?.callsign,
-        driver.vehicle?.registration,
-        driver.vehicle?.plateNumber,
-      ];
+        if (!matchesFilter) {
+          return false;
+        }
 
-      return values.some((value) =>
-        value?.toLowerCase().includes(term),
-      );
-    });
-  }, [drivers, search]);
+        if (!term) {
+          return true;
+        }
+
+        const values = [
+          driver.callsign,
+          driver.fullName,
+          driver.mobile,
+          driver.badgeNumber,
+          driver.licenceNumber,
+          driver.vehicle?.callsign,
+          driver.vehicle?.registration,
+          driver.vehicle?.plateNumber,
+        ];
+
+        return values.some(
+          (value) =>
+            value
+              ?.toLowerCase()
+              .includes(
+                term,
+              ),
+        );
+      },
+    );
+  }, [
+    driverFilter,
+    drivers,
+    search,
+  ]);
 
   const onShift = drivers.filter(
     (driver) => driver.shift !== null,
@@ -228,44 +281,128 @@ export default function DriversDashboard() {
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <button
+          type="button"
+          onClick={() =>
+            setDriverFilter(
+              "all",
+            )
+          }
+          className={[
+            "rounded-2xl border bg-slate-900 p-5 text-left transition hover:bg-slate-800",
+            driverFilter ===
+            "all"
+              ? "border-blue-500 ring-1 ring-blue-500/30"
+              : "border-slate-800",
+          ].join(" ")}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
             Active Drivers
           </p>
           <p className="mt-2 text-3xl font-bold text-white">
             {drivers.length}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-2xl border border-emerald-500/20 bg-emerald-950/10 p-5">
+        <button
+          type="button"
+          onClick={() =>
+            setDriverFilter(
+              "on_shift",
+            )
+          }
+          className={[
+            "rounded-2xl border bg-emerald-950/10 p-5 text-left transition hover:bg-emerald-950/20",
+            driverFilter ===
+            "on_shift"
+              ? "border-emerald-400 ring-1 ring-emerald-400/30"
+              : "border-emerald-500/20",
+          ].join(" ")}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-emerald-400">
             On Shift
           </p>
           <p className="mt-2 text-3xl font-bold text-white">
             {onShift}
           </p>
-        </div>
+        </button>
 
-        <div className="rounded-2xl border border-amber-500/20 bg-amber-950/10 p-5">
+        <button
+          type="button"
+          onClick={() =>
+            setDriverFilter(
+              "suspended",
+            )
+          }
+          className={[
+            "rounded-2xl border bg-amber-950/10 p-5 text-left transition hover:bg-amber-950/20",
+            driverFilter ===
+            "suspended"
+              ? "border-amber-400 ring-1 ring-amber-400/30"
+              : "border-amber-500/20",
+          ].join(" ")}
+        >
           <p className="text-xs font-semibold uppercase tracking-wide text-amber-400">
             Suspended
           </p>
           <p className="mt-2 text-3xl font-bold text-white">
             {suspended}
           </p>
-        </div>
+        </button>
       </div>
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900 p-4">
-        <input
-          type="search"
-          value={search}
-          onChange={(event) =>
-            setSearch(event.target.value)
-          }
-          placeholder="Search by callsign, driver, badge, licence or vehicle…"
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
-        />
+        <div className="grid gap-3 md:grid-cols-[1fr_220px]">
+          <input
+            type="search"
+            value={search}
+            onChange={(event) =>
+              setSearch(
+                event.target.value,
+              )
+            }
+            placeholder="Search by callsign, driver, badge, licence or vehicle…"
+            className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+          />
+
+          <select
+            value={driverFilter}
+            onChange={(event) =>
+              setDriverFilter(
+                event.target
+                  .value as
+                  DriverFilter,
+              )
+            }
+            aria-label="Filter drivers"
+            className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
+          >
+            <option value="all">
+              All drivers
+            </option>
+            <option value="on_shift">
+              On Shift
+            </option>
+            <option value="off_shift">
+              Off Shift
+            </option>
+            <option value="suspended">
+              Suspended
+            </option>
+          </select>
+        </div>
+
+        <p className="mt-3 text-xs text-slate-500">
+          Showing{" "}
+          {filteredDrivers.length.toLocaleString(
+            "en-GB",
+          )}{" "}
+          of{" "}
+          {drivers.length.toLocaleString(
+            "en-GB",
+          )}{" "}
+          drivers
+        </p>
       </div>
 
       {error ? (
