@@ -6,6 +6,15 @@ const dev = process.env.NODE_ENV !== "production";
 const hostname = process.env.HOSTNAME || "0.0.0.0";
 const port = Number.parseInt(process.env.PORT || "3000", 10);
 
+const DRIVER_SYNC_START_DELAY_MS =
+  60 * 1000;
+const DRIVER_SYNC_CHECK_INTERVAL_MS =
+  60 * 60 * 1000;
+
+let driverSyncStartTimer = null;
+let driverSyncCheckInterval = null;
+let driverSyncCheckRunning = false;
+
 const app = next({
   dev,
   hostname,
@@ -124,11 +133,114 @@ const heartbeatInterval = setInterval(() => {
 
 server.on("close", () => {
   clearInterval(heartbeatInterval);
+
+  if (driverSyncStartTimer) {
+    clearTimeout(
+      driverSyncStartTimer,
+    );
+  }
+
+  if (driverSyncCheckInterval) {
+    clearInterval(
+      driverSyncCheckInterval,
+    );
+  }
 });
+
+async function checkDriverRegistrySync() {
+  if (driverSyncCheckRunning) {
+    return;
+  }
+
+  const cronSecret =
+    process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    console.warn(
+      "Driver registry scheduler disabled: CRON_SECRET is not configured.",
+    );
+    return;
+  }
+
+  driverSyncCheckRunning = true;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/internal/driver-registry-sync`,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+          "x-cron-secret":
+            cronSecret,
+        },
+        body:
+          "{}",
+      },
+    );
+
+    const payload =
+      await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        payload.message ||
+          payload.error ||
+          `HTTP ${response.status}`,
+      );
+    }
+
+    if (
+      payload.status !==
+        "NOT_DUE" &&
+      payload.status !==
+        "DISABLED"
+    ) {
+      console.log(
+        "Automatic driver registry sync completed:",
+        {
+          status:
+            payload.status,
+          drivers:
+            payload.drivers,
+        },
+      );
+    }
+  } catch (error) {
+    console.error(
+      "Automatic driver registry sync check failed:",
+      error,
+    );
+  } finally {
+    driverSyncCheckRunning = false;
+  }
+}
+
+function startDriverRegistryScheduler() {
+  driverSyncStartTimer =
+    setTimeout(() => {
+      void checkDriverRegistrySync();
+    }, DRIVER_SYNC_START_DELAY_MS);
+
+  driverSyncCheckInterval =
+    setInterval(() => {
+      void checkDriverRegistrySync();
+    }, DRIVER_SYNC_CHECK_INTERVAL_MS);
+
+  driverSyncStartTimer.unref();
+  driverSyncCheckInterval.unref();
+
+  console.log(
+    "Driver registry scheduler ready: checks hourly and syncs when due.",
+  );
+}
 
 server.listen(port, hostname, () => {
   console.log(`TaxiCRM ready on http://${hostname}:${port}`);
   console.log(`Fleet WebSocket ready on ws://${hostname}:${port}/ws/fleet`);
+
+  startDriverRegistryScheduler();
 });
 
 function shutdown(signal) {

@@ -6,6 +6,7 @@ import {
 import {
   syncAutocabDrivers,
 } from "@/lib/integrations/autocab/driver-sync/sync";
+import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -37,6 +38,75 @@ export async function POST(
   }
 
   try {
+    const configuration =
+      await prisma
+        .autocabApiConfiguration
+        .findUnique({
+          where: {
+            provider:
+              "AUTOCAB",
+          },
+          select: {
+            isEnabled:
+              true,
+            driverSyncEnabled:
+              true,
+            nextDriverSyncAt:
+              true,
+          },
+        });
+
+    if (!configuration) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "AUTOCAB_CONFIGURATION_NOT_FOUND",
+          containsPersonalData:
+            false,
+        },
+        {
+          status: 400,
+        },
+      );
+    }
+
+    if (
+      !configuration.isEnabled ||
+      !configuration.driverSyncEnabled
+    ) {
+      return NextResponse.json({
+        success: true,
+        status:
+          "DISABLED",
+        nextSyncAt:
+          configuration.nextDriverSyncAt,
+        containsPersonalData:
+          false,
+      });
+    }
+
+    const now =
+      new Date();
+
+    if (
+      configuration.nextDriverSyncAt &&
+      configuration.nextDriverSyncAt >
+        now
+    ) {
+      return NextResponse.json({
+        success: true,
+        status:
+          "NOT_DUE",
+        checkedAt:
+          now,
+        nextSyncAt:
+          configuration.nextDriverSyncAt,
+        containsPersonalData:
+          false,
+      });
+    }
+
     const result =
       await syncAutocabDrivers(
         "SCHEDULED",
