@@ -1,4 +1,10 @@
+import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
+
+import { authOptions } from "@/lib/auth";
+import {
+  getBookingAuditHistory,
+} from "@/lib/bookings/booking-audit-history";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -195,10 +201,39 @@ export async function GET(
   _request: Request,
   { params }: RouteContext,
 ) {
+  const session =
+    await getServerSession(
+      authOptions,
+    );
+
+  if (!session?.user) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "UNAUTHORIZED",
+      },
+      {
+        status: 401,
+      },
+    );
+  }
+
   try {
-    const booking = await prisma.booking.findUnique({
+    const booking = await prisma.booking.findFirst({
       where: {
-        id: params.id,
+        OR: [
+          {
+            id:
+              params.id,
+          },
+          {
+            provider:
+              "AUTOCAB",
+            externalId:
+              params.id,
+          },
+        ],
       },
       include: {
         locations: {
@@ -231,6 +266,47 @@ export async function GET(
         },
       );
     }
+
+    const bookingHistory =
+      await getBookingAuditHistory({
+        externalBookingId:
+          booking.externalId,
+        finalDriver:
+          booking.driverId ||
+          booking.driverCallSign
+            ? {
+                id:
+                  booking.driverId,
+                callsign:
+                  booking.driverCallSign,
+                forename:
+                  booking.driverForename,
+                surname:
+                  booking.driverSurname,
+              }
+            : null,
+        timelineEvents:
+          booking.timelineEvents.map(
+            (event) => ({
+              id:
+                event.id,
+              webhookEventId:
+                event.webhookEventId,
+              eventType:
+                event.eventType,
+              title:
+                event.title,
+              description:
+                event.description,
+              source:
+                String(
+                  event.source,
+                ),
+              occurredAt:
+                event.occurredAt,
+            }),
+          ),
+      });
 
     const customerWhere = booking.telephoneNumber
       ? {
@@ -548,7 +624,8 @@ export async function GET(
         ourReference: booking.ourReference,
         bookingSource: booking.bookingSource,
 
-        timeline: booking.timelineEvents,
+        timeline:
+          bookingHistory,
 
         createdAt: booking.createdAt,
         updatedAt: booking.updatedAt,

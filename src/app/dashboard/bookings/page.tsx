@@ -440,6 +440,9 @@ export default function BookingsPage() {
 
   const openBookingWorkspace = async (
     booking: BookingWorkspaceData | string,
+    initialTab:
+      WorkspaceTab["id"] =
+        "overview",
   ) => {
     const bookingId =
       typeof booking === "string" ? booking : booking.id;
@@ -448,7 +451,9 @@ export default function BookingsPage() {
       setSelectedBooking(booking);
     }
 
-    setActiveWorkspaceTab("overview");
+    setActiveWorkspaceTab(
+      initialTab,
+    );
     setWorkspaceLoading(true);
     setWorkspaceError(null);
 
@@ -1620,6 +1625,7 @@ export default function BookingsPage() {
                                               onClick={() =>
                                                 void openBookingWorkspace(
                                                   rejection.bookingId,
+                                                  "timeline",
                                                 )
                                               }
                                               className="w-fit font-semibold text-blue-400 transition hover:text-blue-300 hover:underline"
@@ -1948,9 +1954,34 @@ export default function BookingsPage() {
 
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-sm font-semibold text-white">
-                          {event.title}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-white">
+                            {event.title}
+                          </p>
+
+                          {event.rejectionClassification ? (
+                            <span
+                              className={[
+                                "rounded-md border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+                                event.rejectionClassification ===
+                                "EFFECTIVE"
+                                  ? "border-red-500/30 bg-red-500/10 text-red-300"
+                                  : event.rejectionClassification ===
+                                      "RECOVERED"
+                                    ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-300"
+                                    : event.rejectionClassification ===
+                                        "DUPLICATE"
+                                      ? "border-amber-500/30 bg-amber-500/10 text-amber-300"
+                                      : "border-slate-600 bg-slate-800 text-slate-300",
+                              ].join(" ")}
+                            >
+                              {event.rejectionClassification.replace(
+                                /_/g,
+                                " ",
+                              )}
+                            </span>
+                          ) : null}
+                        </div>
 
                         {event.description ? (
                           <p className="mt-1 text-sm text-slate-400">
@@ -1966,7 +1997,9 @@ export default function BookingsPage() {
                       </div>
 
                       <div className="text-right text-xs text-slate-500 whitespace-nowrap">
-                        {new Date(event.occurredAt).toLocaleString("en-GB")}
+                        {formatDateTime(
+                          event.occurredAt,
+                        )}
                       </div>
                     </div>
                   </div>

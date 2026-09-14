@@ -23,6 +23,24 @@ export interface BookingTimelineEvent {
   description: string | null;
   source: string;
   occurredAt: string;
+  category?:
+    | "BOOKING"
+    | "OFFER"
+    | "REJECTION"
+    | "ACCEPTANCE"
+    | "STATUS";
+  driver?: {
+    id: string | null;
+    callsign: string | null;
+    name: string;
+  } | null;
+  rejectionClassification?:
+    | "EFFECTIVE"
+    | "DUPLICATE"
+    | "RECOVERED"
+    | "UNATTRIBUTED"
+    | null;
+  rawAttemptNumber?: number | null;
 }
 
 export interface CustomerRecentBooking {
