@@ -215,6 +215,21 @@ export async function GET(
         string
       >();
 
+    const finalDriverByBookingId =
+      new Map<
+        string,
+        {
+          driverId:
+            string | null;
+          callsign:
+            string | null;
+          forename:
+            string | null;
+          surname:
+            string | null;
+        }
+      >();
+
     for (
       let index = 0;
       index <
@@ -245,6 +260,10 @@ export async function GET(
             completedAt: true,
             cancelledAt: true,
             noFareAt: true,
+            driverId: true,
+            driverCallSign: true,
+            driverForename: true,
+            driverSurname: true,
           },
         });
 
@@ -257,6 +276,20 @@ export async function GET(
           getFinalOutcome(
             booking,
           ),
+        );
+
+        finalDriverByBookingId.set(
+          booking.externalId,
+          {
+            driverId:
+              booking.driverId,
+            callsign:
+              booking.driverCallSign,
+            forename:
+              booking.driverForename,
+            surname:
+              booking.driverSurname,
+          },
         );
       }
     }
@@ -321,20 +354,66 @@ export async function GET(
                 driver.rejections.map(
                   (
                     rejection,
-                  ) => ({
-                    bookingId:
-                      rejection.bookingId,
-                    rejectedAt:
-                      rejection.rejectedAt
-                        .toISOString(),
-                    estimatedValue:
-                      rejection.estimatedValue,
-                    finalOutcome:
-                      outcomeByBookingId.get(
+                  ) => {
+                    const finalDriver =
+                      finalDriverByBookingId.get(
                         rejection.bookingId,
-                      ) ??
-                      "UNKNOWN",
-                  }),
+                      );
+
+                    const finalDriverName =
+                      finalDriver
+                        ? [
+                            finalDriver.forename,
+                            finalDriver.surname,
+                          ]
+                            .filter(Boolean)
+                            .join(" ") ||
+                          finalDriver.callsign ||
+                          finalDriver.driverId ||
+                          "Unknown Driver"
+                        : null;
+
+                    return {
+                      bookingId:
+                        rejection.bookingId,
+                      rejectedAt:
+                        rejection.rejectedAt
+                          .toISOString(),
+                      estimatedValue:
+                        rejection.estimatedValue,
+                      finalOutcome:
+                        outcomeByBookingId.get(
+                          rejection.bookingId,
+                        ) ??
+                        "UNKNOWN",
+                      finalDriver:
+                        finalDriver &&
+                        (
+                          finalDriver.driverId ||
+                          finalDriver.callsign ||
+                          finalDriverName
+                        )
+                          ? {
+                              driverId:
+                                finalDriver.driverId,
+                              callsign:
+                                finalDriver.callsign,
+                              name:
+                                finalDriverName,
+                            }
+                          : null,
+                      sameDriverAsRejecting:
+                        Boolean(
+                          finalDriver?.driverId &&
+                          String(
+                            finalDriver.driverId,
+                          ) ===
+                            String(
+                              driver.driverId,
+                            ),
+                        ),
+                    };
+                  },
                 ),
             }),
           ),

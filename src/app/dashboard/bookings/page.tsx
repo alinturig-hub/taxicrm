@@ -50,6 +50,12 @@ type RejectionRankingEntry = {
     rejectedAt: string;
     estimatedValue: number;
     finalOutcome: string;
+    finalDriver: {
+      driverId: string | null;
+      callsign: string | null;
+      name: string;
+    } | null;
+    sameDriverAsRejecting: boolean;
   }>;
 };
 
@@ -1592,10 +1598,11 @@ export default function BookingsPage() {
                                   className="bg-slate-950/50 px-5 py-4"
                                 >
                                   <div className="overflow-hidden rounded-xl border border-slate-800">
-                                    <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-4 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
+                                    <div className="grid grid-cols-[0.8fr_1fr_0.8fr_1.4fr_auto] gap-4 border-b border-slate-800 bg-slate-900/80 px-4 py-3 text-xs font-semibold uppercase tracking-wider text-slate-500">
                                       <span>Job ID</span>
                                       <span>Rejected At</span>
                                       <span>Final Outcome</span>
+                                      <span>Completed / Final Driver</span>
                                       <span className="text-right">
                                         Estimated Value
                                       </span>
@@ -1606,7 +1613,7 @@ export default function BookingsPage() {
                                         (rejection, index) => (
                                           <div
                                             key={`${rejection.bookingId}-${rejection.rejectedAt}-${index}`}
-                                            className="grid grid-cols-[1fr_1fr_1fr_auto] items-center gap-4 px-4 py-3 text-sm"
+                                            className="grid grid-cols-[0.8fr_1fr_0.8fr_1.4fr_auto] items-center gap-4 px-4 py-3 text-sm"
                                           >
                                             <button
                                               type="button"
@@ -1643,6 +1650,39 @@ export default function BookingsPage() {
                                               {rejection.finalOutcome.replace(
                                                 /_/g,
                                                 " ",
+                                              )}
+                                            </span>
+
+                                            <span className="min-w-0">
+                                              {rejection.finalDriver ? (
+                                                <span className="flex flex-col">
+                                                  <span
+                                                    className={
+                                                      rejection.sameDriverAsRejecting
+                                                        ? "font-semibold text-red-300"
+                                                        : "font-medium text-slate-200"
+                                                    }
+                                                  >
+                                                    {rejection.finalOutcome ===
+                                                    "COMPLETED"
+                                                      ? "Completed by "
+                                                      : "Final driver "}
+                                                    {rejection.finalDriver.callsign
+                                                      ? `#${rejection.finalDriver.callsign} · `
+                                                      : ""}
+                                                    {rejection.finalDriver.name}
+                                                  </span>
+
+                                                  {rejection.sameDriverAsRejecting ? (
+                                                    <span className="mt-1 text-xs font-semibold text-red-400">
+                                                      Attribution anomaly: same rejecting driver
+                                                    </span>
+                                                  ) : null}
+                                                </span>
+                                              ) : (
+                                                <span className="text-slate-500">
+                                                  No final driver recorded
+                                                </span>
                                               )}
                                             </span>
 
