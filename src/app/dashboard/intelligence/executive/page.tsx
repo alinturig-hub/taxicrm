@@ -2,7 +2,7 @@ import ExecutiveDashboardView from "@/components/dashboard/ExecutiveDashboardVie
 
 export const dynamic = "force-dynamic";
 
-export default function DashboardPage() {
+export default function ExecutivePage() {
   return (
     <ExecutiveDashboardView />
   );

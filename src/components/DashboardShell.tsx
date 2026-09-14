@@ -110,7 +110,7 @@ const navigationGroups: NavigationGroup[] = [
         label: "Executive",
         href: "/dashboard/intelligence/executive",
         icon: "executive",
-        available: false,
+        available: true,
       },
       {
         label: "Performance",
