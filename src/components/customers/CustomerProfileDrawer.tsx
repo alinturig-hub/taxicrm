@@ -64,6 +64,27 @@ type RankedValue = {
   percentage: number;
 };
 
+type CustomerBehaviourTag = {
+  id: string;
+  label: string;
+  category:
+    | "PLACE"
+    | "TIME"
+    | "BOOKING"
+    | "FREQUENCY"
+    | "ROUTE";
+  confidence:
+    | "EMERGING"
+    | "ESTABLISHED"
+    | "STRONG";
+  evidenceCount: number;
+  eligibleCount: number;
+  percentage: number;
+  windowDays: 14;
+  lastObservedAt: string | null;
+  explanation: string;
+};
+
 type ProfileResponse = {
   success: boolean;
   message?: string;
@@ -98,6 +119,7 @@ type ProfileResponse = {
       identityConfidence: number;
       profileSafeForPersonalisation: boolean;
     };
+    tags: CustomerBehaviourTag[];
     behaviour: {
       days: RankedValue[];
       hours: RankedValue[];
@@ -870,6 +892,40 @@ export default function CustomerProfileDrawer({
                   })()}
                 </button>
               ) : null}
+            </div>
+          ) : null}
+          {profile?.tags.length ? (
+            <div className="mt-4 border-t border-slate-800 pt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="mr-1 text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
+                  Customer Tags · Last 14 days
+                </span>
+
+                {profile.tags.map((tag) => (
+                  <span
+                    key={tag.id}
+                    title={tag.explanation}
+                    className={[
+                      "rounded-full border px-3 py-1 text-xs font-semibold",
+                      tag.confidence === "STRONG"
+                        ? "border-emerald-400/40 bg-emerald-400/10 text-emerald-200"
+                        : tag.confidence === "ESTABLISHED"
+                          ? "border-blue-400/40 bg-blue-400/10 text-blue-200"
+                          : "border-slate-600 bg-slate-800 text-slate-300",
+                    ].join(" ")}
+                  >
+                    {tag.label}
+                    {" · "}
+                    {tag.evidenceCount}
+                    {" · "}
+                    {tag.percentage}%
+                  </span>
+                ))}
+              </div>
+
+              <p className="mt-2 text-xs text-slate-500">
+                Hover over a tag to see the evidence and rule used.
+              </p>
             </div>
           ) : null}
         </header>

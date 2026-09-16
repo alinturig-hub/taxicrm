@@ -1,3 +1,7 @@
+import {
+  buildCustomerBehaviourTags,
+} from "./customer-behaviour-tags";
+
 type ProfileLocation = {
   type: "PICKUP" | "DESTINATION";
   address: string;
@@ -414,6 +418,14 @@ export function buildCustomerProfile(
     });
   }
 
+  const tags =
+    sharedBookingPoint
+      ? []
+      : buildCustomerBehaviourTags(
+          orderedBookings,
+          now,
+        );
+
   return {
     overview: {
       totalBookings,
@@ -455,6 +467,7 @@ export function buildCustomerProfile(
       profileSafeForPersonalisation:
         !sharedBookingPoint && totalBookings >= 5,
     },
+    tags,
     behaviour: {
       days,
       hours,
