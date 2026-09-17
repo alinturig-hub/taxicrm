@@ -197,6 +197,12 @@ const navigationGroups: NavigationGroup[] = [
         available: true,
       },
       {
+        label: "Amenity Review",
+        href: "/dashboard/administration/place-review",
+        icon: "system",
+        available: true,
+      },
+      {
         label: "Autocab",
         href: "/dashboard/integrations/autocab",
         icon: "autocab",

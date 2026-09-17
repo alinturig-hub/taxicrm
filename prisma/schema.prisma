@@ -1238,6 +1238,9 @@ model PlaceIntelligence {
   poiCategoryMatchDistanceMetres Decimal?  @db.Decimal(8, 2)
   poiCategoryProviderPlaceId     String?
   poiCategoryRawPayload          Json?
+  poiCategorySource              String?
+  poiCategoryReviewedAt          DateTime?
+  poiCategoryReviewedBy          String?
   website                        String?
   provider                       String    @default("GEOAPIFY")
   providerPlaceId                String?
@@ -1258,6 +1261,7 @@ model PlaceIntelligence {
 
   @@index([status, nextRetryAt])
   @@index([poiCategoryStatus, poiCategoryNextRetryAt])
+  @@index([poiCategorySource])
   @@index([provider, providerPlaceId])
   @@index([latitude, longitude])
   @@index([isSensitive])
