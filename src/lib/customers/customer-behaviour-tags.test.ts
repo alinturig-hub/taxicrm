@@ -186,6 +186,30 @@ assert.equal(
   "Geoapify hairdresser categories should produce a Hair & Beauty User tag.",
 );
 
+const geoapifyCafeBookings = [
+  "2026-09-15T13:00:00.000Z",
+  "2026-09-14T13:00:00.000Z",
+  "2026-09-13T13:00:00.000Z",
+].map((pickupAt) =>
+  booking({
+    pickupAt,
+    destination:
+      "Generic venue",
+    destinationCategory:
+      "catering.cafe.coffee_shop",
+  }),
+);
+
+assert.equal(
+  ids(
+    geoapifyCafeBookings,
+  ).has(
+    "CAFE_USER",
+  ),
+  true,
+  "Geoapify cafe categories should produce a Cafe User tag.",
+);
+
 const earlyMorningBookings = [
   "2026-09-15T04:30:00.000Z",
   "2026-09-14T05:00:00.000Z",

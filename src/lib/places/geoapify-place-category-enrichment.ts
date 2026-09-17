@@ -12,18 +12,25 @@ const FAILED_RETRY_DELAY_MS =
   6 * 60 * 60 * 1000;
 
 const PLACE_CATEGORIES = [
-  "commercial",
-  "commercial.shopping_mall",
-  "commercial.supermarket",
-  "commercial.health_and_beauty",
-  "service.beauty",
-  "service.beauty.hairdresser",
-  "catering.pub",
-  "catering.bar",
-  "public_transport.train",
-  "railway.train",
+  "accommodation",
+  "activity",
   "airport",
-  "airport.terminal",
+  "commercial",
+  "catering",
+  "education",
+  "entertainment",
+  "heritage",
+  "leisure",
+  "office",
+  "pet",
+  "public_transport",
+  "railway.train",
+  "rental",
+  "service.beauty",
+  "service.financial",
+  "service.post",
+  "service.vehicle",
+  "tourism",
 ];
 
 type PlacesFeature = {
@@ -161,6 +168,39 @@ function categoryPriority(
   }
 
   if (
+    category === "catering.cafe" ||
+    category.startsWith("catering.cafe.") ||
+    category === "catering.ice_cream" ||
+    category.startsWith(
+      "catering.ice_cream.",
+    )
+  ) {
+    return 290;
+  }
+
+  if (
+    category === "catering.restaurant" ||
+    category.startsWith(
+      "catering.restaurant.",
+    )
+  ) {
+    return 280;
+  }
+
+  if (
+    category === "catering.fast_food" ||
+    category.startsWith(
+      "catering.fast_food.",
+    ) ||
+    category === "catering.food_court" ||
+    category.startsWith(
+      "catering.food_court.",
+    )
+  ) {
+    return 270;
+  }
+
+  if (
     category === "commercial.shopping_mall" ||
     category.startsWith(
       "commercial.shopping_mall.",
@@ -171,6 +211,78 @@ function categoryPriority(
     )
   ) {
     return 200;
+  }
+
+  if (
+    category === "accommodation" ||
+    category.startsWith("accommodation.")
+  ) {
+    return 260;
+  }
+
+  if (
+    category === "public_transport" ||
+    category.startsWith(
+      "public_transport.",
+    )
+  ) {
+    return 250;
+  }
+
+  if (
+    category === "education" ||
+    category.startsWith("education.") ||
+    category === "service.financial" ||
+    category.startsWith(
+      "service.financial.",
+    ) ||
+    category === "office.financial" ||
+    category.startsWith(
+      "office.financial.",
+    )
+  ) {
+    return 240;
+  }
+
+  if (
+    category === "office" ||
+    category.startsWith("office.")
+  ) {
+    return 230;
+  }
+
+  if (
+    category === "activity" ||
+    category.startsWith("activity.") ||
+    category === "entertainment" ||
+    category.startsWith(
+      "entertainment.",
+    ) ||
+    category === "heritage" ||
+    category.startsWith("heritage.") ||
+    category === "leisure" ||
+    category.startsWith("leisure.") ||
+    category === "tourism" ||
+    category.startsWith("tourism.")
+  ) {
+    return 220;
+  }
+
+  if (
+    category === "service.post" ||
+    category.startsWith(
+      "service.post.",
+    ) ||
+    category === "service.vehicle" ||
+    category.startsWith(
+      "service.vehicle.",
+    ) ||
+    category === "rental" ||
+    category.startsWith("rental.") ||
+    category === "pet" ||
+    category.startsWith("pet.")
+  ) {
+    return 210;
   }
 
   if (
@@ -525,6 +637,10 @@ export async function enrichPlaceCategory(
           id: place.id,
         },
         data: {
+          category:
+            selected.categories[0],
+          categories:
+            selected.categories,
           isSensitive: true,
           sensitivityReason,
           poiCategoryStatus:

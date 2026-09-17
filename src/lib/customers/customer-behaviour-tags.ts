@@ -430,6 +430,29 @@ export function buildCustomerBehaviourTags(
         "commercial.health_and_beauty",
       ],
     },
+    {
+      id: "CAFE_USER",
+      label: "Cafe User",
+      destinationOnly: false,
+      pattern:
+        /\b(cafe|coffee shop|coffee house|starbucks|costa coffee|coffee #1|coffee one|tea room|tearoom|ice cream parlour)\b/,
+      categoryPrefixes: [
+        "catering.cafe",
+        "catering.ice_cream",
+      ],
+    },
+    {
+      id: "DINING_USER",
+      label: "Restaurant / Dining User",
+      destinationOnly: false,
+      pattern:
+        /\b(restaurant|diner|food court|fast food|takeaway|take away|mcdonald|burger king|kfc|subway|pizza hut|domino)\b/,
+      categoryPrefixes: [
+        "catering.restaurant",
+        "catering.fast_food",
+        "catering.food_court",
+      ],
+    },
   ];
 
   for (const rule of placeRules) {

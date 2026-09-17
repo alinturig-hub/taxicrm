@@ -42,6 +42,12 @@ const sensitiveCategoryPrefixes = [
   "political",
   "adult",
   "service.social_facility",
+  "service.financial",
+  "office.financial",
+  "office.political_party",
+  "office.religion",
+  "education",
+  "childcare",
 ];
 
 const londonDateFormatter =
