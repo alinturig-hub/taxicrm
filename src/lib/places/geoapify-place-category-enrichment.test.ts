@@ -22,6 +22,12 @@ const cases: Array<{
   },
   {
     name:
+      "Brewers Fayre Lockyers Quay Inn",
+    expected:
+      "catering.pub",
+  },
+  {
+    name:
       "Crowne Plaza",
     expected:
       "accommodation.hotel",

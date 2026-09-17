@@ -138,7 +138,7 @@ export function inferPlaceCategoryFromName(
       "catering.restaurant",
     ],
     [
-      /\b(pub|public house|tavern|nightclub|wine bar)\b/,
+      /\b(pub|public house|tavern|nightclub|wine bar|brewers fayre|lockyers quay inn)\b/,
       "catering.pub",
     ],
     [
