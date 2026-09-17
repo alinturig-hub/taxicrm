@@ -98,6 +98,8 @@ export async function GET(
                       placeName: true,
                       formattedAddress: true,
                       category: true,
+                      categories: true,
+                      poiCategoryStatus: true,
                       website: true,
                       confidence: true,
                       isSensitive: true,

@@ -9,6 +9,12 @@ type TagBooking = {
     type: "PICKUP" | "DESTINATION";
     address: string;
     zoneName: string | null;
+    placeIntelligence?: {
+      category: string | null;
+      categories?: unknown;
+      isSensitive: boolean;
+      poiCategoryStatus?: string;
+    } | null;
   }>;
 };
 
@@ -132,6 +138,61 @@ function locationText(
         ],
       )
       .join(" "),
+  );
+}
+
+function locationCategoryMatch(
+  booking: TagBooking,
+  prefixes: string[],
+  destinationOnly = false,
+) {
+  return booking.locations.some(
+    (location) => {
+      if (
+        destinationOnly &&
+        location.type !== "DESTINATION"
+      ) {
+        return false;
+      }
+
+      const place =
+        location.placeIntelligence;
+
+      if (
+        !place ||
+        place.isSensitive ||
+        place.poiCategoryStatus !== "READY"
+      ) {
+        return false;
+      }
+
+      const categories =
+        Array.isArray(place.categories)
+          ? place.categories.filter(
+              (
+                category,
+              ): category is string =>
+                typeof category === "string",
+            )
+          : [];
+
+      if (place.category) {
+        categories.push(
+          place.category,
+        );
+      }
+
+      return categories.some(
+        (category) =>
+          prefixes.some(
+            (prefix) =>
+              category === prefix ||
+              category.startsWith(
+                `${prefix}.`,
+              ),
+          ),
+      );
+    },
   );
 }
 
@@ -322,6 +383,9 @@ export function buildCustomerBehaviourTags(
       destinationOnly: true,
       pattern:
         /\b(shopping centre|shopping center|mall|retail park|supermarket|tesco|sainsbury|asda|aldi|lidl|morrisons|waitrose|marks and spencer|drake circus)\b/,
+      categoryPrefixes: [
+        "commercial",
+      ],
     },
     {
       id: "PUB_NIGHTLIFE_USER",
@@ -329,6 +393,10 @@ export function buildCustomerBehaviourTags(
       destinationOnly: false,
       pattern:
         /\b(pub|public house|bar|nightclub|night club|wetherspoon|late bar)\b/,
+      categoryPrefixes: [
+        "catering.pub",
+        "catering.bar",
+      ],
     },
     {
       id: "TRAIN_STATION_USER",
@@ -336,6 +404,10 @@ export function buildCustomerBehaviourTags(
       destinationOnly: false,
       pattern:
         /\b(train station|railway station|rail station|plymouth station)\b/,
+      categoryPrefixes: [
+        "public_transport.train",
+        "railway.train",
+      ],
     },
     {
       id: "AIRPORT_USER",
@@ -343,6 +415,9 @@ export function buildCustomerBehaviourTags(
       destinationOnly: false,
       pattern:
         /\b(airport|airport terminal)\b/,
+      categoryPrefixes: [
+        "airport",
+      ],
     },
   ];
 
@@ -350,6 +425,11 @@ export function buildCustomerBehaviourTags(
     const matches =
       completedJourneys.filter(
         (booking) =>
+          locationCategoryMatch(
+            booking,
+            rule.categoryPrefixes,
+            rule.destinationOnly,
+          ) ||
           rule.pattern.test(
             locationText(
               booking,

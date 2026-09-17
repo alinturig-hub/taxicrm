@@ -114,7 +114,7 @@ const sensitivePlaceKeywords = [
   "political",
 ];
 
-function sensitiveReason(
+export function getSensitivePlaceReason(
   categories: string[],
   textValues: Array<
     string | null | undefined
@@ -280,7 +280,7 @@ async function findNearbyAddressPlace({
   baseUrl: string;
   apiKey: string;
 }) {
-  await reserveDailyCredit();
+  await reserveGeoapifyDailyCredit();
 
   const searchUrl = new URL(
     "/v1/geocode/search",
@@ -378,7 +378,7 @@ async function findNearbyAddressPlace({
   };
 }
 
-async function reserveDailyCredit() {
+export async function reserveGeoapifyDailyCredit() {
   const now = new Date();
 
   const configuration =
@@ -602,7 +602,7 @@ export async function enrichBookingLocation(
   const credentials =
     await getGeoapifyCredentials();
 
-  await reserveDailyCredit();
+  await reserveGeoapifyDailyCredit();
 
   const url = new URL(
     "/v1/geocode/reverse",
@@ -727,7 +727,7 @@ export async function enrichBookingLocation(
       null;
 
     const sensitivityReason =
-      sensitiveReason(
+      getSensitivePlaceReason(
         categories,
         [
           location.address,

@@ -6,6 +6,12 @@ type ProfileLocation = {
   type: "PICKUP" | "DESTINATION";
   address: string;
   zoneName: string | null;
+  placeIntelligence?: {
+    category: string | null;
+    categories?: unknown;
+    isSensitive: boolean;
+    poiCategoryStatus?: string;
+  } | null;
 };
 
 export type ProfileBooking = {

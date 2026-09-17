@@ -10,10 +10,17 @@ const DRIVER_SYNC_START_DELAY_MS =
   60 * 1000;
 const DRIVER_SYNC_CHECK_INTERVAL_MS =
   60 * 60 * 1000;
+const CUSTOMER_INTELLIGENCE_START_DELAY_MS =
+  5 * 60 * 1000;
+const CUSTOMER_INTELLIGENCE_INTERVAL_MS =
+  24 * 60 * 60 * 1000;
 
 let driverSyncStartTimer = null;
 let driverSyncCheckInterval = null;
 let driverSyncCheckRunning = false;
+let customerIntelligenceStartTimer = null;
+let customerIntelligenceInterval = null;
+let customerIntelligenceRunning = false;
 
 const app = next({
   dev,
@@ -145,6 +152,18 @@ server.on("close", () => {
       driverSyncCheckInterval,
     );
   }
+
+  if (customerIntelligenceStartTimer) {
+    clearTimeout(
+      customerIntelligenceStartTimer,
+    );
+  }
+
+  if (customerIntelligenceInterval) {
+    clearInterval(
+      customerIntelligenceInterval,
+    );
+  }
 });
 
 async function checkDriverRegistrySync() {
@@ -236,11 +255,95 @@ function startDriverRegistryScheduler() {
   );
 }
 
+async function refreshCustomerIntelligence() {
+  if (customerIntelligenceRunning) {
+    return;
+  }
+
+  const cronSecret =
+    process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    console.warn(
+      "Customer intelligence scheduler disabled: CRON_SECRET is not configured.",
+    );
+    return;
+  }
+
+  customerIntelligenceRunning = true;
+
+  try {
+    const response = await fetch(
+      `http://127.0.0.1:${port}/api/internal/customer-intelligence-refresh`,
+      {
+        method: "POST",
+        headers: {
+          "content-type":
+            "application/json",
+          "x-cron-secret":
+            cronSecret,
+        },
+        body: "{}",
+      },
+    );
+
+    const payload =
+      await response.json();
+
+    if (!response.ok) {
+      throw new Error(
+        payload.message ||
+          payload.error ||
+          `HTTP ${response.status}`,
+      );
+    }
+
+    console.log(
+      "Automatic customer intelligence refresh completed:",
+      {
+        status:
+          payload.status,
+        places:
+          payload.places,
+        customerTags:
+          payload.customerTags,
+      },
+    );
+  } catch (error) {
+    console.error(
+      "Automatic customer intelligence refresh failed:",
+      error,
+    );
+  } finally {
+    customerIntelligenceRunning = false;
+  }
+}
+
+function startCustomerIntelligenceScheduler() {
+  customerIntelligenceStartTimer =
+    setTimeout(() => {
+      void refreshCustomerIntelligence();
+    }, CUSTOMER_INTELLIGENCE_START_DELAY_MS);
+
+  customerIntelligenceInterval =
+    setInterval(() => {
+      void refreshCustomerIntelligence();
+    }, CUSTOMER_INTELLIGENCE_INTERVAL_MS);
+
+  customerIntelligenceStartTimer.unref();
+  customerIntelligenceInterval.unref();
+
+  console.log(
+    "Customer intelligence scheduler ready: refreshes every 24 hours.",
+  );
+}
+
 server.listen(port, hostname, () => {
   console.log(`TaxiCRM ready on http://${hostname}:${port}`);
   console.log(`Fleet WebSocket ready on ws://${hostname}:${port}/ws/fleet`);
 
   startDriverRegistryScheduler();
+  startCustomerIntelligenceScheduler();
 });
 
 function shutdown(signal) {

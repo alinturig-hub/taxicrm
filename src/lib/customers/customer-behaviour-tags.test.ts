@@ -14,12 +14,14 @@ function booking({
   bookedAt,
   pickup = "PL1",
   destination = "City Centre",
+  destinationCategory,
   status = "COMPLETED",
 }: {
   pickupAt: string;
   bookedAt?: string;
   pickup?: string;
   destination?: string;
+  destinationCategory?: string;
   status?: string;
 }) {
   const pickupDueTime =
@@ -46,13 +48,27 @@ function booking({
           null,
       },
       {
-        type:
-          "DESTINATION" as const,
-        address:
-          destination,
-        zoneName:
-          null,
-      },
+      type:
+        "DESTINATION" as const,
+      address:
+        destination,
+      zoneName:
+        null,
+      placeIntelligence:
+        destinationCategory
+          ? {
+              category:
+                destinationCategory,
+              categories: [
+                destinationCategory,
+              ],
+              isSensitive:
+                false,
+              poiCategoryStatus:
+                "READY",
+            }
+          : null,
+    },
     ],
   };
 }
@@ -120,6 +136,30 @@ assert.equal(
   ),
   false,
   "Two journeys must not qualify.",
+);
+
+const geoapifyShoppingBookings = [
+  "2026-09-15T11:00:00.000Z",
+  "2026-09-14T11:00:00.000Z",
+  "2026-09-13T11:00:00.000Z",
+].map((pickupAt) =>
+  booking({
+    pickupAt,
+    destination:
+      "Generic destination",
+    destinationCategory:
+      "commercial.shopping_mall",
+  }),
+);
+
+assert.equal(
+  ids(
+    geoapifyShoppingBookings,
+  ).has(
+    "SHOPPING_USER",
+  ),
+  true,
+  "Geoapify shopping categories should qualify without address keywords.",
 );
 
 const earlyMorningBookings = [

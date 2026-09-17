@@ -825,6 +825,7 @@ model NormalCustomer {
   profileSnapshots   CustomerProfileSnapshot[]
   bookingPredictions CustomerBookingPrediction[]
   intelligenceState  CustomerIntelligenceState?
+  behaviourTags      CustomerBehaviourTag[]
 
   @@index([telephoneNumber])
   @@index([email])
@@ -864,6 +865,36 @@ model CustomerProfileSnapshot {
   @@index([snapshotDate])
   @@index([needLevel, snapshotDate])
   @@index([serviceOutcomeLevel, snapshotDate])
+}
+
+model CustomerBehaviourTag {
+  id               String    @id @default(cuid())
+  normalCustomerId String
+  tagId            String
+  label            String
+  category         String
+  confidence       String
+  evidenceCount    Int
+  eligibleCount    Int
+  percentage       Decimal   @db.Decimal(6, 2)
+  windowDays       Int       @default(14)
+  windowStartAt    DateTime
+  windowEndAt      DateTime
+  lastObservedAt   DateTime?
+  active           Boolean   @default(true)
+  source           String    @default("AUTOMATIC")
+  modelVersion     String    @default("CUSTOMER_TAGS_V1")
+  explanation      String    @db.Text
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  customer NormalCustomer @relation(fields: [normalCustomerId], references: [id], onDelete: Cascade)
+
+  @@unique([normalCustomerId, tagId])
+  @@index([tagId, active])
+  @@index([normalCustomerId, active])
+  @@index([category, active])
+  @@index([updatedAt])
 }
 
 model BookingDemandForecast {
@@ -1189,34 +1220,44 @@ model GeoapifyApiConfiguration {
 }
 
 model PlaceIntelligence {
-  id                String    @id @default(cuid())
-  locationKey       String    @unique
-  latitude          Decimal   @db.Decimal(10, 8)
-  longitude         Decimal   @db.Decimal(11, 8)
-  originalAddress   String?
-  placeName         String?
-  formattedAddress  String?
-  category          String?
-  categories        Json?
-  website           String?
-  provider          String    @default("GEOAPIFY")
-  providerPlaceId   String?
-  confidence        Decimal?  @db.Decimal(5, 2)
-  isSensitive       Boolean   @default(false)
-  sensitivityReason String?
-  status            String    @default("PENDING")
-  attemptCount      Int       @default(0)
-  lastAttemptAt     DateTime?
-  nextRetryAt       DateTime?
-  enrichedAt        DateTime?
-  lastError         String?   @db.Text
-  rawPayload        Json?
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                             String    @id @default(cuid())
+  locationKey                    String    @unique
+  latitude                       Decimal   @db.Decimal(10, 8)
+  longitude                      Decimal   @db.Decimal(11, 8)
+  originalAddress                String?
+  placeName                      String?
+  formattedAddress               String?
+  category                       String?
+  categories                     Json?
+  poiCategoryStatus              String    @default("PENDING")
+  poiCategoryAttemptCount        Int       @default(0)
+  poiCategoryLastAttemptAt       DateTime?
+  poiCategoryNextRetryAt         DateTime?
+  poiCategoryEnrichedAt          DateTime?
+  poiCategoryLastError           String?   @db.Text
+  poiCategoryMatchDistanceMetres Decimal?  @db.Decimal(8, 2)
+  poiCategoryProviderPlaceId     String?
+  poiCategoryRawPayload          Json?
+  website                        String?
+  provider                       String    @default("GEOAPIFY")
+  providerPlaceId                String?
+  confidence                     Decimal?  @db.Decimal(5, 2)
+  isSensitive                    Boolean   @default(false)
+  sensitivityReason              String?
+  status                         String    @default("PENDING")
+  attemptCount                   Int       @default(0)
+  lastAttemptAt                  DateTime?
+  nextRetryAt                    DateTime?
+  enrichedAt                     DateTime?
+  lastError                      String?   @db.Text
+  rawPayload                     Json?
+  createdAt                      DateTime  @default(now())
+  updatedAt                      DateTime  @updatedAt
 
   bookingLocations BookingLocation[]
 
   @@index([status, nextRetryAt])
+  @@index([poiCategoryStatus, poiCategoryNextRetryAt])
   @@index([provider, providerPlaceId])
   @@index([latitude, longitude])
   @@index([isSensitive])

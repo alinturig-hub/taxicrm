@@ -25,6 +25,23 @@ type AccountCustomer = {
   lastSyncedAt: string;
 };
 
+type CustomerTag = {
+  id: string;
+  label: string;
+  category: string;
+  confidence: string;
+  evidenceCount: number;
+  eligibleCount: number;
+  percentage: number;
+};
+
+type AvailableCustomerTag = {
+  id: string;
+  label: string;
+  category: string;
+  customers: number;
+};
+
 type NormalCustomer = {
   key: string;
   name: string | null;
@@ -32,6 +49,7 @@ type NormalCustomer = {
   email: string | null;
   totalBookings: number;
   lastBookingAt: string | null;
+  tags: CustomerTag[];
 };
 
 type CustomersResponse = {
@@ -44,6 +62,7 @@ type CustomersResponse = {
   };
   accountCustomers?: AccountCustomer[];
   normalCustomers?: NormalCustomer[];
+  availableTags?: AvailableCustomerTag[];
 };
 
 type Tab =
@@ -66,6 +85,8 @@ export default function CustomersDashboard() {
     useState<Tab>("ACCOUNT");
   const [search, setSearch] =
     useState("");
+  const [selectedTag, setSelectedTag] =
+    useState("ALL");
   const [loading, setLoading] =
     useState(true);
   const [syncing, setSyncing] =
@@ -79,6 +100,8 @@ export default function CustomersDashboard() {
     useState<AccountCustomer[]>([]);
   const [normalCustomers, setNormalCustomers] =
     useState<NormalCustomer[]>([]);
+  const [availableTags, setAvailableTags] =
+    useState<AvailableCustomerTag[]>([]);
   const [
     selectedCustomerId,
     setSelectedCustomerId,
@@ -111,6 +134,9 @@ export default function CustomersDashboard() {
       );
       setNormalCustomers(
         payload.normalCustomers ?? [],
+      );
+      setAvailableTags(
+        payload.availableTags ?? [],
       );
     } catch (error) {
       setError(
@@ -197,23 +223,42 @@ export default function CustomersDashboard() {
       const query =
         search.trim().toLowerCase();
 
-      if (!query) {
-        return normalCustomers;
-      }
-
       return normalCustomers.filter(
-        (customer) =>
-          [
+        (customer) => {
+          const matchesTag =
+            selectedTag === "ALL" ||
+            customer.tags.some(
+              (tag) =>
+                tag.id === selectedTag,
+            );
+
+          if (!matchesTag) {
+            return false;
+          }
+
+          if (!query) {
+            return true;
+          }
+
+          return [
             customer.name,
             customer.telephoneNumber,
             customer.email,
+            ...customer.tags.map(
+              (tag) => tag.label,
+            ),
           ].some((value) =>
             value
               ?.toLowerCase()
               .includes(query),
-          ),
+          );
+        },
       );
-    }, [normalCustomers, search]);
+    }, [
+      normalCustomers,
+      search,
+      selectedTag,
+    ]);
 
   return (
     <div className="space-y-6">
@@ -308,6 +353,34 @@ export default function CustomersDashboard() {
 
             </div>
 
+            <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+              {tab === "NORMAL" ? (
+                <select
+                  value={selectedTag}
+                  onChange={(event) =>
+                    setSelectedTag(
+                      event.target.value,
+                    )
+                  }
+                  aria-label="Filter customers by behaviour tag"
+                  className="min-w-56 rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none focus:border-blue-500"
+                >
+                  <option value="ALL">
+                    All customer tags
+                  </option>
+                  {availableTags.map(
+                    (tag) => (
+                      <option
+                        key={tag.id}
+                        value={tag.id}
+                      >
+                        {tag.label} ({tag.customers})
+                      </option>
+                    ),
+                  )}
+                </select>
+              ) : null}
+
             <input
               type="search"
               value={search}
@@ -317,6 +390,7 @@ export default function CustomersDashboard() {
               placeholder="Search customers…"
               className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500 sm:w-80"
             />
+            </div>
           </div>
         </div>
 
@@ -535,6 +609,9 @@ function NormalCustomersTable({
               Bookings
             </th>
             <th className="px-5 py-3">
+              Customer Tags
+            </th>
+            <th className="px-5 py-3">
               Last Booking
             </th>
           </tr>
@@ -577,6 +654,28 @@ function NormalCustomersTable({
                 )}
               </td>
 
+              <td className="px-5 py-4">
+                <div className="flex max-w-xl flex-wrap gap-1.5">
+                  {customer.tags.map(
+                    (tag) => (
+                      <span
+                        key={tag.id}
+                        title={`${tag.evidenceCount} of ${tag.eligibleCount} · ${tag.percentage}% · ${tag.confidence}`}
+                        className="rounded-full border border-blue-400/30 bg-blue-400/10 px-2 py-1 text-xs font-semibold text-blue-200"
+                      >
+                        {tag.label}
+                      </span>
+                    ),
+                  )}
+                  {customer.tags.length ===
+                  0 ? (
+                    <span className="text-slate-600">
+                      —
+                    </span>
+                  ) : null}
+                </div>
+              </td>
+
               <td className="px-5 py-4 text-slate-400">
                 {formatDate(
                   customer.lastBookingAt,
@@ -588,7 +687,7 @@ function NormalCustomersTable({
           {customers.length === 0 ? (
             <tr>
               <td
-                colSpan={5}
+                colSpan={6}
                 className="px-5 py-10 text-center text-slate-500"
               >
                 No normal customers found.
