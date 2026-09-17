@@ -549,6 +549,7 @@ export async function enrichPlaceCategory(
         id: true,
         latitude: true,
         longitude: true,
+        category: true,
         originalAddress: true,
         placeName: true,
         formattedAddress: true,
@@ -682,12 +683,21 @@ export async function enrichPlaceCategory(
       );
 
     if (!selected) {
+      const genericLocationTypes =
+        new Set([
+          "street",
+          "postcode",
+          "suburb",
+          "city",
+        ]);
       const inferredCategory =
-        inferPlaceCategoryFromName(
-          place.placeName,
-          place.originalAddress,
-          place.formattedAddress,
-        );
+        genericLocationTypes.has(
+          place.category ?? "",
+        )
+          ? null
+          : inferPlaceCategoryFromName(
+              place.placeName,
+            );
 
       if (inferredCategory) {
         const inferredCategories = [
