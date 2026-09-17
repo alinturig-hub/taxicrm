@@ -79,6 +79,111 @@ export type PlaceCategoryBatchResult = {
   failed: number;
 };
 
+export function inferPlaceCategoryFromName(
+  ...values: Array<
+    string | null | undefined
+  >
+): string | null {
+  const text =
+    values
+      .filter(
+        (value): value is string =>
+          typeof value === "string",
+      )
+      .join(" ")
+      .toLowerCase()
+      .normalize("NFKD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/&/g, " and ")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  if (!text) {
+    return null;
+  }
+
+  const rules: Array<
+    [RegExp, string]
+  > = [
+    [
+      /\b(railway|train) station\b/,
+      "public_transport.train",
+    ],
+    [
+      /\b(airport|air terminal)\b/,
+      "airport",
+    ],
+    [
+      /\b(school|academy|college)\b/,
+      "education.school",
+    ],
+    [
+      /\b(nursery|preschool|pre school|childcare)\b/,
+      "childcare",
+    ],
+    [
+      /\b(hospital|outpatients?|treatment centre|medical centre|health centre|clinic|surgery)\b/,
+      "healthcare",
+    ],
+    [
+      /\b(hotel|travelodge|premier inn|crowne plaza|moxy|holiday inn)\b/,
+      "accommodation.hotel",
+    ],
+    [
+      /\b(cafe|coffee|coffee shop|chai|chaii|tea room|tearoom)\b/,
+      "catering.cafe",
+    ],
+    [
+      /\b(restaurant|diner|brasserie|bistro|grill)\b/,
+      "catering.restaurant",
+    ],
+    [
+      /\b(pub|public house|tavern|nightclub|wine bar)\b/,
+      "catering.pub",
+    ],
+    [
+      /\b(tesco|sainsburys?|aldi|lidl|asda|morrisons?|supermarket)\b/,
+      "commercial.supermarket",
+    ],
+    [
+      /\b(marks and spencer|m and s|whsmith|department store)\b/,
+      "commercial.department_store",
+    ],
+    [
+      /\b(hairdresser|hair care|hair salon|beauty salon|barber)\b/,
+      "service.beauty.hairdresser",
+    ],
+    [
+      /\b(torpoint ferry|ferry terminal)\b/,
+      "public_transport.ferry",
+    ],
+    [
+      /\b(coach station|bus station|coach tickets?)\b/,
+      "public_transport.bus",
+    ],
+    [
+      /\b(car park|parking)\b/,
+      "parking",
+    ],
+    [
+      /\b(inpost|post office|parcel locker)\b/,
+      "service.post",
+    ],
+    [
+      /\b(diesel depot|industrial estate|factory|manufacturing)\b/,
+      "industrial",
+    ],
+  ];
+
+  return (
+    rules.find(
+      ([pattern]) =>
+        pattern.test(text),
+    )?.[1] ??
+    null
+  );
+}
+
 function toJsonValue(
   value: unknown,
 ): Prisma.InputJsonValue {
@@ -577,6 +682,91 @@ export async function enrichPlaceCategory(
       );
 
     if (!selected) {
+      const inferredCategory =
+        inferPlaceCategoryFromName(
+          place.placeName,
+          place.originalAddress,
+          place.formattedAddress,
+        );
+
+      if (inferredCategory) {
+        const inferredCategories = [
+          inferredCategory,
+        ];
+        const sensitivityReason =
+          getSensitivePlaceReason(
+            inferredCategories,
+            [
+              place.originalAddress,
+              place.placeName,
+              place.formattedAddress,
+            ],
+          );
+        const inferredStatus =
+          sensitivityReason
+            ? "SKIPPED_SENSITIVE"
+            : "READY";
+
+        await prisma.placeIntelligence.update({
+          where: {
+            id: place.id,
+          },
+          data: {
+            category:
+              inferredCategory,
+            categories:
+              inferredCategories,
+            isSensitive:
+              sensitivityReason !== null,
+            sensitivityReason,
+            poiCategoryStatus:
+              inferredStatus,
+            poiCategoryAttemptCount: {
+              increment: 1,
+            },
+            poiCategoryLastAttemptAt:
+              attemptedAt,
+            poiCategoryNextRetryAt:
+              null,
+            poiCategoryEnrichedAt:
+              attemptedAt,
+            poiCategoryLastError:
+              null,
+            poiCategoryMatchDistanceMetres:
+              null,
+            poiCategoryProviderPlaceId:
+              null,
+            poiCategoryRawPayload:
+              toJsonValue({
+                source:
+                  "PLACE_NAME_RULE",
+                providerPayload:
+                  payload,
+              }),
+          },
+        });
+
+        await recordProviderSuccess(
+          attemptedAt,
+        );
+
+        return {
+          placeId: place.id,
+          status:
+            inferredStatus,
+          category:
+            sensitivityReason
+              ? null
+              : inferredCategory,
+          categories:
+            sensitivityReason
+              ? []
+              : inferredCategories,
+          distanceMetres:
+            null,
+        };
+      }
+
       await prisma.placeIntelligence.update({
         where: {
           id: place.id,
