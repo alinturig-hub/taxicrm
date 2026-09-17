@@ -419,6 +419,17 @@ export function buildCustomerBehaviourTags(
         "airport",
       ],
     },
+    {
+      id: "HAIR_BEAUTY_USER",
+      label: "Hair & Beauty User",
+      destinationOnly: true,
+      pattern:
+        /\b(hairdresser|hair salon|beauty salon|beauty parlour|barber|barbers|nail salon|tanning salon|spa)\b/,
+      categoryPrefixes: [
+        "service.beauty",
+        "commercial.health_and_beauty",
+      ],
+    },
   ];
 
   for (const rule of placeRules) {

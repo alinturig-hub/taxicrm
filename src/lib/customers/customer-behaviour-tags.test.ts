@@ -162,6 +162,30 @@ assert.equal(
   "Geoapify shopping categories should qualify without address keywords.",
 );
 
+const geoapifyBeautyBookings = [
+  "2026-09-15T12:00:00.000Z",
+  "2026-09-14T12:00:00.000Z",
+  "2026-09-13T12:00:00.000Z",
+].map((pickupAt) =>
+  booking({
+    pickupAt,
+    destination:
+      "Generic business",
+    destinationCategory:
+      "service.beauty.hairdresser",
+  }),
+);
+
+assert.equal(
+  ids(
+    geoapifyBeautyBookings,
+  ).has(
+    "HAIR_BEAUTY_USER",
+  ),
+  true,
+  "Geoapify hairdresser categories should produce a Hair & Beauty User tag.",
+);
+
 const earlyMorningBookings = [
   "2026-09-15T04:30:00.000Z",
   "2026-09-14T05:00:00.000Z",

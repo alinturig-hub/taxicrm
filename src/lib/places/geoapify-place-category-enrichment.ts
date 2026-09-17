@@ -15,6 +15,9 @@ const PLACE_CATEGORIES = [
   "commercial",
   "commercial.shopping_mall",
   "commercial.supermarket",
+  "commercial.health_and_beauty",
+  "service.beauty",
+  "service.beauty.hairdresser",
   "catering.pub",
   "catering.bar",
   "public_transport.train",
@@ -134,6 +137,18 @@ function categoryPriority(
     category.startsWith("railway.train.")
   ) {
     return 400;
+  }
+
+  if (
+    category === "service.beauty" ||
+    category.startsWith("service.beauty.") ||
+    category ===
+      "commercial.health_and_beauty" ||
+    category.startsWith(
+      "commercial.health_and_beauty.",
+    )
+  ) {
+    return 350;
   }
 
   if (
