@@ -1219,6 +1219,20 @@ model GeoapifyApiConfiguration {
   @@index([isEnabled])
 }
 
+model PlaceCategoryDefinition {
+  id          String   @id @default(cuid())
+  slug        String   @unique
+  label       String
+  isSensitive Boolean  @default(false)
+  isActive    Boolean  @default(true)
+  createdBy   String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isActive, label])
+  @@index([createdAt])
+}
+
 model PlaceIntelligence {
   id                             String    @id @default(cuid())
   locationKey                    String    @unique

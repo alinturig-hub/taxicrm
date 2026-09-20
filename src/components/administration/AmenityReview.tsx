@@ -36,10 +36,18 @@ type Pagination = {
   totalPages: number;
 };
 
+type CategoryOption = {
+  slug: string;
+  label: string;
+  sensitive: boolean;
+  custom: boolean;
+};
+
 type ApiResponse = {
   success: boolean;
   statistics?: Statistics;
   pagination?: Pagination;
+  categories?: CategoryOption[];
   places?: Place[];
   error?: string;
   message?: string;
@@ -85,6 +93,31 @@ function formatNumber(
 export default function AmenityReview() {
   const [places, setPlaces] =
     useState<Place[]>([]);
+  const [
+    categories,
+    setCategories,
+  ] = useState<CategoryOption[]>(
+    CATEGORY_OPTIONS.map(
+      (slug) => ({
+        slug,
+        label:
+          slug
+            .split(/[._-]+/)
+            .map(
+              (word) =>
+                word
+                  .charAt(0)
+                  .toUpperCase() +
+                word.slice(1),
+            )
+            .join(" "),
+        sensitive:
+          false,
+        custom:
+          false,
+      }),
+    ),
+  );
   const [statistics, setStatistics] =
     useState<Statistics | null>(
       null,
@@ -131,6 +164,22 @@ export default function AmenityReview() {
   const [
     refreshingTags,
     setRefreshingTags,
+  ] = useState(false);
+  const [
+    showCategoryForm,
+    setShowCategoryForm,
+  ] = useState(false);
+  const [
+    newCategoryLabel,
+    setNewCategoryLabel,
+  ] = useState("");
+  const [
+    newCategorySensitive,
+    setNewCategorySensitive,
+  ] = useState(false);
+  const [
+    creatingCategory,
+    setCreatingCategory,
   ] = useState(false);
   const [message, setMessage] =
     useState<string | null>(null);
@@ -194,6 +243,12 @@ export default function AmenityReview() {
           setPlaces(
             payload.places ?? [],
           );
+
+          if (payload.categories) {
+            setCategories(
+              payload.categories,
+            );
+          }
 
           if (payload.statistics) {
             setStatistics(
@@ -330,6 +385,98 @@ export default function AmenityReview() {
       );
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function createCategory(
+    event: FormEvent,
+  ) {
+    event.preventDefault();
+
+    const label =
+      newCategoryLabel.trim();
+
+    if (label.length < 2) {
+      setError(
+        "Enter a category name.",
+      );
+      return;
+    }
+
+    setCreatingCategory(true);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/dashboard/administration/place-review",
+          {
+            method:
+              "PUT",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                label,
+                isSensitive:
+                  newCategorySensitive,
+              }),
+          },
+        );
+      const payload =
+        await response.json() as {
+          success: boolean;
+          category?: CategoryOption;
+          message?: string;
+          error?: string;
+        };
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.category
+      ) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "The custom category could not be created.",
+        );
+      }
+
+      setCategories(
+        (current) =>
+          [
+            ...current.filter(
+              (category) =>
+                category.slug !==
+                payload.category?.slug,
+            ),
+            payload.category as
+              CategoryOption,
+          ].sort(
+            (first, second) =>
+              first.label.localeCompare(
+                second.label,
+              ),
+          ),
+      );
+      setNewCategoryLabel("");
+      setNewCategorySensitive(false);
+      setShowCategoryForm(false);
+      setMessage(
+        `${payload.category.label} created and added to the category list.`,
+      );
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "The custom category could not be created.",
+      );
+    } finally {
+      setCreatingCategory(false);
     }
   }
 
@@ -526,6 +673,90 @@ export default function AmenityReview() {
             </button>
           </form>
 
+          <div className="flex flex-wrap items-center gap-4">
+            <button
+              type="button"
+              onClick={() =>
+                setShowCategoryForm(
+                  (current) =>
+                    !current,
+                )
+              }
+              className="rounded-xl border border-violet-500/40 bg-violet-500/10 px-4 py-2.5 text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20"
+            >
+              {showCategoryForm
+                ? "Close category form"
+                : "Create custom category"}
+            </button>
+
+            <p className="text-sm text-slate-500">
+              Create categories such as Wine Shop, Hotel Guest or Sports Venue.
+            </p>
+          </div>
+
+          {showCategoryForm ? (
+            <form
+              onSubmit={
+                createCategory
+              }
+              className="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4"
+            >
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto_auto] lg:items-end">
+                <label className="block">
+                  <span className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    New category name
+                  </span>
+                  <input
+                    type="text"
+                    value={
+                      newCategoryLabel
+                    }
+                    onChange={(event) =>
+                      setNewCategoryLabel(
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Example: Wine Shop"
+                    maxLength={80}
+                    className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-sm text-white outline-none placeholder:text-slate-600 focus:border-violet-500"
+                  />
+                </label>
+
+                <label className="flex items-center gap-2 pb-2.5 text-sm text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={
+                      newCategorySensitive
+                    }
+                    onChange={(event) =>
+                      setNewCategorySensitive(
+                        event.target.checked,
+                      )
+                    }
+                    className="h-4 w-4 rounded border-slate-600 bg-slate-950"
+                  />
+                  Sensitive / exclude from marketing
+                </label>
+
+                <button
+                  type="submit"
+                  disabled={
+                    creatingCategory
+                  }
+                  className="rounded-xl bg-violet-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-violet-500 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {creatingCategory
+                    ? "Creating…"
+                    : "Add category"}
+                </button>
+              </div>
+
+              <p className="mt-3 text-xs text-slate-500">
+                The system creates a permanent safe code automatically, for example Wine Shop becomes custom.wine_shop.
+              </p>
+            </form>
+          ) : null}
+
           <div className="flex flex-wrap gap-6 text-sm text-slate-300">
             <label className="flex items-center gap-2">
               <input
@@ -583,11 +814,20 @@ export default function AmenityReview() {
 
         <div className="overflow-x-auto">
           <datalist id="place-category-options">
-            {CATEGORY_OPTIONS.map(
+            {categories.map(
               (category) => (
                 <option
-                  key={category}
-                  value={category}
+                  key={
+                    category.slug
+                  }
+                  value={
+                    category.slug
+                  }
+                  label={
+                    category.custom
+                      ? `${category.label} (Custom)`
+                      : category.label
+                  }
                 />
               ),
             )}

@@ -25,6 +25,35 @@ export const revalidate = 0;
 const PAGE_SIZE = 50;
 const MAX_PAGE_SIZE = 100;
 
+const BUILT_IN_CATEGORIES = [
+  "accommodation.hotel",
+  "airport",
+  "catering.cafe",
+  "catering.fast_food",
+  "catering.pub",
+  "catering.restaurant",
+  "childcare",
+  "commercial.department_store",
+  "commercial.shopping_mall",
+  "commercial.supermarket",
+  "education.school",
+  "entertainment",
+  "healthcare",
+  "industrial",
+  "leisure",
+  "office.company",
+  "parking",
+  "public_transport.bus",
+  "public_transport.ferry",
+  "public_transport.train",
+  "service.beauty.hairdresser",
+  "service.financial.bank",
+  "service.post",
+  "service.vehicle",
+  "tourism",
+  "other",
+] as const;
+
 const SENSITIVE_CATEGORY_PREFIXES = [
   "healthcare",
   "education",
@@ -125,6 +154,50 @@ function isSensitiveCategory(
         `${prefix}.`,
       ),
   );
+}
+
+function readableCategoryLabel(
+  category: string,
+) {
+  return category
+    .replace(
+      /^custom\./,
+      "",
+    )
+    .split(/[._-]+/)
+    .filter(Boolean)
+    .map(
+      (word) =>
+        word.charAt(0).toUpperCase() +
+        word.slice(1),
+    )
+    .join(" ");
+}
+
+function customCategorySlug(
+  label: string,
+) {
+  const normalized =
+    label
+      .normalize("NFKD")
+      .replace(
+        /[\u0300-\u036f]/g,
+        "",
+      )
+      .toLowerCase()
+      .replace(
+        /[^a-z0-9]+/g,
+        "_",
+      )
+      .replace(
+        /^_+|_+$/g,
+        "",
+      )
+      .slice(0, 60);
+
+  return normalized
+    ? `custom.${normalized}`
+    : "";
 }
 
 export async function GET(
@@ -232,6 +305,7 @@ export async function GET(
     sensitiveAmenities,
     pendingAmenities,
     noMatchAmenities,
+    customCategories,
   ] =
     await Promise.all([
       prisma.placeIntelligence.count({
@@ -319,6 +393,21 @@ export async function GET(
             "NO_MATCH",
         },
       }),
+      prisma.placeCategoryDefinition.findMany({
+        where: {
+          isActive:
+            true,
+        },
+        orderBy: {
+          label:
+            "asc",
+        },
+        select: {
+          slug: true,
+          label: true,
+          isSensitive: true,
+        },
+      }),
     ]);
 
   return NextResponse.json({
@@ -343,6 +432,35 @@ export async function GET(
           ),
         ),
     },
+    categories: [
+      ...BUILT_IN_CATEGORIES.map(
+        (slug) => ({
+          slug,
+          label:
+            readableCategoryLabel(
+              slug,
+            ),
+          sensitive:
+            isSensitiveCategory(
+              slug,
+            ),
+          custom:
+            false,
+        }),
+      ),
+      ...customCategories.map(
+        (category) => ({
+          slug:
+            category.slug,
+          label:
+            category.label,
+          sensitive:
+            category.isSensitive,
+          custom:
+            true,
+        }),
+      ),
+    ],
     places:
       places.map(
         (place) => ({
@@ -495,10 +613,55 @@ export async function PATCH(
     );
   }
 
+  const customCategory =
+    category.startsWith(
+      "custom.",
+    )
+      ? await prisma.placeCategoryDefinition.findUnique({
+          where: {
+            slug:
+              category,
+          },
+          select: {
+            isSensitive:
+              true,
+            isActive:
+              true,
+          },
+        })
+      : null;
+
+  const categoryIsKnown =
+    BUILT_IN_CATEGORIES.includes(
+      category as
+        typeof BUILT_IN_CATEGORIES[number],
+    ) ||
+    Boolean(
+      customCategory?.isActive,
+    );
+
+  if (!categoryIsKnown) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "UNKNOWN_PLACE_CATEGORY",
+        message:
+          "Choose an existing category or create a custom category first.",
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
   const sensitive =
     manuallySensitive ||
     isSensitiveCategory(
       category,
+    ) ||
+    Boolean(
+      customCategory?.isSensitive,
     );
   const reviewedAt =
     new Date();
@@ -564,6 +727,120 @@ export async function PATCH(
     category,
     sensitive,
   });
+}
+
+export async function PUT(
+  request: Request,
+) {
+  const authorization =
+    await authorizedUser();
+
+  if (authorization.response) {
+    return authorization.response;
+  }
+
+  if (!authorization.email) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "UNAUTHORIZED",
+      },
+      {
+        status: 401,
+      },
+    );
+  }
+
+  const body =
+    await request.json() as
+      Record<string, unknown>;
+  const label =
+    typeof body.label === "string"
+      ? body.label.trim()
+      : "";
+  const isSensitive =
+    body.isSensitive === true;
+  const slug =
+    customCategorySlug(
+      label,
+    );
+
+  if (
+    label.length < 2 ||
+    label.length > 80 ||
+    !slug
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "INVALID_CATEGORY_NAME",
+        message:
+          "Enter a category name between 2 and 80 characters.",
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  const existing =
+    await prisma.placeCategoryDefinition.findUnique({
+      where: {
+        slug,
+      },
+      select: {
+        slug: true,
+      },
+    });
+
+  if (existing) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "CATEGORY_ALREADY_EXISTS",
+        message:
+          "This custom category already exists.",
+      },
+      {
+        status: 409,
+      },
+    );
+  }
+
+  const category =
+    await prisma.placeCategoryDefinition.create({
+      data: {
+        slug,
+        label,
+        isSensitive,
+        createdBy:
+          authorization.email,
+      },
+      select: {
+        slug: true,
+        label: true,
+        isSensitive: true,
+      },
+    });
+
+  return NextResponse.json(
+    {
+      success: true,
+      category: {
+        ...category,
+        sensitive:
+          category.isSensitive,
+        custom:
+          true,
+      },
+    },
+    {
+      status: 201,
+    },
+  );
 }
 
 export async function POST() {
