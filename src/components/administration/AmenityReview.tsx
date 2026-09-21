@@ -90,6 +90,141 @@ function formatNumber(
   );
 }
 
+function CategoryPicker({
+  categories,
+  value,
+  onChange,
+}: {
+  categories: CategoryOption[];
+  value: string;
+  onChange: (slug: string) => void;
+}) {
+  const [query, setQuery] =
+    useState("");
+  const [open, setOpen] =
+    useState(false);
+
+  const selected =
+    categories.find(
+      (category) =>
+        category.slug === value,
+    ) ??
+    null;
+  const normalizedQuery =
+    query.trim().toLowerCase();
+  const filtered =
+    categories
+      .filter(
+        (category) =>
+          !normalizedQuery ||
+          category.label
+            .toLowerCase()
+            .includes(
+              normalizedQuery,
+            ) ||
+          category.slug
+            .toLowerCase()
+            .includes(
+              normalizedQuery,
+            ),
+      )
+      .slice(0, 30);
+
+  return (
+    <div className="relative w-72">
+      <div className="flex">
+        <input
+          type="search"
+          value={
+            open
+              ? query
+              : selected?.label ??
+                ""
+          }
+          onFocus={() => {
+            setQuery("");
+            setOpen(true);
+          }}
+          onChange={(event) => {
+            setQuery(
+              event.target.value,
+            );
+            setOpen(true);
+          }}
+          onBlur={() => {
+            window.setTimeout(
+              () =>
+                setOpen(false),
+              150,
+            );
+          }}
+          placeholder="Search categories…"
+          className="min-w-0 flex-1 rounded-l-lg border border-r-0 border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500"
+        />
+        <button
+          type="button"
+          aria-label="Search categories"
+          onClick={() =>
+            setOpen(
+              (current) =>
+                !current,
+            )
+          }
+          className="rounded-r-lg border border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-blue-200 transition hover:bg-slate-700"
+        >
+          Search
+        </button>
+      </div>
+
+      {open ? (
+        <div className="absolute z-50 mt-2 max-h-72 w-full overflow-y-auto rounded-xl border border-slate-700 bg-slate-950 p-1 shadow-2xl shadow-black/50">
+          {filtered.map(
+            (category) => (
+              <button
+                key={
+                  category.slug
+                }
+                type="button"
+                onMouseDown={(event) => {
+                  event.preventDefault();
+                  onChange(
+                    category.slug,
+                  );
+                  setQuery("");
+                  setOpen(false);
+                }}
+                className="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm text-slate-200 transition hover:bg-blue-600 hover:text-white"
+              >
+                <span>
+                  {category.label}
+                </span>
+                <span className="flex items-center gap-1">
+                  {category.sensitive ? (
+                    <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-amber-200">
+                      Sensitive
+                    </span>
+                  ) : null}
+                  {category.custom ? (
+                    <span className="rounded-full bg-violet-500/20 px-2 py-0.5 text-[10px] font-semibold text-violet-200">
+                      Custom
+                    </span>
+                  ) : null}
+                </span>
+              </button>
+            ),
+          )}
+
+          {filtered.length === 0 ? (
+            <p className="px-3 py-4 text-center text-xs text-slate-500">
+              No categories found. Use Create custom category above.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function AmenityReview() {
   const [places, setPlaces] =
     useState<Place[]>([]);
@@ -361,8 +496,16 @@ export default function AmenityReview() {
         );
       }
 
+      const categoryLabel =
+        categories.find(
+          (option) =>
+            option.slug ===
+            category,
+        )?.label ??
+        category;
+
       setMessage(
-        `${payload.updatedPlaces ?? 1} location record(s) classified as ${category}.`,
+        `${payload.updatedPlaces ?? 1} location record(s) classified as ${categoryLabel}.`,
       );
       setCategoryById(
         (current) => {
@@ -813,26 +956,6 @@ export default function AmenityReview() {
         </div>
 
         <div className="overflow-x-auto">
-          <datalist id="place-category-options">
-            {categories.map(
-              (category) => (
-                <option
-                  key={
-                    category.slug
-                  }
-                  value={
-                    category.slug
-                  }
-                  label={
-                    category.custom
-                      ? `${category.label} (Custom)`
-                      : category.label
-                  }
-                />
-              ),
-            )}
-          </datalist>
-
           <table className="min-w-[1180px] w-full text-left text-sm">
             <thead className="border-b border-slate-800 bg-slate-950/50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
@@ -896,24 +1019,24 @@ export default function AmenityReview() {
 
                     <td className="px-5 py-4">
                       {place.canEdit ? (
-                        <input
-                          list="place-category-options"
+                        <CategoryPicker
+                          categories={
+                            categories
+                          }
                           value={
                             categoryById[
                               place.id
                             ] ?? ""
                           }
-                          onChange={(event) =>
+                          onChange={(slug) =>
                             setCategoryById(
                               (current) => ({
                                 ...current,
                                 [place.id]:
-                                  event.target.value,
+                                  slug,
                               }),
                             )
                           }
-                          placeholder="Select or type category"
-                          className="w-64 rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white outline-none focus:border-blue-500"
                         />
                       ) : (
                         <span className="text-amber-300">
