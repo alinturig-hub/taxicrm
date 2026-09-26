@@ -47,28 +47,29 @@ type LiveVehicle = {
   driver: Driver | null;
 };
 
-function vehicleIcon(colour: string) {
+function escapeHtml(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function vehicleIcon(colour: string, label: string) {
   return L.divIcon({
-    className: "",
+    className: "fleet-vehicle-div-icon",
     html: `
-      <div style="
-        width:32px;
-        height:32px;
-        border-radius:10px;
-        background:${colour};
-        border:2px solid #ffffff;
-        display:flex;
-        align-items:center;
-        justify-content:center;
-        box-shadow:0 2px 8px rgba(15,23,42,.45);
-        font-size:18px;
-        line-height:1;
-      ">🚕</div>
+      <div class="fleet-vehicle-marker">
+        <span class="fleet-vehicle-label" style="border-color:${colour}">${escapeHtml(label)}</span>
+        <img class="fleet-vehicle-car" src="/fleet-car-top.png" alt="" draggable="false" />
+        <span class="fleet-vehicle-status" style="background:${colour}"></span>
+      </div>
     `,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    popupAnchor: [0, -18],
-    tooltipAnchor: [0, -18],
+    iconSize: [48, 72],
+    iconAnchor: [24, 42],
+    popupAnchor: [0, -38],
+    tooltipAnchor: [0, -38],
   });
 }
 
@@ -361,6 +362,218 @@ function FitFleetBounds({
   }, [fitRequestKey, map, vehicles]);
 
   return null;
+}
+
+function movementBearing(
+  from: [number, number],
+  to: [number, number],
+): number {
+  const latitude1 = (from[0] * Math.PI) / 180;
+  const latitude2 = (to[0] * Math.PI) / 180;
+  const longitudeDelta =
+    ((to[1] - from[1]) * Math.PI) / 180;
+  const y = Math.sin(longitudeDelta) * Math.cos(latitude2);
+  const x =
+    Math.cos(latitude1) * Math.sin(latitude2) -
+    Math.sin(latitude1) *
+      Math.cos(latitude2) *
+      Math.cos(longitudeDelta);
+
+  return ((Math.atan2(y, x) * 180) / Math.PI + 360) % 360;
+}
+
+function nearestHeading(current: number, next: number): number {
+  return current + ((next - current + 540) % 360) - 180;
+}
+
+function AnimatedVehicleMarker({
+  vehicle,
+}: {
+  vehicle: LiveVehicle;
+}) {
+  const markerRef = useRef<L.Marker | null>(null);
+  const coordinateRef = useRef<[number, number]>([
+    vehicle.latitude,
+    vehicle.longitude,
+  ]);
+  const headingRef = useRef(0);
+  const recordedAtRef = useRef(
+    vehicle.lastSeenAt
+      ? new Date(vehicle.lastSeenAt).getTime()
+      : Date.now(),
+  );
+  const animationFrameRef = useRef<number | null>(null);
+  const colour = statusColour(vehicle.status, vehicle.isLive);
+  const label =
+    vehicle.driver?.callsign ||
+    vehicle.callsign ||
+    vehicle.externalId;
+  const icon = useMemo(
+    () => vehicleIcon(colour, label),
+    [colour, label],
+  );
+
+  useEffect(() => {
+    const marker = markerRef.current;
+
+    if (!marker) {
+      return;
+    }
+
+    const car = marker
+      .getElement()
+      ?.querySelector<HTMLElement>(".fleet-vehicle-car");
+    const from: [number, number] = [
+      coordinateRef.current[0],
+      coordinateRef.current[1],
+    ];
+    const target: [number, number] = [
+      vehicle.latitude,
+      vehicle.longitude,
+    ];
+    const nextRecordedAt = vehicle.lastSeenAt
+      ? new Date(vehicle.lastSeenAt).getTime()
+      : Date.now();
+    const timestampGap = Number.isFinite(nextRecordedAt)
+      ? Math.abs(nextRecordedAt - recordedAtRef.current)
+      : 1_200;
+    recordedAtRef.current = Number.isFinite(nextRecordedAt)
+      ? nextRecordedAt
+      : Date.now();
+    const moved =
+      Math.abs(target[0] - from[0]) +
+        Math.abs(target[1] - from[1]) >
+      0.000001;
+
+    if (!moved) {
+      if (car) {
+        car.style.transform = `rotate(${headingRef.current}deg)`;
+      }
+      return;
+    }
+
+    if (animationFrameRef.current !== null) {
+      window.cancelAnimationFrame(animationFrameRef.current);
+    }
+
+    const duration = Math.max(
+      800,
+      Math.min(5_000, timestampGap * 0.92 || 1_200),
+    );
+    const fromHeading = headingRef.current;
+    const toHeading = nearestHeading(
+      fromHeading,
+      movementBearing(from, target),
+    );
+    const startedAt = performance.now();
+
+    const animate = (now: number) => {
+      const progress = Math.min(1, (now - startedAt) / duration);
+      const eased = progress * progress * (3 - 2 * progress);
+      const coordinate: [number, number] = [
+        from[0] + (target[0] - from[0]) * eased,
+        from[1] + (target[1] - from[1]) * eased,
+      ];
+
+      coordinateRef.current = coordinate;
+      marker.setLatLng(coordinate);
+      headingRef.current =
+        fromHeading + (toHeading - fromHeading) * eased;
+
+      if (car) {
+        car.style.transform = `rotate(${headingRef.current}deg)`;
+      }
+
+      animationFrameRef.current =
+        progress < 1
+          ? window.requestAnimationFrame(animate)
+          : null;
+    };
+
+    animationFrameRef.current =
+      window.requestAnimationFrame(animate);
+
+    return () => {
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = null;
+      }
+    };
+  }, [icon, vehicle.lastSeenAt, vehicle.latitude, vehicle.longitude]);
+
+  return (
+    <Marker
+      ref={markerRef}
+      position={coordinateRef.current}
+      icon={icon}
+    >
+      <Tooltip
+        direction="top"
+        offset={[0, -18]}
+        opacity={0.95}
+        className="fleet-callsign-tooltip"
+      >
+        {label + " · " + vehicle.operationalStatus}
+      </Tooltip>
+
+      <Popup>
+        <div className="min-w-56 text-sm">
+          <p className="text-base font-bold">
+            Driver {vehicle.driver?.callsign || vehicle.callsign || "—"}
+          </p>
+
+          <div className="mt-2 space-y-1">
+            <p>
+              <strong>Name:</strong>{" "}
+              {vehicle.driver?.name || "Not available"}
+            </p>
+            <p>
+              <strong>Today Revenue:</strong> £
+              {(vehicle.driver?.todayRevenue ?? 0).toFixed(2)}
+            </p>
+            <p>
+              <strong>Vehicle:</strong>{" "}
+              {vehicle.registration || vehicle.callsign || vehicle.externalId}
+            </p>
+            <p>
+              <strong>Status:</strong>{" "}
+              {vehicle.operationalStatus === "CLEAR"
+                ? "CLEAR - Available"
+                : vehicle.operationalStatus === "DOW"
+                  ? "DOW - Driver On The Way"
+                  : vehicle.operationalStatus === "DAP"
+                    ? "DAP - Driver At Pickup"
+                    : "POB - Passenger On Board"}
+            </p>
+            {vehicle.operationalStatus === "DOW" ||
+            vehicle.operationalStatus === "DAP" ? (
+              <p>
+                <strong>Pickup:</strong>{" "}
+                {vehicle.pickupAddress || "Not available"}
+              </p>
+            ) : null}
+            {vehicle.operationalStatus === "POB" ? (
+              <p>
+                <strong>Destination:</strong>{" "}
+                {vehicle.destinationAddress || "Not available"}
+              </p>
+            ) : null}
+            <p>
+              <strong>Booking:</strong> {vehicle.bookingId ?? "None"}
+            </p>
+            <p>
+              <strong>Last update:</strong>{" "}
+              {formatAge(vehicle.ageSeconds)}
+            </p>
+            <p>
+              <strong>Connection:</strong>{" "}
+              {vehicle.isLive ? "Live" : "Stale"}
+            </p>
+          </div>
+        </div>
+      </Popup>
+    </Marker>
+  );
 }
 
 export default function LiveFleetMap() {
@@ -880,111 +1093,12 @@ export default function LiveFleetMap() {
             fitRequestKey={mapFitRequestKey}
           />
 
-          {filteredVehicles.map((vehicle) => {
-            const colour = statusColour(
-              vehicle.status,
-              vehicle.isLive,
-            );
-
-            return (
-              <Marker
-                key={vehicle.id}
-                position={[
-                  vehicle.latitude,
-                  vehicle.longitude,
-                ]}
-                icon={vehicleIcon(colour)}
-              >
-                <Tooltip
-                  permanent
-                  direction="top"
-                  offset={[0, -8]}
-                  opacity={0.95}
-                  className="fleet-callsign-tooltip"
-                >
-                  {(vehicle.driver?.callsign ||
-                    vehicle.callsign ||
-                    vehicle.externalId) +
-                    " · " +
-                    vehicle.operationalStatus}
-                </Tooltip>
-
-                <Popup>
-                  <div className="min-w-56 text-sm">
-                    <p className="text-base font-bold">
-                      Driver{" "}
-                      {vehicle.driver?.callsign ||
-                        vehicle.callsign ||
-                        "—"}
-                    </p>
-
-                    <div className="mt-2 space-y-1">
-                      <p>
-                        <strong>Name:</strong>{" "}
-                        {vehicle.driver?.name ||
-                          "Not available"}
-                      </p>
-
-                        <p>
-                          <strong>Today Revenue:</strong>{" "}
-                          £{(vehicle.driver?.todayRevenue ?? 0).toFixed(2)}
-                        </p>
-
-                      <p>
-                        <strong>Vehicle:</strong>{" "}
-                        {vehicle.registration ||
-                          vehicle.callsign ||
-                          vehicle.externalId}
-                      </p>
-
-                      <p>
-                        <strong>Status:</strong>{" "}
-                        {vehicle.operationalStatus === "CLEAR"
-                          ? "CLEAR - Available"
-                          : vehicle.operationalStatus === "DOW"
-                            ? "DOW - Driver On The Way"
-                            : vehicle.operationalStatus === "DAP"
-                              ? "DAP - Driver At Pickup"
-                              : "POB - Passenger On Board"}
-                      </p>
-
-                      {(vehicle.operationalStatus === "DOW" ||
-                        vehicle.operationalStatus === "DAP") ? (
-                        <p>
-                          <strong>Pickup:</strong>{" "}
-                          {vehicle.pickupAddress || "Not available"}
-                        </p>
-                      ) : null}
-
-                      {vehicle.operationalStatus === "POB" ? (
-                        <p>
-                          <strong>Destination:</strong>{" "}
-                          {vehicle.destinationAddress || "Not available"}
-                        </p>
-                      ) : null}
-
-                      <p>
-                        <strong>Booking:</strong>{" "}
-                        {vehicle.bookingId ?? "None"}
-                      </p>
-
-                      <p>
-                        <strong>Last update:</strong>{" "}
-                        {formatAge(vehicle.ageSeconds)}
-                      </p>
-
-                      <p>
-                        <strong>Connection:</strong>{" "}
-                        {vehicle.isLive
-                          ? "Live"
-                          : "Stale"}
-                      </p>
-                    </div>
-                  </div>
-                </Popup>
-              </Marker>
-            );
-          })}
+          {filteredVehicles.map((vehicle) => (
+            <AnimatedVehicleMarker
+              key={vehicle.id}
+              vehicle={vehicle}
+            />
+          ))}
         </MapContainer>
       </div>
     </div>
