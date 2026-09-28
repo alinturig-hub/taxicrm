@@ -1306,7 +1306,7 @@ export default function AmenityReview() {
                 <th className="px-5 py-3">
                   Sensitive
                 </th>
-                <th className="px-5 py-3 text-right">
+                <th className="px-5 py-3 text-center">
                   Action
                 </th>
               </tr>
@@ -1317,7 +1317,7 @@ export default function AmenityReview() {
                 (place) => (
                   <tr
                     key={place.id}
-                    className="align-top hover:bg-slate-800/30"
+                    className="align-middle transition-colors hover:bg-slate-800/30"
                   >
                     <td className="px-5 py-4">
                       <p className="font-semibold text-white">
@@ -1405,9 +1405,9 @@ export default function AmenityReview() {
                       )}
                     </td>
 
-                    <td className="px-5 py-4 text-right">
+                    <td className="px-5 py-4 text-center">
                       {place.canEdit ? (
-                        <div className="flex items-center justify-end gap-2">
+                        <div className="inline-flex items-center gap-1.5 rounded-xl border border-slate-700/60 bg-slate-950/30 p-1">
                           <button
                             type="button"
                             onClick={() =>
@@ -1423,7 +1423,7 @@ export default function AmenityReview() {
                             }
                             title="Remove from Amenity Review"
                             aria-label={`Remove ${place.name ?? "location"} from Amenity Review`}
-                            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-500/30 bg-red-500/5 text-red-300 transition hover:border-red-400/50 hover:bg-red-500/15 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400/40 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-slate-400 transition hover:bg-red-500/15 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {deletingId ===
                             place.id ? (
@@ -1462,7 +1462,7 @@ export default function AmenityReview() {
                               deletingId ===
                                 place.id
                             }
-                            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="inline-flex h-8 min-w-[68px] items-center justify-center rounded-md bg-blue-600 px-3 text-xs font-semibold text-white transition hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-400/40 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {savingId ===
                             place.id
