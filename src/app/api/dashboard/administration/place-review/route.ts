@@ -876,10 +876,103 @@ export async function DELETE(
   const body =
     await request.json() as
       Record<string, unknown>;
+  const id =
+    typeof body.id === "string"
+      ? body.id.trim()
+      : "";
   const slug =
     typeof body.slug === "string"
       ? body.slug.trim()
       : "";
+
+  if (id) {
+    if (!authorization.email) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "UNAUTHORIZED",
+        },
+        {
+          status: 401,
+        },
+      );
+    }
+
+    const place =
+      await prisma.placeIntelligence.findUnique({
+        where: {
+          id,
+        },
+        select: {
+          id: true,
+          category: true,
+          placeName: true,
+        },
+      });
+
+    if (
+      !place ||
+      place.category !==
+        "amenity"
+    ) {
+      return NextResponse.json(
+        {
+          success: false,
+          error:
+            "PLACE_NOT_AVAILABLE",
+          message:
+            "This amenity row is no longer available.",
+        },
+        {
+          status: 404,
+        },
+      );
+    }
+
+    const reviewedAt =
+      new Date();
+
+    await prisma.placeIntelligence.update({
+      where: {
+        id:
+          place.id,
+      },
+      data: {
+        category:
+          "ignored",
+        categories: [
+          "ignored",
+        ],
+        poiCategoryStatus:
+          "IGNORED",
+        poiCategorySource:
+          "MANUAL",
+        poiCategoryReviewedAt:
+          reviewedAt,
+        poiCategoryReviewedBy:
+          authorization.email,
+        poiCategoryEnrichedAt:
+          reviewedAt,
+        poiCategoryLastError:
+          null,
+        poiCategoryNextRetryAt:
+          null,
+      },
+    });
+
+    return NextResponse.json({
+      success: true,
+      removedPlace: {
+        id:
+          place.id,
+        name:
+          place.placeName,
+      },
+      linkedHistoryPreserved:
+        true,
+    });
+  }
 
   if (
     !slug.startsWith(

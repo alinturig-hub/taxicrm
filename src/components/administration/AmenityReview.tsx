@@ -356,6 +356,8 @@ export default function AmenityReview() {
     useState(true);
   const [savingId, setSavingId] =
     useState<string | null>(null);
+  const [deletingId, setDeletingId] =
+    useState<string | null>(null);
   const [
     refreshingTags,
     setRefreshingTags,
@@ -588,6 +590,80 @@ export default function AmenityReview() {
       );
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function removePlace(
+    place: Place,
+  ) {
+    const placeLabel =
+      place.name ??
+      place.address ??
+      "this location";
+
+    if (
+      !window.confirm(
+        `Remove ${placeLabel} from Amenity Review? Booking history will be preserved.`,
+      )
+    ) {
+      return;
+    }
+
+    setDeletingId(place.id);
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/dashboard/administration/place-review",
+          {
+            method:
+              "DELETE",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                id:
+                  place.id,
+              }),
+          },
+        );
+
+      const payload =
+        await response.json() as {
+          success: boolean;
+          message?: string;
+          error?: string;
+          linkedHistoryPreserved?: boolean;
+        };
+
+      if (
+        !response.ok ||
+        !payload.success
+      ) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "The location could not be removed.",
+        );
+      }
+
+      setMessage(
+        `${placeLabel} was removed from Amenity Review. Booking history was preserved.`,
+      );
+
+      await loadPlaces();
+    } catch (removeError) {
+      setError(
+        removeError instanceof Error
+          ? removeError.message
+          : "The location could not be removed.",
+      );
+    } finally {
+      setDeletingId(null);
     }
   }
 
@@ -1331,24 +1407,49 @@ export default function AmenityReview() {
 
                     <td className="px-5 py-4 text-right">
                       {place.canEdit ? (
-                        <button
-                          type="button"
-                          onClick={() =>
-                            void savePlace(
-                              place,
-                            )
-                          }
-                          disabled={
-                            savingId ===
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void removePlace(
+                                place,
+                              )
+                            }
+                            disabled={
+                              deletingId ===
+                                place.id ||
+                              savingId ===
+                                place.id
+                            }
+                            className="rounded-lg border border-red-500/40 bg-red-500/10 px-3 py-2 text-xs font-semibold text-red-200 transition hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {deletingId ===
                             place.id
-                          }
-                          className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
-                        >
-                          {savingId ===
-                          place.id
-                            ? "Saving…"
-                            : "Save"}
-                        </button>
+                              ? "Deleting…"
+                              : "Delete row"}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() =>
+                              void savePlace(
+                                place,
+                              )
+                            }
+                            disabled={
+                              savingId ===
+                                place.id ||
+                              deletingId ===
+                                place.id
+                            }
+                            className="rounded-lg bg-blue-600 px-4 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {savingId ===
+                            place.id
+                              ? "Saving…"
+                              : "Save"}
+                          </button>
+                        </div>
                       ) : null}
                     </td>
                   </tr>
