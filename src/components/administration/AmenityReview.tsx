@@ -94,14 +94,20 @@ function CategoryPicker({
   categories,
   value,
   onChange,
+  onCreate,
 }: {
   categories: CategoryOption[];
   value: string;
   onChange: (slug: string) => void;
+  onCreate: (
+    label: string,
+  ) => Promise<CategoryOption | null>;
 }) {
   const [query, setQuery] =
     useState("");
   const [open, setOpen] =
+    useState(false);
+  const [creating, setCreating] =
     useState(false);
 
   const selected =
@@ -129,6 +135,19 @@ function CategoryPicker({
             ),
       )
       .slice(0, 30);
+  const exactMatch =
+    categories.some(
+      (category) =>
+        category.label
+          .toLowerCase() ===
+          normalizedQuery ||
+        category.slug
+          .toLowerCase() ===
+          normalizedQuery,
+    );
+  const canCreate =
+    normalizedQuery.length >= 2 &&
+    !exactMatch;
 
   return (
     <div className="relative w-72">
@@ -214,9 +233,50 @@ function CategoryPicker({
             ),
           )}
 
-          {filtered.length === 0 ? (
+          {canCreate ? (
+            <button
+              type="button"
+              disabled={
+                creating
+              }
+              onMouseDown={async (event) => {
+                event.preventDefault();
+                setCreating(true);
+
+                try {
+                  const created =
+                    await onCreate(
+                      query.trim(),
+                    );
+
+                  if (created) {
+                    onChange(
+                      created.slug,
+                    );
+                    setQuery("");
+                    setOpen(false);
+                  }
+                } finally {
+                  setCreating(false);
+                }
+              }}
+              className="mt-1 flex w-full items-center justify-between rounded-lg border border-violet-500/30 bg-violet-500/10 px-3 py-2.5 text-left text-sm font-semibold text-violet-200 transition hover:bg-violet-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              <span>
+                {creating
+                  ? "Adding category…"
+                  : `Add “${query.trim()}”`}
+              </span>
+              <span className="text-lg">
+                +
+              </span>
+            </button>
+          ) : null}
+
+          {filtered.length === 0 &&
+          !canCreate ? (
             <p className="px-3 py-4 text-center text-xs text-slate-500">
-              No categories found. Use Create custom category above.
+              Type at least two characters to search or add a category.
             </p>
           ) : null}
         </div>
@@ -531,6 +591,86 @@ export default function AmenityReview() {
     }
   }
 
+  async function createInlineCategory(
+    label: string,
+  ): Promise<CategoryOption | null> {
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/dashboard/administration/place-review",
+          {
+            method:
+              "PUT",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                label,
+                isSensitive:
+                  false,
+              }),
+          },
+        );
+      const payload =
+        await response.json() as {
+          success: boolean;
+          category?: CategoryOption;
+          message?: string;
+          error?: string;
+        };
+
+      if (
+        !response.ok ||
+        !payload.success ||
+        !payload.category
+      ) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "The custom category could not be created.",
+        );
+      }
+
+      const created =
+        payload.category;
+
+      setCategories(
+        (current) =>
+          [
+            ...current.filter(
+              (category) =>
+                category.slug !==
+                created.slug,
+            ),
+            created,
+          ].sort(
+            (first, second) =>
+              first.label.localeCompare(
+                second.label,
+              ),
+          ),
+      );
+      setMessage(
+        `${created.label} created, selected and added to the category list.`,
+      );
+
+      return created;
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "The custom category could not be created.",
+      );
+
+      return null;
+    }
+  }
+
   async function createCategory(
     event: FormEvent,
   ) {
@@ -620,6 +760,77 @@ export default function AmenityReview() {
       );
     } finally {
       setCreatingCategory(false);
+    }
+  }
+
+  async function deleteCategory(
+    category: CategoryOption,
+  ) {
+    if (
+      !category.custom ||
+      !window.confirm(
+        `Delete ${category.label}?`,
+      )
+    ) {
+      return;
+    }
+
+    setError(null);
+    setMessage(null);
+
+    try {
+      const response =
+        await fetch(
+          "/api/dashboard/administration/place-review",
+          {
+            method:
+              "DELETE",
+            headers: {
+              "content-type":
+                "application/json",
+            },
+            body:
+              JSON.stringify({
+                slug:
+                  category.slug,
+              }),
+          },
+        );
+      const payload =
+        await response.json() as {
+          success: boolean;
+          message?: string;
+          error?: string;
+        };
+
+      if (
+        !response.ok ||
+        !payload.success
+      ) {
+        throw new Error(
+          payload.message ??
+            payload.error ??
+            "The custom category could not be deleted.",
+        );
+      }
+
+      setCategories(
+        (current) =>
+          current.filter(
+            (option) =>
+              option.slug !==
+              category.slug,
+          ),
+      );
+      setMessage(
+        `${category.label} deleted from the category list.`,
+      );
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "The custom category could not be deleted.",
+      );
     }
   }
 
@@ -900,6 +1111,48 @@ export default function AmenityReview() {
             </form>
           ) : null}
 
+          {categories.some(
+            (category) =>
+              category.custom,
+          ) ? (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
+              <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Custom categories
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {categories
+                  .filter(
+                    (category) =>
+                      category.custom,
+                  )
+                  .map(
+                    (category) => (
+                      <span
+                        key={
+                          category.slug
+                        }
+                        className="inline-flex items-center gap-2 rounded-full border border-violet-500/30 bg-violet-500/10 py-1 pl-3 pr-1 text-sm text-violet-100"
+                      >
+                        {category.label}
+                        <button
+                          type="button"
+                          aria-label={`Delete ${category.label}`}
+                          onClick={() =>
+                            void deleteCategory(
+                              category,
+                            )
+                          }
+                          className="flex h-6 w-6 items-center justify-center rounded-full text-violet-300 transition hover:bg-red-500/20 hover:text-red-200"
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ),
+                  )}
+              </div>
+            </div>
+          ) : null}
+
           <div className="flex flex-wrap gap-6 text-sm text-slate-300">
             <label className="flex items-center gap-2">
               <input
@@ -1036,6 +1289,9 @@ export default function AmenityReview() {
                                   slug,
                               }),
                             )
+                          }
+                          onCreate={
+                            createInlineCategory
                           }
                         />
                       ) : (

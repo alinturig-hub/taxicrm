@@ -792,10 +792,11 @@ export async function PUT(
       },
       select: {
         slug: true,
+        isActive: true,
       },
     });
 
-  if (existing) {
+  if (existing?.isActive) {
     return NextResponse.json(
       {
         success: false,
@@ -811,20 +812,39 @@ export async function PUT(
   }
 
   const category =
-    await prisma.placeCategoryDefinition.create({
-      data: {
-        slug,
-        label,
-        isSensitive,
-        createdBy:
-          authorization.email,
-      },
-      select: {
-        slug: true,
-        label: true,
-        isSensitive: true,
-      },
-    });
+    existing
+      ? await prisma.placeCategoryDefinition.update({
+          where: {
+            slug,
+          },
+          data: {
+            label,
+            isSensitive,
+            isActive:
+              true,
+            createdBy:
+              authorization.email,
+          },
+          select: {
+            slug: true,
+            label: true,
+            isSensitive: true,
+          },
+        })
+      : await prisma.placeCategoryDefinition.create({
+          data: {
+            slug,
+            label,
+            isSensitive,
+            createdBy:
+              authorization.email,
+          },
+          select: {
+            slug: true,
+            label: true,
+            isSensitive: true,
+          },
+        });
 
   return NextResponse.json(
     {
@@ -841,6 +861,118 @@ export async function PUT(
       status: 201,
     },
   );
+}
+
+export async function DELETE(
+  request: Request,
+) {
+  const authorization =
+    await authorizedUser();
+
+  if (authorization.response) {
+    return authorization.response;
+  }
+
+  const body =
+    await request.json() as
+      Record<string, unknown>;
+  const slug =
+    typeof body.slug === "string"
+      ? body.slug.trim()
+      : "";
+
+  if (
+    !slug.startsWith(
+      "custom.",
+    )
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "INVALID_CUSTOM_CATEGORY",
+        message:
+          "Only custom categories can be deleted.",
+      },
+      {
+        status: 400,
+      },
+    );
+  }
+
+  const category =
+    await prisma.placeCategoryDefinition.findUnique({
+      where: {
+        slug,
+      },
+      select: {
+        id: true,
+        label: true,
+        isActive: true,
+      },
+    });
+
+  if (
+    !category ||
+    !category.isActive
+  ) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "CATEGORY_NOT_FOUND",
+        message:
+          "The custom category could not be found.",
+      },
+      {
+        status: 404,
+      },
+    );
+  }
+
+  const usedByPlaces =
+    await prisma.placeIntelligence.count({
+      where: {
+        category:
+          slug,
+      },
+    });
+
+  if (usedByPlaces > 0) {
+    return NextResponse.json(
+      {
+        success: false,
+        error:
+          "CATEGORY_IN_USE",
+        message:
+          `${category.label} is used by ${usedByPlaces} location record(s). Reclassify those locations before deleting it.`,
+        usedByPlaces,
+      },
+      {
+        status: 409,
+      },
+    );
+  }
+
+  await prisma.placeCategoryDefinition.update({
+    where: {
+      id:
+        category.id,
+    },
+    data: {
+      isActive:
+        false,
+    },
+  });
+
+  return NextResponse.json({
+    success: true,
+    deletedCategory: {
+      slug,
+      label:
+        category.label,
+    },
+  });
 }
 
 export async function POST() {
