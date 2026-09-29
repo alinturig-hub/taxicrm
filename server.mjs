@@ -13,7 +13,7 @@ const DRIVER_SYNC_CHECK_INTERVAL_MS =
 const CUSTOMER_INTELLIGENCE_START_DELAY_MS =
   5 * 60 * 1000;
 const CUSTOMER_INTELLIGENCE_INTERVAL_MS =
-  24 * 60 * 60 * 1000;
+  12 * 60 * 60 * 1000;
 
 let driverSyncStartTimer = null;
 let driverSyncCheckInterval = null;
@@ -334,7 +334,7 @@ function startCustomerIntelligenceScheduler() {
   customerIntelligenceInterval.unref();
 
   console.log(
-    "Customer intelligence scheduler ready: refreshes every 24 hours.",
+    "Customer intelligence scheduler ready: refreshes every 12 hours.",
   );
 }
 
