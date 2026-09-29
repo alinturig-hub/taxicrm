@@ -60,8 +60,8 @@ export async function POST(
   try {
     const places =
       await enrichFrequentPlaceCategories({
-        limit: 250,
-        minimumUses: 5,
+        limit: 1_000,
+        minimumUses: 1,
       });
 
     const customerTags =

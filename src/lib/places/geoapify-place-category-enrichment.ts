@@ -991,11 +991,7 @@ async function loadCandidates(
     INNER JOIN "Booking" booking
       ON booking.id = location."bookingId"
     WHERE
-      COALESCE(
-        booking."pickupDueTime",
-        booking."bookedAtTime"
-      ) >= NOW() - INTERVAL '14 days'
-      AND NOT place."isSensitive"
+      NOT place."isSensitive"
       AND (
         place."poiCategoryStatus" = 'PENDING'
         OR (
@@ -1008,7 +1004,15 @@ async function loadCandidates(
       )
     GROUP BY place.id
     HAVING COUNT(location.id) >= ${minimumUses}
-    ORDER BY uses DESC, place.id ASC
+    ORDER BY
+      COUNT(location.id) FILTER (
+        WHERE COALESCE(
+          booking."pickupDueTime",
+          booking."bookedAtTime"
+        ) >= NOW() - INTERVAL '14 days'
+      ) DESC,
+      uses DESC,
+      place.id ASC
     LIMIT ${limit}
   `);
 }
