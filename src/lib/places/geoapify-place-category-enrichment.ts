@@ -782,8 +782,15 @@ export async function enrichPlaceCategory(
           id: place.id,
         },
         data: {
+          category:
+            "other",
+          categories: [
+            "other",
+          ],
           poiCategoryStatus:
             "NO_MATCH",
+          poiCategorySource:
+            "AUTOMATIC_FALLBACK",
           poiCategoryAttemptCount: {
             increment: 1,
           },
@@ -811,8 +818,10 @@ export async function enrichPlaceCategory(
       return {
         placeId: place.id,
         status: "NO_MATCH",
-        category: null,
-        categories: [],
+        category: "other",
+        categories: [
+          "other",
+        ],
         distanceMetres: null,
       };
     }
@@ -991,7 +1000,8 @@ async function loadCandidates(
     INNER JOIN "Booking" booking
       ON booking.id = location."bookingId"
     WHERE
-      NOT place."isSensitive"
+      place.category = 'amenity'
+      AND NOT place."isSensitive"
       AND (
         place."poiCategoryStatus" = 'PENDING'
         OR (
