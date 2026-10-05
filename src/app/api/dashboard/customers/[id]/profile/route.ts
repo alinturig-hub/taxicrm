@@ -20,6 +20,7 @@ import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-win
 import { getCustomerPredictionHistory } from "@/lib/customers/customer-booking-predictions";
 import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
+import { buildCustomerMind } from "@/lib/customers/customer-mind";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
@@ -489,6 +490,20 @@ export async function GET(
       );
     }
 
+    const mind = buildCustomerMind({
+      tags: profile.tags,
+      rhythm: customerRhythm,
+      weather: weather,
+      contextual: contextualIntelligence,
+      prediction: nextBookingPrediction,
+      need: needPropensity,
+      preferences: {
+        preferredBookingStyle:
+          operationalPreferences.leadTime
+            .preferredBookingStyle ?? null,
+      },
+    });
+
     return NextResponse.json({
       success: true,
       customer: {
@@ -504,6 +519,7 @@ export async function GET(
         createdAt: customer.createdAt,
         updatedAt: customer.updatedAt,
       },
+      mind,
       profile,
       profileDataQuality,
       profileHistory,

@@ -96,6 +96,25 @@ type ProfileResponse = {
     firstBookingAt: string | null;
     lastBookingAt: string | null;
   };
+  mind?: {
+    summary: string;
+    facts: Array<{
+      category:
+        | "PLACE"
+        | "TIME"
+        | "WEATHER"
+        | "EVENT"
+        | "RHYTHM"
+        | "NEXT_NEED";
+      label: string;
+      detail: string;
+    }>;
+    nextNeed: {
+      level: string;
+      window: string | null;
+      confidence: number | null;
+    } | null;
+  };
   profile?: {
     overview: {
       totalBookings: number;
@@ -926,6 +945,30 @@ export default function CustomerProfileDrawer({
               <p className="mt-2 text-xs text-slate-500">
                 Hover over a tag to see the evidence and rule used.
               </p>
+            </div>
+          ) : null}
+
+          {data?.mind ? (
+            <div className="mt-4 rounded-xl border border-violet-500/30 bg-violet-950/20 p-4">
+              <p className="text-xs font-semibold uppercase tracking-[0.16em] text-violet-300">
+                Mind of the customer
+              </p>
+              <p className="mt-2 text-sm font-medium leading-relaxed text-slate-100">
+                {data.mind.summary}
+              </p>
+              {data.mind.facts.length > 0 ? (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {data.mind.facts.map((fact) => (
+                    <span
+                      key={`${fact.category}:${fact.label}`}
+                      title={fact.detail}
+                      className="rounded-full border border-violet-400/30 bg-violet-400/10 px-3 py-1 text-xs font-semibold text-violet-200"
+                    >
+                      {fact.label}
+                    </span>
+                  ))}
+                </div>
+              ) : null}
             </div>
           ) : null}
         </header>
