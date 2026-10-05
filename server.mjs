@@ -15,12 +15,45 @@ const CUSTOMER_INTELLIGENCE_START_DELAY_MS =
 const CUSTOMER_INTELLIGENCE_INTERVAL_MS =
   12 * 60 * 60 * 1000;
 
+const PROFILE_SNAPSHOTS_START_DELAY_MS =
+  15 * 60 * 1000;
+const PROFILE_SNAPSHOTS_INTERVAL_MS =
+  6 * 60 * 60 * 1000;
+const DEMAND_FORECAST_START_DELAY_MS =
+  10 * 60 * 1000;
+const DEMAND_FORECAST_INTERVAL_MS =
+  12 * 60 * 60 * 1000;
+const PREDICTION_MAINT_START_DELAY_MS =
+  20 * 60 * 1000;
+const PREDICTION_MAINT_INTERVAL_MS =
+  6 * 60 * 60 * 1000;
+const BATCH_DRAIN_DELAY_MS =
+  5 * 1000;
+const MAX_DRAIN_BATCHES =
+  300;
+
 let driverSyncStartTimer = null;
 let driverSyncCheckInterval = null;
 let driverSyncCheckRunning = false;
 let customerIntelligenceStartTimer = null;
 let customerIntelligenceInterval = null;
 let customerIntelligenceRunning = false;
+
+const profileSnapshotsState = {
+  startTimer: null,
+  interval: null,
+  running: false,
+};
+const demandForecastState = {
+  startTimer: null,
+  interval: null,
+  running: false,
+};
+const predictionMaintState = {
+  startTimer: null,
+  interval: null,
+  running: false,
+};
 
 const app = next({
   dev,
@@ -163,6 +196,20 @@ server.on("close", () => {
     clearInterval(
       customerIntelligenceInterval,
     );
+  }
+
+  for (const state of [
+    profileSnapshotsState,
+    demandForecastState,
+    predictionMaintState,
+  ]) {
+    if (state.startTimer) {
+      clearTimeout(state.startTimer);
+    }
+
+    if (state.interval) {
+      clearInterval(state.interval);
+    }
   }
 });
 
@@ -338,12 +385,203 @@ function startCustomerIntelligenceScheduler() {
   );
 }
 
+async function postInternalJob(path, body) {
+  const cronSecret =
+    process.env.CRON_SECRET;
+
+  if (!cronSecret) {
+    console.warn(
+      `Scheduler disabled for ${path}: CRON_SECRET is not configured.`,
+    );
+    return null;
+  }
+
+  const response = await fetch(
+    `http://127.0.0.1:${port}${path}`,
+    {
+      method: "POST",
+      headers: {
+        "content-type":
+          "application/json",
+        "x-cron-secret":
+          cronSecret,
+      },
+      body: JSON.stringify(body),
+    },
+  );
+
+  const payload =
+    await response.json();
+
+  if (!response.ok) {
+    throw new Error(
+      payload.message ||
+        payload.error ||
+        `HTTP ${response.status}`,
+    );
+  }
+
+  return payload;
+}
+
+async function runDrainingJob(
+  name,
+  path,
+  body,
+  state,
+) {
+  if (state.running) {
+    return;
+  }
+
+  state.running = true;
+
+  try {
+    let batches = 0;
+    let hasMore = true;
+
+    while (
+      hasMore &&
+      batches < MAX_DRAIN_BATCHES
+    ) {
+      const payload = await postInternalJob(
+        path,
+        body,
+      );
+
+      if (payload === null) {
+        return;
+      }
+
+      hasMore = payload.hasMore === true;
+      batches += 1;
+
+      if (hasMore) {
+        await new Promise((resolve) => {
+          setTimeout(
+            resolve,
+            BATCH_DRAIN_DELAY_MS,
+          );
+        });
+      }
+    }
+
+    console.log(
+      `${name} completed (${batches} batch(es)).`,
+    );
+  } catch (error) {
+    console.error(
+      `${name} failed:`,
+      error,
+    );
+  } finally {
+    state.running = false;
+  }
+}
+
+async function runSingleJob(
+  name,
+  path,
+  body,
+  state,
+) {
+  if (state.running) {
+    return;
+  }
+
+  state.running = true;
+
+  try {
+    await postInternalJob(path, body);
+    console.log(`${name} completed.`);
+  } catch (error) {
+    console.error(
+      `${name} failed:`,
+      error,
+    );
+  } finally {
+    state.running = false;
+  }
+}
+
+function scheduleJob({
+  name,
+  path,
+  body,
+  state,
+  startDelayMs,
+  intervalMs,
+  drain,
+}) {
+  const run = drain
+    ? () =>
+        void runDrainingJob(
+          name,
+          path,
+          body,
+          state,
+        )
+    : () =>
+        void runSingleJob(
+          name,
+          path,
+          body,
+          state,
+        );
+
+  state.startTimer = setTimeout(
+    run,
+    startDelayMs,
+  );
+  state.interval = setInterval(
+    run,
+    intervalMs,
+  );
+
+  state.startTimer.unref();
+  state.interval.unref();
+
+  console.log(
+    `${name} scheduler ready.`,
+  );
+}
+
 server.listen(port, hostname, () => {
   console.log(`TaxiCRM ready on http://${hostname}:${port}`);
   console.log(`Fleet WebSocket ready on ws://${hostname}:${port}/ws/fleet`);
 
   startDriverRegistryScheduler();
   startCustomerIntelligenceScheduler();
+
+  scheduleJob({
+    name: "Customer profile snapshots",
+    path: "/api/internal/customer-profile-snapshots",
+    body: { limit: 50 },
+    state: profileSnapshotsState,
+    startDelayMs: PROFILE_SNAPSHOTS_START_DELAY_MS,
+    intervalMs: PROFILE_SNAPSHOTS_INTERVAL_MS,
+    drain: true,
+  });
+
+  scheduleJob({
+    name: "Booking demand forecast",
+    path: "/api/internal/booking-demand-forecast",
+    body: {},
+    state: demandForecastState,
+    startDelayMs: DEMAND_FORECAST_START_DELAY_MS,
+    intervalMs: DEMAND_FORECAST_INTERVAL_MS,
+    drain: false,
+  });
+
+  scheduleJob({
+    name: "Customer booking prediction maintenance",
+    path: "/api/internal/customer-booking-predictions",
+    body: { limit: 50 },
+    state: predictionMaintState,
+    startDelayMs: PREDICTION_MAINT_START_DELAY_MS,
+    intervalMs: PREDICTION_MAINT_INTERVAL_MS,
+    drain: true,
+  });
 });
 
 function shutdown(signal) {
