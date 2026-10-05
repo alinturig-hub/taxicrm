@@ -27,6 +27,10 @@ const PREDICTION_MAINT_START_DELAY_MS =
   20 * 60 * 1000;
 const PREDICTION_MAINT_INTERVAL_MS =
   6 * 60 * 60 * 1000;
+const GEOAPIFY_BACKFILL_START_DELAY_MS =
+  25 * 60 * 1000;
+const GEOAPIFY_BACKFILL_INTERVAL_MS =
+  6 * 60 * 60 * 1000;
 const BATCH_DRAIN_DELAY_MS =
   5 * 1000;
 const MAX_DRAIN_BATCHES =
@@ -50,6 +54,11 @@ const demandForecastState = {
   running: false,
 };
 const predictionMaintState = {
+  startTimer: null,
+  interval: null,
+  running: false,
+};
+const geoapifyBackfillState = {
   startTimer: null,
   interval: null,
   running: false,
@@ -202,6 +211,7 @@ server.on("close", () => {
     profileSnapshotsState,
     demandForecastState,
     predictionMaintState,
+    geoapifyBackfillState,
   ]) {
     if (state.startTimer) {
       clearTimeout(state.startTimer);
@@ -580,6 +590,20 @@ server.listen(port, hostname, () => {
     state: predictionMaintState,
     startDelayMs: PREDICTION_MAINT_START_DELAY_MS,
     intervalMs: PREDICTION_MAINT_INTERVAL_MS,
+    drain: true,
+  });
+
+  scheduleJob({
+    name: "Geoapify historical place backfill",
+    path: "/api/dashboard/integrations/geoapify/enrich",
+    body: {
+      limit: 100,
+      scope: "HISTORICAL",
+      dailyCreditCeiling: 2000,
+    },
+    state: geoapifyBackfillState,
+    startDelayMs: GEOAPIFY_BACKFILL_START_DELAY_MS,
+    intervalMs: GEOAPIFY_BACKFILL_INTERVAL_MS,
     drain: true,
   });
 });

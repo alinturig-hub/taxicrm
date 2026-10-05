@@ -1000,7 +1000,7 @@ async function loadCandidates(
     INNER JOIN "Booking" booking
       ON booking.id = location."bookingId"
     WHERE
-      place.category = 'amenity'
+      place.category IN ('amenity', 'building')
       AND NOT place."isSensitive"
       AND (
         place."poiCategoryStatus" = 'PENDING'
