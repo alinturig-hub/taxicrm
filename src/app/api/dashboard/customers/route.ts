@@ -26,6 +26,8 @@ export async function GET() {
     const [
       accountCustomers,
       normalCustomerRecords,
+      allBehaviourTags,
+      bookingCountRecords,
       availableTagRecords,
     ] =
       await Promise.all([
@@ -54,6 +56,10 @@ export async function GET() {
           },
         }),
 
+        // Flat customer rows only (no nested relations):
+        // loading nested relations here emits an IN(...) with one
+        // parameter per customer (68k+), exceeding PostgreSQL's
+        // 65,535 parameter limit. Relations are fetched in bulk below.
         prisma.normalCustomer.findMany({
           orderBy: [
             {
@@ -70,28 +76,34 @@ export async function GET() {
             email: true,
             firstBookingAt: true,
             lastBookingAt: true,
-            behaviourTags: {
-              where: {
-                active: true,
-              },
-              orderBy: {
-                label: "asc",
-              },
-              select: {
-                tagId: true,
-                label: true,
-                category: true,
-                confidence: true,
-                evidenceCount: true,
-                eligibleCount: true,
-                percentage: true,
-              },
-            },
-            _count: {
-              select: {
-                bookings: true,
-              },
-            },
+          },
+        }),
+
+        // All active behaviour tags in a single flat query (no IN).
+        prisma.customerBehaviourTag.findMany({
+          where: {
+            active: true,
+          },
+          orderBy: {
+            label: "asc",
+          },
+          select: {
+            normalCustomerId: true,
+            tagId: true,
+            label: true,
+            category: true,
+            confidence: true,
+            evidenceCount: true,
+            eligibleCount: true,
+            percentage: true,
+          },
+        }),
+
+        // Booking count per customer in a single GROUP BY (no IN).
+        prisma.booking.groupBy({
+          by: ["normalCustomerId"],
+          _count: {
+            _all: true,
           },
         }),
 
@@ -113,6 +125,61 @@ export async function GET() {
         }),
       ]);
 
+    const tagsByCustomer = new Map<
+      string,
+      {
+        id: string;
+        label: string;
+        category: string;
+        confidence: string;
+        evidenceCount: number;
+        eligibleCount: number;
+        percentage: number;
+      }[]
+    >();
+
+    for (const tag of allBehaviourTags) {
+      const entry = tagsByCustomer.get(
+        tag.normalCustomerId,
+      );
+      if (entry) {
+        entry.push({
+          id: tag.tagId,
+          label: tag.label,
+          category: tag.category,
+          confidence: tag.confidence,
+          evidenceCount: tag.evidenceCount,
+          eligibleCount: tag.eligibleCount,
+          percentage: tag.percentage.toNumber(),
+        });
+      } else {
+        tagsByCustomer.set(tag.normalCustomerId, [
+          {
+            id: tag.tagId,
+            label: tag.label,
+            category: tag.category,
+            confidence: tag.confidence,
+            evidenceCount: tag.evidenceCount,
+            eligibleCount: tag.eligibleCount,
+            percentage: tag.percentage.toNumber(),
+          },
+        ]);
+      }
+    }
+
+    const bookingsByCustomer = new Map<
+      string,
+      number
+    >();
+    for (const row of bookingCountRecords) {
+      if (row.normalCustomerId !== null) {
+        bookingsByCustomer.set(
+          row.normalCustomerId,
+          row._count._all,
+        );
+      }
+    }
+
     const normalCustomers =
       normalCustomerRecords.map((customer) => ({
         key: customer.id,
@@ -121,27 +188,13 @@ export async function GET() {
           customer.telephoneNumber,
         email: customer.email,
         totalBookings:
-          customer._count.bookings,
+          bookingsByCustomer.get(customer.id) ?? 0,
         firstBookingAt:
           customer.firstBookingAt,
         lastBookingAt:
           customer.lastBookingAt,
         tags:
-          customer.behaviourTags.map(
-            (tag) => ({
-              id: tag.tagId,
-              label: tag.label,
-              category: tag.category,
-              confidence:
-                tag.confidence,
-              evidenceCount:
-                tag.evidenceCount,
-              eligibleCount:
-                tag.eligibleCount,
-              percentage:
-                tag.percentage.toNumber(),
-            }),
-          ),
+          tagsByCustomer.get(customer.id) ?? [],
       }));
 
     const availableTags =
