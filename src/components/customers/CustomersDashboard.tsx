@@ -60,6 +60,12 @@ type CustomersResponse = {
     normalCustomers: number;
     total: number;
   };
+  pagination?: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
   accountCustomers?: AccountCustomer[];
   normalCustomers?: NormalCustomer[];
   availableTags?: AvailableCustomerTag[];
@@ -68,6 +74,8 @@ type CustomersResponse = {
 type Tab =
   | "ACCOUNT"
   | "NORMAL";
+
+const PAGE_SIZE = 50;
 
 function formatDate(value: string | null) {
   if (!value) {
@@ -85,8 +93,16 @@ export default function CustomersDashboard() {
     useState<Tab>("ACCOUNT");
   const [search, setSearch] =
     useState("");
+  const [debouncedSearch, setDebouncedSearch] =
+    useState("");
   const [selectedTag, setSelectedTag] =
     useState("ALL");
+  const [page, setPage] =
+    useState(1);
+  const [totalPages, setTotalPages] =
+    useState(1);
+  const [totalNormal, setTotalNormal] =
+    useState(0);
   const [loading, setLoading] =
     useState(true);
   const [syncing, setSyncing] =
@@ -107,13 +123,40 @@ export default function CustomersDashboard() {
     setSelectedCustomerId,
   ] = useState<string | null>(null);
 
+  // Debounce the search input so we don't hammer the API on
+  // every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearch(search.trim());
+    }, 300);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [search]);
+
+  // Reset to the first page whenever the filter changes.
+  useEffect(() => {
+    setPage(1);
+  }, [debouncedSearch, selectedTag, tab]);
+
   const loadCustomers = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
 
+      const params = new URLSearchParams();
+      params.set("page", String(page));
+      params.set("limit", String(PAGE_SIZE));
+      if (debouncedSearch) {
+        params.set("search", debouncedSearch);
+      }
+      if (selectedTag !== "ALL") {
+        params.set("tag", selectedTag);
+      }
+
       const response = await fetch(
-        "/api/dashboard/customers",
+        `/api/dashboard/customers?${params.toString()}`,
         {
           cache: "no-store",
         },
@@ -138,6 +181,12 @@ export default function CustomersDashboard() {
       setAvailableTags(
         payload.availableTags ?? [],
       );
+      setTotalNormal(
+        payload.summary?.normalCustomers ?? 0,
+      );
+      setTotalPages(
+        payload.pagination?.totalPages ?? 1,
+      );
     } catch (error) {
       setError(
         error instanceof Error
@@ -147,7 +196,7 @@ export default function CustomersDashboard() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, debouncedSearch, selectedTag]);
 
   useEffect(() => {
     void loadCustomers();
@@ -218,48 +267,6 @@ export default function CustomersDashboard() {
       );
     }, [accountCustomers, search]);
 
-  const filteredNormalCustomers =
-    useMemo(() => {
-      const query =
-        search.trim().toLowerCase();
-
-      return normalCustomers.filter(
-        (customer) => {
-          const matchesTag =
-            selectedTag === "ALL" ||
-            customer.tags.some(
-              (tag) =>
-                tag.id === selectedTag,
-            );
-
-          if (!matchesTag) {
-            return false;
-          }
-
-          if (!query) {
-            return true;
-          }
-
-          return [
-            customer.name,
-            customer.telephoneNumber,
-            customer.email,
-            ...customer.tags.map(
-              (tag) => tag.label,
-            ),
-          ].some((value) =>
-            value
-              ?.toLowerCase()
-              .includes(query),
-          );
-        },
-      );
-    }, [
-      normalCustomers,
-      search,
-      selectedTag,
-    ]);
-
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
@@ -318,13 +325,12 @@ export default function CustomersDashboard() {
         />
         <Metric
           label="Normal Customers"
-          value={normalCustomers.length}
+          value={totalNormal}
         />
         <Metric
           label="Total Customers"
           value={
-            accountCustomers.length +
-            normalCustomers.length
+            accountCustomers.length + totalNormal
           }
         />
       </div>
@@ -412,14 +418,44 @@ export default function CustomersDashboard() {
           />
         ) : (
           <NormalCustomersTable
-            customers={
-              filteredNormalCustomers
-            }
+            customers={normalCustomers}
             onOpen={(customerId) =>
               setSelectedCustomerId(customerId)
             }
           />
         )}
+
+        {tab === "NORMAL" && !loading ? (
+          <div className="flex items-center justify-between border-t border-slate-800 p-4">
+            <p className="text-sm text-slate-500">
+              Page {page} of {Math.max(totalPages, 1)} ·{" "}
+              {totalNormal.toLocaleString("en-GB")} customers
+            </p>
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={() =>
+                  setPage((p) => Math.max(1, p - 1))
+                }
+                disabled={page <= 1}
+                className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                onClick={() =>
+                  setPage((p) => p + 1)
+                }
+                disabled={page >= totalPages}
+                className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
       </div>
 
       {selectedCustomerId ? (
