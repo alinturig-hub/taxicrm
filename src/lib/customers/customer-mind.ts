@@ -193,8 +193,6 @@ export function buildCustomerMind(
   const needScore = input.prediction?.needScore ?? null;
   const predictedWindow =
     input.prediction?.predictedWindow ?? null;
-  const signalStrength =
-    input.prediction?.signalStrength ?? null;
 
   let nextNeed: CustomerMind["nextNeed"] = null;
 
