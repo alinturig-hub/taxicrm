@@ -61,8 +61,7 @@ export function isAccountNoFareBooking(
 
   return (
     isNoFare &&
-    Boolean(booking.accountId?.trim()) &&
-    Boolean(booking.accountCode?.trim())
+    Boolean(booking.accountId?.trim())
   );
 }
 
@@ -129,7 +128,7 @@ export async function loadAccountRevenueRuleMap(
 ): Promise<Map<string, AccountRevenueRuleValue>> {
   const uniqueAccounts = new Map<
     string,
-    { accountId: string; accountCode: string }
+    { accountId: string }
   >();
 
   for (const booking of bookings) {
@@ -141,7 +140,6 @@ export async function loadAccountRevenueRuleMap(
 
     uniqueAccounts.set(key, {
       accountId: booking.accountId!.trim(),
-      accountCode: booking.accountCode!.trim(),
     });
   }
 
@@ -164,7 +162,7 @@ export async function loadAccountRevenueRuleMap(
 
   return new Map(
     rules.map((rule) => [
-      `${rule.accountId}::${rule.accountCode}`,
+      rule.accountId,
       rule,
     ]),
   );
