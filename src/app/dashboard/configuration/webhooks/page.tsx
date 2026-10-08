@@ -3,13 +3,25 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-function formatDate(value: Date): string {
+const BASE_URL =
+  "https://taxicrm.plymhub.ai/api/webhooks/autocab";
+
+const API_KEY_HEADER =
+  process.env.AUTOCAB_WEBHOOK_API_KEY_HEADER?.trim() ||
+  "x-autocab-api-key";
+
+function formatDate(value: Date | null): string {
+  if (!value) {
+    return "Never";
+  }
+
   return new Intl.DateTimeFormat("en-GB", {
     day: "2-digit",
     month: "short",
     year: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    timeZone: "Europe/London",
   }).format(value);
 }
 
@@ -32,8 +44,15 @@ export default async function WebhooksPage() {
           orderBy: {
             position: "asc",
           },
+        },
+        webhookEvents: {
+          orderBy: {
+            receivedAt: "desc",
+          },
+          take: 1,
           select: {
-            id: true,
+            receivedAt: true,
+            status: true,
           },
         },
         _count: {
@@ -54,246 +73,220 @@ export default async function WebhooksPage() {
     0,
   );
 
-  const conditionalCount = configurations.filter(
-    (configuration) =>
-      configuration.processingMode === "WHEN_CONDITIONS_MATCH",
-  ).length;
-
   return (
-    <div className="space-y-8">
-      <section className="rounded-2xl border border-slate-800 bg-slate-900/70 p-6 shadow-xl shadow-black/10">
-        <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
-          <div>
-            <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-400">
-              Configuration
+    <div className="space-y-6">
+      <header className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.22em] text-blue-400">
+            Settings
+          </p>
+
+          <h1 className="mt-2 text-3xl font-bold tracking-tight text-white">
+            Webhooks
+          </h1>
+
+          <p className="mt-2 max-w-3xl text-sm text-slate-400">
+            Manage webhook sources and the event URLs used to
+            receive real-time operational data.
+          </p>
+        </div>
+
+        <Link
+          href="/dashboard/configuration/webhooks/add"
+          className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500"
+        >
+          + Add Event URL
+        </Link>
+      </header>
+
+      <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+        <div className="flex flex-col justify-between gap-5 border-b border-slate-800 p-6 lg:flex-row lg:items-start">
+          <div className="flex min-w-0 items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-lg font-bold text-white">
+              A
+            </div>
+
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-3">
+                <h2 className="text-xl font-semibold text-white">
+                  Autocab
+                </h2>
+
+                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-2.5 py-1 text-xs font-semibold text-emerald-300">
+                  Enabled
+                </span>
+              </div>
+
+              <p className="mt-1 text-sm text-slate-400">
+                Primary TaxiCRM real-time booking, driver and vehicle
+                event source.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <span className="rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs font-medium text-slate-300">
+              {enabledCount}/{configurations.length} URLs enabled
+            </span>
+          </div>
+        </div>
+
+        <div className="grid gap-px bg-slate-800 md:grid-cols-2 xl:grid-cols-4">
+          <div className="bg-slate-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Base URL
             </p>
 
-            <h1 className="mt-3 text-3xl font-bold tracking-tight text-white">
-              Webhooks
-            </h1>
+            <code className="mt-2 block break-all text-xs text-emerald-300">
+              {BASE_URL}
+            </code>
+          </div>
 
-            <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              Manage Autocab webhook endpoints, event-processing rules and the
-              flow of real-time operational data into TaxiCRM.
+          <div className="bg-slate-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              API Key Header
+            </p>
+
+            <code className="mt-2 block text-sm text-slate-200">
+              {API_KEY_HEADER}
+            </code>
+          </div>
+
+          <div className="bg-slate-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Event URLs
+            </p>
+
+            <p className="mt-2 text-2xl font-bold text-white">
+              {configurations.length}
             </p>
           </div>
 
-          <Link
-            href="/dashboard/configuration/webhooks/add"
-            className="inline-flex items-center justify-center rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-950/30 transition hover:bg-blue-500"
-          >
-            Add Webhook
-          </Link>
+          <div className="bg-slate-900 p-5">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Events Received
+            </p>
+
+            <p className="mt-2 text-2xl font-bold text-white">
+              {totalEvents.toLocaleString("en-GB")}
+            </p>
+          </div>
         </div>
       </section>
 
-      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm font-medium text-slate-400">
-            Configured Webhooks
-          </p>
-
-          <p className="mt-3 text-3xl font-bold tracking-tight text-white">
-            {configurations.length}
-          </p>
-
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Total Autocab webhook configurations
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm font-medium text-slate-400">
-            Enabled
-          </p>
-
-          <p className="mt-3 text-3xl font-bold tracking-tight text-emerald-300">
-            {enabledCount}
-          </p>
-
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Endpoints currently accepting events
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm font-medium text-slate-400">
-            Events Received
-          </p>
-
-          <p className="mt-3 text-3xl font-bold tracking-tight text-white">
-            {totalEvents}
-          </p>
-
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Raw webhook events linked to configurations
-          </p>
-        </article>
-
-        <article className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-          <p className="text-sm font-medium text-slate-400">
-            Conditional
-          </p>
-
-          <p className="mt-3 text-3xl font-bold tracking-tight text-amber-300">
-            {conditionalCount}
-          </p>
-
-          <p className="mt-2 text-xs leading-5 text-slate-500">
-            Webhooks using conditional processing
-          </p>
-        </article>
-      </section>
-
-      <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
-        <div className="flex flex-col justify-between gap-4 border-b border-slate-800 p-5 sm:flex-row sm:items-center">
+      <section>
+        <div className="mb-4 flex items-center justify-between">
           <div>
             <h2 className="text-lg font-semibold text-white">
-              Autocab Webhook Configurations
+              Event URLs
             </h2>
 
             <p className="mt-1 text-sm text-slate-500">
-              Each configuration generates a dedicated TaxiCRM receiver URL.
+              Each event uses a dedicated public receiver URL.
             </p>
           </div>
 
-          <span className="inline-flex w-fit items-center rounded-full border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
+          <span className="text-sm text-slate-500">
             {configurations.length} configured
           </span>
         </div>
 
-        {configurations.length === 0 ? (
-          <div className="flex min-h-72 flex-col items-center justify-center px-6 py-12 text-center">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/10 text-2xl text-blue-300">
-              ↗
-            </div>
+        <div className="grid gap-4 xl:grid-cols-2">
+          {configurations.map((configuration) => {
+            const fullUrl =
+              `${BASE_URL}/${configuration.endpointSlug}`;
 
-            <h3 className="mt-5 text-lg font-semibold text-white">
-              No webhook configurations yet
-            </h3>
+            const lastEvent =
+              configuration.webhookEvents[0] ?? null;
 
-            <p className="mt-2 max-w-xl text-sm leading-6 text-slate-500">
-              Create the first Autocab webhook configuration to generate a
-              receiver endpoint and begin collecting raw event payloads.
-            </p>
+            return (
+              <article
+                key={configuration.id}
+                className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900"
+              >
+                <div className="flex items-start justify-between gap-4 border-b border-slate-800 p-5">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="font-semibold text-white">
+                        {configuration.displayName}
+                      </h3>
 
-            <Link
-              href="/dashboard/configuration/webhooks/add"
-              className="mt-6 rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-2.5 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
-            >
-              Configure First Webhook
-            </Link>
-          </div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-slate-800">
-              <thead className="bg-slate-950/40">
-                <tr>
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Webhook
-                  </th>
+                      <span
+                        className={[
+                          "rounded-full border px-2 py-0.5 text-[11px] font-semibold",
+                          configuration.isEnabled
+                            ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
+                            : "border-slate-700 bg-slate-800 text-slate-400",
+                        ].join(" ")}
+                      >
+                        {configuration.isEnabled
+                          ? "Enabled"
+                          : "Disabled"}
+                      </span>
+                    </div>
 
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Endpoint
-                  </th>
+                    <p className="mt-1 font-mono text-xs text-blue-300">
+                      {configuration.eventType}
+                    </p>
+                  </div>
 
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Processing
-                  </th>
+                  <span className="rounded-lg border border-slate-700 bg-slate-950 px-2.5 py-1 text-xs text-slate-400">
+                    /{configuration.endpointSlug}
+                  </span>
+                </div>
 
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Events
-                  </th>
+                <div className="space-y-4 p-5">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Event URL
+                    </p>
 
-                  <th className="px-5 py-4 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Status
-                  </th>
+                    <code className="mt-2 block break-all rounded-lg border border-slate-800 bg-slate-950 p-3 text-xs text-emerald-300">
+                      {fullUrl}
+                    </code>
+                  </div>
 
-                  <th className="px-5 py-4 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">
-                    Created
-                  </th>
-                </tr>
-              </thead>
+                  {configuration.description ? (
+                    <p className="text-sm leading-6 text-slate-400">
+                      {configuration.description}
+                    </p>
+                  ) : null}
 
-              <tbody className="divide-y divide-slate-800">
-                {configurations.map((configuration) => {
-                  const endpointUrl = `/api/webhooks/autocab/${configuration.endpointSlug}`;
+                  <div className="grid grid-cols-2 gap-3 border-t border-slate-800 pt-4 sm:grid-cols-4">
+                    <div>
+                      <p className="text-[11px] uppercase text-slate-500">
+                        Received
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {configuration._count.webhookEvents.toLocaleString(
+                          "en-GB",
+                        )}
+                      </p>
+                    </div>
 
-                  return (
-                    <tr
-                      key={configuration.id}
-                      className="transition hover:bg-slate-800/30"
-                    >
-                      <td className="whitespace-nowrap px-5 py-5">
-                        <p className="font-semibold text-white">
-                          {configuration.displayName}
-                        </p>
+                    <div>
+                      <p className="text-[11px] uppercase text-slate-500">
+                        Conditions
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {configuration.conditions.length}
+                      </p>
+                    </div>
 
-                        <p className="mt-1 text-xs font-medium text-blue-300">
-                          {configuration.eventType}
-                        </p>
-
-                        {configuration.description ? (
-                          <p className="mt-2 max-w-xs truncate text-xs text-slate-500">
-                            {configuration.description}
-                          </p>
-                        ) : null}
-                      </td>
-
-                      <td className="px-5 py-5">
-                        <code className="block max-w-sm break-all rounded-lg border border-slate-700 bg-slate-950 px-3 py-2 text-xs text-slate-300">
-                          {endpointUrl}
-                        </code>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-5">
-                        <p className="text-sm font-medium text-slate-300">
-                          {configuration.processingMode === "ALWAYS"
-                            ? "Always process"
-                            : "Conditional"}
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          {configuration.conditions.length} active condition
-                          {configuration.conditions.length === 1 ? "" : "s"}
-                        </p>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-5">
-                        <p className="text-sm font-semibold text-white">
-                          {configuration._count.webhookEvents}
-                        </p>
-
-                        <p className="mt-1 text-xs text-slate-500">
-                          received
-                        </p>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-5">
-                        <span
-                          className={[
-                            "inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold",
-                            configuration.isEnabled
-                              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-300"
-                              : "border-slate-700 bg-slate-800 text-slate-400",
-                          ].join(" ")}
-                        >
-                          {configuration.isEnabled
-                            ? "Enabled"
-                            : "Disabled"}
-                        </span>
-                      </td>
-
-                      <td className="whitespace-nowrap px-5 py-5 text-right text-xs text-slate-500">
-                        {formatDate(configuration.createdAt)}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        )}
+                    <div className="col-span-2">
+                      <p className="text-[11px] uppercase text-slate-500">
+                        Last received
+                      </p>
+                      <p className="mt-1 text-sm font-semibold text-white">
+                        {formatDate(lastEvent?.receivedAt ?? null)}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            );
+          })}
+        </div>
       </section>
     </div>
   );
