@@ -1110,7 +1110,7 @@ model AccountRevenueRule {
   createdAt            DateTime @default(now())
   updatedAt            DateTime @updatedAt
 
-  @@unique([provider, accountCode])
+  @@unique([provider, accountId])
   @@index([accountCode])
   @@index([waitingChargeable])
 }

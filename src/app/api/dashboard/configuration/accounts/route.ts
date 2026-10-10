@@ -330,9 +330,9 @@ export async function PUT(
     const rule =
       await prisma.accountRevenueRule.upsert({
         where: {
-          provider_accountCode: {
+          provider_accountId: {
             provider: "AUTOCAB",
-            accountCode,
+            accountId,
           },
         },
         create: {
@@ -345,6 +345,7 @@ export async function PUT(
           waitingRatePerMinute: rate,
         },
         update: {
+          accountCode,
           displayName,
           waitingChargeable:
             body.waitingChargeable,
