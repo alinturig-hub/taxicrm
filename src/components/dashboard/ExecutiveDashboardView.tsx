@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getHackneyMetrics } from "@/lib/analytics/hackney";
 
 import BusinessHealthCard from "@/components/dashboard/BusinessHealthCard";
 import DashboardRealtimeHeader from "@/components/dashboard/DashboardRealtimeHeader";
@@ -119,6 +120,7 @@ export default async function ExecutiveDashboardView() {
     dashboard,
     liveOperations,
     dispatchDifficulty,
+    hackney,
   ] = await Promise.all([
     getExecutiveDashboard(),
     getLiveOperations({
@@ -129,6 +131,7 @@ export default async function ExecutiveDashboardView() {
       todayKey,
       todayKey,
     ),
+    getHackneyMetrics(2026),
   ]);
 
   const urgentAlerts =
@@ -243,6 +246,39 @@ export default async function ExecutiveDashboardView() {
           />
         </section>
 
+        <section className="mt-4 rounded-2xl border border-slate-800 bg-slate-900 p-5">
+          <p className="text-xs font-semibold uppercase tracking-widest text-amber-400">
+            Hackney Carriage
+          </p>
+          <h2 className="mt-2 text-xl font-bold text-white">
+            Hackney Performance — 2026
+          </h2>
+          <p className="mt-2 text-sm text-slate-400">
+            FlaggedBooking jobs, including those without recorded fares.
+          </p>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <DispatchMetric
+              label="Total Hackney Jobs"
+              value={hackney.total.toLocaleString("en-GB")}
+              detail="All flagged jobs in 2026"
+            />
+            <DispatchMetric
+              label="Completed"
+              value={hackney.completed.toLocaleString("en-GB")}
+              detail="Completed Hackney jobs"
+            />
+            <DispatchMetric
+              label="Other Statuses"
+              value={hackney.otherStatuses.toLocaleString("en-GB")}
+              detail="Not marked completed"
+            />
+            <DispatchMetric
+              label="Months With Activity"
+              value={hackney.monthly.filter(m => m.total > 0).length.toString()}
+              detail="Months containing Hackney jobs"
+            />
+          </div>
+        </section>
         <section className="mt-4 overflow-hidden rounded-2xl border border-slate-800 bg-slate-900 shadow-xl shadow-black/10">
           <div className="flex flex-col gap-3 border-b border-slate-800 p-5 sm:flex-row sm:items-end sm:justify-between">
             <div>
