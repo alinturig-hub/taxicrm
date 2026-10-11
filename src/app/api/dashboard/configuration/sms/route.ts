@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { publicGateway, saveGateway, validateJob, readCounts, planEvents } from "@/lib/notifications/operations";
 import { smsGatewayPreview } from "@/lib/notifications/sms-gateway-preview";
+import { auditFreephoneNumbers } from "@/lib/notifications/phone-audit";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
@@ -31,6 +32,7 @@ export async function POST(request: Request) {
   if (!await allowed()) return NextResponse.json({error: "FORBIDDEN"}, {status: 403});
   try {
     const body = await request.json();
+    if (body.action === "lookup") return NextResponse.json(await auditFreephoneNumbers(body.phones));
     if (body.action === "test") {
       if (!/^[a-f0-9-]{36}$/i.test(body.requestId ?? "")) throw new Error("Invalid test request ID.");
       const gateway = await prisma.smsGatewayConfiguration.findUnique({where: {id: "default"}});

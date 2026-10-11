@@ -1,0 +1,25 @@
+import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
+import {test, after} from "node:test";
+import {prisma} from "../../src/lib/prisma";
+import {auditFreephoneNumbers} from "../../src/lib/notifications/phone-audit";
+import {readCounts, validateJob} from "../../src/lib/notifications/operations";
+if (process.env.TAXICRM_SYNTHETIC_TESTS !== "1" || process.env.DATABASE_URL !== "postgresql://taxicrm@127.0.0.1:5432/taxicrm") throw new Error("Requires opted-in isolated database.");
+const prefix = `phone-synthetic-${randomUUID()}`;
+after(async () => {await prisma.booking.deleteMany({where: {externalId: {startsWith: prefix}}}); await prisma.$disconnect();});
+test("phone audit is read-only, groups UK formats, excludes other providers and separates missing/future dates", async () => {
+  const now = new Date();
+  for (const [index, phone, time, provider] of [[0,"07700900000",new Date(now.getTime()-1000),"AUTOCAB"], [1,"+44 7700 900000",null,"AUTOCAB"], [2,"00447700900000",new Date(now.getTime()+1000),"AUTOCAB"], [3,"07700900000",now,"OTHER_SYNTHETIC_PROVIDER"]] as const) await prisma.booking.create({data: {externalId: `${prefix}-${index}`, telephoneNumber: phone, bookedAtTime: time, bookingSource: "Synthetic freephone", provider, rawPayload: {synthetic: true}}});
+  const result = await auditFreephoneNumbers(["07700900000", "+447700900000", "01632960000"], now);
+  assert.equal(result.rows.length, 2);
+  assert.equal(result.rows[0].total, 3); assert.equal(result.rows[0].last24h, 1); assert.equal(result.rows[0].missingDate, 1); assert.equal(result.rows[0].futureDates, 1);
+  assert.equal(result.rows[1].total, 0);
+  assert.equal((result.rows[0].samples as unknown[]).length, 3);
+  assert.ok(!JSON.stringify(result).includes("rawPayload"));
+  assert.equal(await prisma.booking.count({where: {externalId: {startsWith: prefix}}}), 4);
+  const job = validateJob({name: "Synthetic freephone", sourceField: "telephoneNumber", sourceValue: "+44 7700 900000", defaultRecipient: "", rules: [], sourceConfirmed: false, isEnabled: false});
+  assert.equal(job.sourceValue, "07700900000");
+  const counts = await readCounts(job, now); assert.equal(counts.count, 1); assert.equal(counts.known, 3);
+  await assert.rejects(auditFreephoneNumbers(Array(26).fill("07700900000")));
+  await assert.rejects(auditFreephoneNumbers(["invalid"]));
+});

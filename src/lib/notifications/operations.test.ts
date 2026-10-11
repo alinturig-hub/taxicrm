@@ -5,7 +5,8 @@ import {sendOrion, validateJob, planEvents} from "./operations";
 const config = {name: "Synthetic freephone", sourceField: "bookingSource", sourceValue: "synthetic", defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "DAILY_REPORT", enabled: true, recipient: "", text: "{freephone}: {count}"}, {event: "NO_BOOKINGS", enabled: true, recipient: "", text: "No bookings"}, {event: "BELOW_THRESHOLD", enabled: true, recipient: "", text: "Below {threshold}", threshold: 5}]};
 test("workflow activation requires a verified source and explicit event configuration", () => {
   assert.equal(validateJob(config).sourceField, "bookingSource");
-  assert.throws(() => validateJob({...config, sourceField: "telephoneNumber"}));
+  assert.throws(() => validateJob({...config, sourceField: "customerName"}));
+  assert.throws(() => validateJob({...config, sourceField: "telephoneNumber", sourceValue: "not-a-number"}));
   assert.throws(() => validateJob({...config, sourceConfirmed: false}));
   assert.throws(() => validateJob({...config, defaultRecipient: "invalid"}));
   assert.throws(() => validateJob({...config, rules: [{...config.rules[2], threshold: undefined}]}));

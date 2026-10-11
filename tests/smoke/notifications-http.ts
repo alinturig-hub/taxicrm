@@ -19,7 +19,10 @@ async function main() {
     assert.equal(data.gateway.signedParametersSaved, true);
     assert.ok(!JSON.stringify(data).includes("signedParametersEncrypted"));
     assert.ok(!JSON.stringify(data).includes("signature="));
-    await prisma.booking.create({data: {externalId: prefix, bookingSource: prefix, bookedAtTime: new Date(Date.now()-2*86400000), rawPayload: {synthetic: true}}});
+    await prisma.booking.create({data: {externalId: prefix, bookingSource: prefix, telephoneNumber: "07700900000", bookedAtTime: new Date(Date.now()-2*86400000), rawPayload: {synthetic: true}}});
+    const lookup = await request("POST", {action: "lookup", phones: ["+447700900000"]});
+    assert.equal(lookup.status, 200); assert.equal((await lookup.json()).rows[0].total, 1);
+    assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-audit", {method: "POST"})).status, 401);
     const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, text: "Synthetic zero", recipient: ""}]};
     const preview = await request("POST", {action: "preview", workflow});
     assert.equal(preview.status, 200); assert.equal((await preview.json()).counts.known, 1);

@@ -26,6 +26,8 @@ export default function NotificationSettings() {
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [testId, setTestId] = useState("");
+  const [lookupNumbers, setLookupNumbers] = useState("");
+  const [lookupResult, setLookupResult] = useState<unknown>(null);
   async function request(method = "GET", body?: unknown) {
     const response = await fetch("/api/dashboard/configuration/sms", {method, headers: {"content-type": "application/json"}, body: body === undefined ? undefined : JSON.stringify(body)});
     const data = await response.json().catch(() => ({}));
@@ -77,16 +79,17 @@ export default function NotificationSettings() {
     <section className={box}>
       <div className="flex items-center justify-between"><h2 className="text-xl font-semibold text-white">Freephone workflows</h2><button disabled={busy} className={button} onClick={() => {setWorkflow(blankWorkflow()); setPreview(null);}}>Add</button></div>
       <p className="text-sm text-slate-400">Freephone → rolling 24h booking check → event SMS. Enter recipient numbers manually. Schedules survive restarts; first check is 24h after adding.</p>
+      <details className="rounded-lg border border-slate-800 p-3"><summary className="cursor-pointer text-sm text-slate-200">Find bookings by freephone line number</summary><textarea aria-label="Freephone line numbers" className={input} rows={2} placeholder="One number per line, or separated by commas; up to 25" value={lookupNumbers} onChange={e => {setLookupNumbers(e.target.value); setLookupResult(null);}} /><button disabled={busy} className={button} onClick={() => void action(async () => {setLookupResult(await request("POST", {action: "lookup", phones: lookupNumbers.split(/[\n,;]+/).map(p => p.trim()).filter(Boolean)}));})}>Find bookings</button><p className="mt-2 text-xs text-slate-400">Read-only search of TelephoneNumber. UK national, +44 and 0044 formats match the same line. No SMS is sent.</p>{lookupResult !== null && <pre className="mt-2 overflow-auto text-xs text-slate-300">{JSON.stringify(lookupResult, null, 2)}</pre>}</details>
       {jobs.map(job => <div key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 p-3 text-sm text-slate-300"><span>{job.name} · {job.isEnabled ? "Enabled" : "Disabled"} · {job.defaultRecipient || "Event recipients"}{job.nextRunAt && <> · Next: {new Date(job.nextRunAt).toLocaleString("en-GB", {timeZone: "Europe/London"})} London</>}</span><button className={button} onClick={() => {setWorkflow(job); setPreview(null);}}>Edit</button></div>)}
       {!jobs.length && <p className="text-sm text-slate-400">No workflows. Use Add to configure one.</p>}
       {workflow && <div className="space-y-3 border-t border-slate-700 pt-4">
         <div className="grid gap-3 md:grid-cols-2">
           <label className="text-sm text-slate-300">Freephone name<input className={input} value={workflow.name} onChange={e => edit({name: e.target.value})} /></label>
           <label className="text-sm text-slate-300">General recipient<input className={input} placeholder="+44…" value={workflow.defaultRecipient} onChange={e => edit({defaultRecipient: e.target.value})} /></label>
-          <label className="text-sm text-slate-300">Autocab source field<select className={input} value={workflow.sourceField} onChange={e => edit({sourceField: e.target.value, sourceConfirmed: false})}><option value="bookingSource">BookingSource</option><option value="bookedBy">BookedBy</option><option value="ourReference">OurReference</option></select></label>
-          <label className="text-sm text-slate-300">Exact source value<input className={input} value={workflow.sourceValue} onChange={e => edit({sourceValue: e.target.value, sourceConfirmed: false})} /></label>
+          <label className="text-sm text-slate-300">Autocab source field<select className={input} value={workflow.sourceField} onChange={e => edit({sourceField: e.target.value, sourceConfirmed: false})}><option value="bookingSource">BookingSource</option><option value="bookedBy">BookedBy</option><option value="ourReference">OurReference</option><option value="telephoneNumber">TelephoneNumber — verified freephone line</option></select></label>
+          <label className="text-sm text-slate-300">{workflow.sourceField === "telephoneNumber" ? "Freephone line number" : "Exact source value"}<input className={input} value={workflow.sourceValue} onChange={e => edit({sourceValue: e.target.value, sourceConfirmed: false})} /></label>
         </div>
-        <p className="text-xs text-slate-400">Select the field that actually identifies this freephone in Autocab. Customer phone numbers are not used. If none of these fields identifies it, keep disabled and request a source adapter.</p>
+        <p className="text-xs text-slate-400">For a verified freephone line, choose TelephoneNumber and enter its line number. This is separate from the SMS recipient. Otherwise select the field/value that actually identifies this freephone in Autocab; keep disabled if no source is verified.</p>
         {workflow.rules.map((rule, index) => <details key={rule.event} className="rounded-lg border border-slate-800 p-3"><summary className="cursor-pointer text-sm text-slate-200">{labels[rule.event]} · {rule.enabled ? "On" : "Off"} · {rule.recipient || "General recipient"}</summary><div className="mt-3 space-y-2">
           <label className="block text-sm text-slate-300"><input type="checkbox" checked={rule.enabled} onChange={e => ruleEdit(index, {enabled: e.target.checked})} /> Enable event</label>
           <textarea className={input} aria-label="Event message" rows={2} value={rule.text} onChange={e => ruleEdit(index, {text: e.target.value})} />

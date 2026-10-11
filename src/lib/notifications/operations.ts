@@ -4,8 +4,9 @@ import { decryptSecret } from "@/lib/security/encryption";
 import { encryptedOrionDraft } from "./local-sms-draft";
 import { previewFreephoneWorkflow, freephoneEvents, type FreephoneRule } from "./freephone-workflow-preview";
 import { smsGatewayPreview } from "./sms-gateway-preview";
+import { normaliseFreephoneNumber, telephoneSql } from "./phone-audit";
 
-export const sourceFields = ["bookingSource", "bookedBy", "ourReference"] as const;
+export const sourceFields = ["bookingSource", "bookedBy", "ourReference", "telephoneNumber"] as const;
 export type JobInput = {name: string; sourceField: typeof sourceFields[number]; sourceValue: string; defaultRecipient: string; rules: FreephoneRule[]; sourceConfirmed: boolean; isEnabled: boolean};
 const day = 86400000;
 
@@ -20,17 +21,18 @@ export function validateJob(value: unknown): JobInput {
   }
   previewFreephoneWorkflow({name: d.name, defaultRecipient: d.defaultRecipient, rules: d.rules}, 0);
   if (d.isEnabled && (!d.sourceConfirmed || !d.rules.some(r => r.enabled))) throw new Error("Confirm the source mapping and enable at least one event before activation.");
-  return {...d, name: d.name.trim(), sourceValue: d.sourceValue.trim()};
+  return {...d, name: d.name.trim(), sourceValue: d.sourceField === "telephoneNumber" ? normaliseFreephoneNumber(d.sourceValue) : d.sourceValue.trim()};
 }
 
 export async function readCounts(job: Pick<JobInput, "sourceField" | "sourceValue">, through: Date, db: Prisma.TransactionClient = prisma) {
   if (!sourceFields.includes(job.sourceField)) throw new Error("Invalid source field.");
-  const field = Prisma.raw(`"${job.sourceField}"`); // Only the fixed allowlist above.
+  const field = job.sourceField === "telephoneNumber" ? telephoneSql() : Prisma.raw(`"${job.sourceField}"`); // Only the fixed allowlist above.
+  const value = job.sourceField === "telephoneNumber" ? normaliseFreephoneNumber(job.sourceValue) : job.sourceValue;
   const from = new Date(through.getTime() - day);
   const rows = await db.$queryRaw<{count: bigint; known: bigint; missingDate: bigint; missingSource: bigint}[]>(Prisma.sql`
-    SELECT count(*) FILTER (WHERE ${field} = ${job.sourceValue} AND "bookedAtTime" > ${from} AND "bookedAtTime" <= ${through}) AS count,
-      count(*) FILTER (WHERE ${field} = ${job.sourceValue}) AS known,
-      count(*) FILTER (WHERE ${field} = ${job.sourceValue} AND "bookedAtTime" IS NULL) AS "missingDate",
+    SELECT count(*) FILTER (WHERE ${field} = ${value} AND "bookedAtTime" > ${from} AND "bookedAtTime" <= ${through}) AS count,
+      count(*) FILTER (WHERE ${field} = ${value}) AS known,
+      count(*) FILTER (WHERE ${field} = ${value} AND "bookedAtTime" IS NULL) AS "missingDate",
       count(*) FILTER (WHERE (${field} IS NULL OR btrim(${field}) = '') AND "bookedAtTime" > ${from} AND "bookedAtTime" <= ${through}) AS "missingSource"
     FROM "Booking" WHERE provider = 'AUTOCAB'`);
   const r = rows[0];
