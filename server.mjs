@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
 import next from "next";
 import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
+import { applySmsSchema } from "./scripts/sms-schema-bootstrap.mjs";
+
+if (process.env.ENABLE_SMS_SCHEMA_MIGRATION === "true") await applySmsSchema();
 import { WebSocket, WebSocketServer } from "ws";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -557,6 +560,16 @@ server.listen(port, hostname, () => {
 
   startDriverRegistryScheduler();
   startCustomerIntelligenceScheduler();
+
+  scheduleJob({
+    name: "SMS notifications",
+    path: "/api/internal/notifications",
+    body: {},
+    state: {running: false},
+    startDelayMs: 30000,
+    intervalMs: 60000,
+    drain: false,
+  });
 
   scheduleJob({
     name: "Customer profile snapshots",

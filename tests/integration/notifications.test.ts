@@ -1,0 +1,74 @@
+import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
+import {test, after, before} from "node:test";
+import {prisma} from "../../src/lib/prisma";
+import {notificationTick, readCounts, saveGateway, publicGateway} from "../../src/lib/notifications/operations";
+import {decryptSecret} from "../../src/lib/security/encryption";
+if (process.env.TAXICRM_SYNTHETIC_TESTS !== "1" || process.env.DATABASE_URL !== "postgresql://taxicrm@127.0.0.1:5432/taxicrm") throw new Error("Requires opted-in isolated database.");
+const prefix = `sms-synthetic-${randomUUID()}`;
+const source = `${prefix}-source`;
+let original: Awaited<ReturnType<typeof prisma.smsGatewayConfiguration.findUnique>> = null;
+before(async () => {original = await prisma.smsGatewayConfiguration.findUnique({where: {id: "default"}});});
+const signed = `https://orionconnect.co.uk/api/endpoint/webhook?endpoint_id=1&signature=${"a".repeat(64)}`;
+const destination = "+447700900000";
+const rules = [{event: "DAILY_REPORT", enabled: true, recipient: "", text: "{freephone}: {count}"}, {event: "NO_BOOKINGS", enabled: true, recipient: "", text: "Zero"}, {event: "BELOW_THRESHOLD", enabled: true, recipient: "", text: "Below {threshold}", threshold: 2}];
+after(async () => {
+  const ids = (await prisma.notificationJobRun.findMany({where: {job: {name: {startsWith: prefix}}}, select: {id: true}})).map(r => r.id);
+  await prisma.notificationDelivery.deleteMany({where: {jobRunId: {in: ids}}});
+  await prisma.notificationJobRun.deleteMany({where: {id: {in: ids}}});
+  await prisma.notificationJob.deleteMany({where: {name: {startsWith: prefix}}});
+  await prisma.booking.deleteMany({where: {externalId: {startsWith: prefix}}});
+  if (original) await prisma.smsGatewayConfiguration.upsert({where: {id: "default"}, create: original, update: original});
+  else await prisma.smsGatewayConfiguration.deleteMany({where: {id: "default"}});
+  await prisma.$disconnect();
+});
+test("gateway persistence masks secrets and preserves the signature during sender changes", async () => {
+  await saveGateway({endpoint: signed, isEnabled: false});
+  const saved = await prisma.smsGatewayConfiguration.findUniqueOrThrow({where: {id: "default"}});
+  assert.ok(!saved.signedParametersEncrypted.includes("signature="));
+  assert.match(decryptSecret(saved.signedParametersEncrypted), /endpoint_id=1/);
+  assert.ok(!JSON.stringify(await publicGateway()).includes("signature="));
+  await saveGateway({endpoint: saved.endpoint, sender: "Synthetic sender", isEnabled: true});
+  assert.equal((await prisma.smsGatewayConfiguration.findUniqueOrThrow({where: {id: "default"}})).signedParametersEncrypted, saved.signedParametersEncrypted);
+  await assert.rejects(saveGateway({endpoint: "https://invalid.test", isEnabled: true}));
+});
+test("source counting respects rolling 24h boundaries, future bookings and missing dates", async () => {
+  const now = new Date();
+  for (const [suffix, bookedAtTime] of [["start", new Date(now.getTime()-86400000)], ["inside", new Date(now.getTime()-1000)], ["end", now], ["future", new Date(now.getTime()+1000)], ["missing", null]] as const) await prisma.booking.create({data: {externalId: `${prefix}-${suffix}`, bookingSource: source, bookedAtTime, rawPayload: {synthetic: true}}});
+  const counts = await readCounts({sourceField: "bookingSource", sourceValue: source}, now);
+  assert.equal(counts.count, 2); assert.equal(counts.missingDate, 1);
+  await prisma.booking.deleteMany({where: {externalId: {startsWith: prefix}}});
+});
+test("concurrent workers plan once and send each event once; repeated ticks are idempotent", async () => {
+  const now = new Date();
+  await prisma.booking.create({data: {externalId: `${prefix}-historical`, bookingSource: source, bookedAtTime: new Date(now.getTime()-2*86400000), rawPayload: {synthetic: true}}});
+  const job = await prisma.notificationJob.create({data: {name: `${prefix}-concurrent`, sourceField: "bookingSource", sourceValue: source, defaultRecipient: destination, rules, sourceConfirmed: true, isEnabled: true, nextRunAt: now}});
+  let requests = 0;
+  const fake: typeof fetch = async () => {requests++; await new Promise(resolve => setTimeout(resolve, 20)); return new Response('{"success":true}');};
+  await Promise.all([notificationTick(now, fake), notificationTick(now, fake)]);
+  assert.equal(await prisma.notificationJobRun.count({where: {jobId: job.id}}), 1);
+  assert.equal(requests, 3);
+  assert.equal(await prisma.notificationDelivery.count({where: {jobRun: {jobId: job.id}, status: "ACCEPTED"}}), 3);
+  await notificationTick(now, fake); assert.equal(requests, 3);
+  assert.ok((await prisma.notificationJob.findUniqueOrThrow({where: {id: job.id}})).nextRunAt > now);
+});
+test("rate-limit retries stop at five and ambiguous/crashed requests are never resent", async () => {
+  const now = new Date();
+  const job = await prisma.notificationJob.create({data: {name: `${prefix}-retry`, sourceField: "bookingSource", sourceValue: source, defaultRecipient: destination, rules, sourceConfirmed: true, isEnabled: true, nextRunAt: new Date(now.getTime()+30*86400000)}});
+  const run = await prisma.notificationJobRun.create({data: {jobId: job.id, scheduledFor: now, status: "COMPLETED"}});
+  const delivery = await prisma.notificationDelivery.create({data: {jobRunId: run.id, eventType: "DAILY_REPORT", destination, message: "Synthetic retry", nextAttemptAt: now}});
+  for (let i=0;i<5;i++) await notificationTick(new Date(now.getTime()+i*120000), async () => new Response("", {status: 429}));
+  const failed = await prisma.notificationDelivery.findUniqueOrThrow({where: {id: delivery.id}});
+  assert.equal(failed.status, "FAILED"); assert.equal(failed.attemptCount, 5);
+  const uncertain = await prisma.notificationDelivery.create({data: {jobRunId: run.id, eventType: "NO_BOOKINGS", destination, message: "Synthetic interrupted", nextAttemptAt: now}});
+  await notificationTick(now, async () => {throw new Error("Synthetic connection lost");});
+  assert.equal((await prisma.notificationDelivery.findUniqueOrThrow({where: {id: uncertain.id}})).status, "UNCERTAIN");
+  const crashed = await prisma.notificationDelivery.create({data: {jobRunId: run.id, eventType: "BELOW_THRESHOLD", destination, message: "Synthetic crashed", status: "SENDING", leaseUntil: new Date(now.getTime()-1000)}});
+  await notificationTick(now, async () => {throw new Error("Must not be sent");});
+  assert.equal((await prisma.notificationDelivery.findUniqueOrThrow({where: {id: crashed.id}})).status, "UNCERTAIN");
+});
+test("disabled gateway performs no planning or delivery", async () => {
+  await prisma.smsGatewayConfiguration.update({where: {id: "default"}, data: {isEnabled: false}});
+  const result = await notificationTick(new Date(Date.now()+86400000), async () => {throw new Error("Must not contact provider");});
+  assert.equal(result.disabled, true); assert.equal(result.processed, 0); assert.equal(result.planned, 0);
+});

@@ -1,0 +1,55 @@
+import assert from "node:assert/strict";
+import {randomUUID} from "node:crypto";
+import {encode} from "next-auth/jwt";
+import {prisma} from "../../src/lib/prisma";
+async function main() {
+  assert.equal(process.env.TAXICRM_SYNTHETIC_TESTS, "1");
+  assert.equal(process.env.DATABASE_URL, "postgresql://taxicrm@127.0.0.1:5432/taxicrm");
+  const original = await prisma.smsGatewayConfiguration.findUnique({where: {id: "default"}});
+  const prefix = `http-sms-synthetic-${randomUUID()}`;
+  const email = `${prefix}@example.test`;
+  const user = await prisma.user.create({data: {email, name: "Synthetic notification admin", passwordHash: "synthetic-unusable-password-hash", role: "ADMIN"}});
+  const token = await encode({token: {email, sub: user.id, role: "ADMIN"}, secret: process.env.NEXTAUTH_SECRET!});
+  const request = (method: string, body?: unknown, authenticated = true) => fetch("http://127.0.0.1:3001/api/dashboard/configuration/sms", {method, headers: {"content-type": "application/json", ...(authenticated ? {cookie: `next-auth.session-token=${token}`} : {})}, body: body === undefined ? undefined : JSON.stringify(body)});
+  const config = {endpoint: `https://orionconnect.co.uk/api/endpoint/webhook?endpoint_id=1&signature=${"a".repeat(64)}`, isEnabled: false};
+  try {
+    assert.equal((await request("GET", undefined, false)).status, 403);
+    assert.equal((await request("PUT", config)).status, 200);
+    const data = await (await request("GET")).json();
+    assert.equal(data.gateway.signedParametersSaved, true);
+    assert.ok(!JSON.stringify(data).includes("signedParametersEncrypted"));
+    assert.ok(!JSON.stringify(data).includes("signature="));
+    await prisma.booking.create({data: {externalId: prefix, bookingSource: prefix, bookedAtTime: new Date(Date.now()-2*86400000), rawPayload: {synthetic: true}}});
+    const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, text: "Synthetic zero", recipient: ""}]};
+    const preview = await request("POST", {action: "preview", workflow});
+    assert.equal(preview.status, 200); assert.equal((await preview.json()).counts.known, 1);
+    assert.equal((await request("POST", {action: "save", workflow: {...workflow, sourceValue: "never-observed"}})).status, 400);
+    const saved = await request("POST", {action: "save", workflow});
+    assert.equal(saved.status, 200); const {id} = await saved.json();
+    assert.ok((await prisma.notificationJob.findUniqueOrThrow({where: {id}})).nextRunAt.getTime() > Date.now()+86300000);
+    assert.equal((await request("POST", {action: "save", id, workflow: {...workflow, isEnabled: false}})).status, 200);
+    assert.equal((await request("PUT", {...config, isEnabled: true})).status, 200);
+    const test = {action: "test", requestId: randomUUID(), destination: "+447700900000", message: "Synthetic queued test; no provider request"};
+    assert.equal((await request("POST", test)).status, 200);
+    assert.equal((await request("POST", test)).status, 200);
+    assert.equal((await request("POST", {...test, destination: "+447700900001"})).status, 400);
+    assert.equal(await prisma.notificationDelivery.count({where: {jobRunId: `test-${test.requestId}`}}), 1);
+    assert.equal((await request("PUT", config)).status, 200);
+    await prisma.user.update({where: {id: user.id}, data: {role: "OPERATOR"}});
+    assert.equal((await request("GET")).status, 403);
+    assert.equal((await request("PUT", config)).status, 403);
+    assert.equal((await fetch("http://127.0.0.1:3001/api/internal/notifications", {method: "POST"})).status, 401);
+    console.log("PASS: authenticated SMS API, encrypted save/masking, source preview/validation, persisted Add/edit, disabled workflows, idempotent queued tests and operator/cron protection. No provider calls.");
+  } finally {
+    const ids = (await prisma.notificationJobRun.findMany({where: {OR: [{job: {name: prefix}}, {jobId: "$gateway-test"}]}, select: {id: true}})).map(r=>r.id);
+    await prisma.notificationDelivery.deleteMany({where: {jobRunId: {in: ids}}});
+    await prisma.notificationJobRun.deleteMany({where: {id: {in: ids}}});
+    await prisma.notificationJob.deleteMany({where: {OR: [{name: prefix}, {id: "$gateway-test"}]}});
+    await prisma.booking.deleteMany({where: {externalId: prefix}});
+    await prisma.user.delete({where: {id: user.id}});
+    if (original) await prisma.smsGatewayConfiguration.upsert({where: {id: "default"}, create: original, update: original});
+    else await prisma.smsGatewayConfiguration.deleteMany({where: {id: "default"}});
+    await prisma.$disconnect();
+  }
+}
+main().catch(error => {console.error(error); process.exitCode=1;}).finally(() => prisma.$disconnect());

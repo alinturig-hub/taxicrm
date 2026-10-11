@@ -1,3 +1,4 @@
+/** @param {Record<string, string | undefined>} environment */
 export function historicalBackfillEnabled(environment = process.env) {
   return environment.ENABLE_HISTORICAL_GEOAPIFY_BACKFILL === "true";
 }
