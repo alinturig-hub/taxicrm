@@ -1,6 +1,7 @@
 "use client";
 
 import { formatDateTime } from "@/lib/date";
+import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 import { calculateNoFareFinancials } from "@/lib/revenue/no-fare-financials";
 import {
   Fragment,
@@ -625,8 +626,16 @@ export default function BookingsPage() {
       {
         id: "price",
         header: "Price",
-        accessor: (booking) => `£${Number(booking.price ?? 0).toFixed(2)}`,
+        accessor: (booking) => bookingPriceDisplay(booking.price),
         sortValue: (booking) => (booking.price ?? 0),
+        sortable: true,
+        align: "right",
+      },
+      {
+        id: "fare",
+        header: "Fare",
+        accessor: (booking) => bookingPriceDisplay(booking.fare),
+        sortValue: (booking) => booking.fare ?? 0,
         sortable: true,
         align: "right",
       },

@@ -2,14 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
 import { processWebhookEvent } from "@/lib/autocab/process-webhook-event";
+import { retryableWebhooks } from "@/lib/autocab/webhook-processing";
 
 export async function POST(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
 
-  if (
-    !process.env.CRON_SECRET ||
-    secret !== process.env.CRON_SECRET
-  ) {
+  if (!process.env.CRON_SECRET || secret !== process.env.CRON_SECRET) {
     return NextResponse.json(
       {
         success: false,
@@ -22,9 +20,7 @@ export async function POST(request: NextRequest) {
   }
 
   const events = await prisma.webhookEvent.findMany({
-    where: {
-      status: "RECEIVED",
-    },
+    where: retryableWebhooks(),
     orderBy: {
       receivedAt: "asc",
     },
@@ -42,18 +38,13 @@ export async function POST(request: NextRequest) {
       await processWebhookEvent(event.id);
       processed++;
     } catch (error) {
-      console.error(
-        `Webhook processing failed for ${event.id}:`,
-        error,
-      );
+      console.error(`Webhook processing failed for ${event.id}:`, error);
       failed++;
     }
   }
 
   const remaining = await prisma.webhookEvent.count({
-    where: {
-      status: "RECEIVED",
-    },
+    where: retryableWebhooks(),
   });
 
   return NextResponse.json({

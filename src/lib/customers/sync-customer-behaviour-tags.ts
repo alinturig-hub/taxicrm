@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
+import { buildCustomerBehaviourTags } from "@/lib/customers/customer-behaviour-tags";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 86_400_000;
@@ -15,18 +15,16 @@ export type CustomerTagSyncResult = {
   failedCustomers: number;
   windowStartAt: Date;
   windowEndAt: Date;
+  nextCursor: string | null;
+  hasMore: boolean;
+  dryRun: boolean;
+  failedCustomerIds: string[];
 };
 
 const bookingSelection = {
-  externalId: true,
   status: true,
   bookedAtTime: true,
   pickupDueTime: true,
-  completedAt: true,
-  price: true,
-  distance: true,
-  paymentType: true,
-  bookingSource: true,
   locations: {
     select: {
       type: true,
@@ -48,10 +46,15 @@ export async function syncCustomerBehaviourTags(
   options: {
     now?: Date;
     customerLimit?: number;
+    scope?: "recent" | "all";
+    afterId?: string;
+    dryRun?: boolean;
   } = {},
 ): Promise<CustomerTagSyncResult> {
   const now =
     options.now ?? new Date();
+  if (!Number.isFinite(now.getTime())) throw new Error("Invalid tag calculation date");
+  if (options.customerLimit !== undefined && (!Number.isInteger(options.customerLimit) || options.customerLimit < 1 || options.customerLimit > 200)) throw new Error("Customer batch limit must be an integer from 1 to 200");
   const windowStartAt =
     new Date(
       now.getTime() -
@@ -59,7 +62,7 @@ export async function syncCustomerBehaviourTags(
     );
   const customerLimit =
     options.customerLimit === undefined
-      ? null
+      ? options.scope === "all" ? 50 : null
       : Math.max(
           1,
           Math.trunc(
@@ -77,9 +80,13 @@ export async function syncCustomerBehaviourTags(
     failedCustomers: 0,
     windowStartAt,
     windowEndAt: now,
+    nextCursor: options.afterId ?? null,
+    hasMore: false,
+    dryRun: options.dryRun === true,
+    failedCustomerIds: [],
   };
 
-  let cursorId: string | null = null;
+  let cursorId: string | null = options.afterId ?? null;
 
   while (
     customerLimit === null ||
@@ -98,7 +105,7 @@ export async function syncCustomerBehaviourTags(
     const customers: Array<{
       id: string;
       bookings: Parameters<
-        typeof buildCustomerProfile
+        typeof buildCustomerBehaviourTags
       >[0];
       behaviourTags: Array<{
         id: string;
@@ -107,7 +114,8 @@ export async function syncCustomerBehaviourTags(
     }> =
       await prisma.normalCustomer.findMany({
         where: {
-          OR: [
+          ...(cursorId ? { id: { gt: cursorId } } : {}),
+          ...(options.scope === "all" ? {} : { OR: [
             {
               lastBookingAt: {
                 gte: windowStartAt,
@@ -120,23 +128,19 @@ export async function syncCustomerBehaviourTags(
                 },
               },
             },
-          ],
+          ] }),
         },
         orderBy: {
           id: "asc",
         },
         take: remaining,
-        ...(cursorId
-          ? {
-              cursor: {
-                id: cursorId,
-              },
-              skip: 1,
-            }
-          : {}),
         select: {
           id: true,
           bookings: {
+            where: { OR: [
+              { pickupDueTime: { gte: windowStartAt, lte: now } },
+              { pickupDueTime: null, bookedAtTime: { gte: windowStartAt, lte: now } },
+            ] },
             orderBy: [
               {
                 pickupDueTime:
@@ -173,15 +177,22 @@ export async function syncCustomerBehaviourTags(
 
     for (const customer of customers) {
       try {
-        const profile =
-          buildCustomerProfile(
+        const tags =
+          buildCustomerBehaviourTags(
             customer.bookings,
             now,
           );
         const activeTagIds =
-          profile.tags.map(
+          tags.map(
             (tag) => tag.id,
           );
+
+        if (result.dryRun) {
+          result.customersProcessed += 1;
+          result.activeTags += tags.length;
+          if (tags.length) result.customersWithTags += 1;
+          continue;
+        }
 
         const existingByTagId =
           new Map(
@@ -193,118 +204,125 @@ export async function syncCustomerBehaviourTags(
             ),
           );
 
-        const deactivated =
-          await prisma.customerBehaviourTag.updateMany({
-            where: {
-              normalCustomerId:
-                customer.id,
-              active: true,
-              ...(activeTagIds.length >
-              0
-                ? {
-                    tagId: {
-                      notIn:
-                        activeTagIds,
-                    },
-                  }
-                : {}),
-            },
-            data: {
-              active: false,
-            },
-          });
+        const changes = await prisma.$transaction(async (tx) => {
+          let created = 0;
+          let updated = 0;
+          const deactivated =
+            await tx.customerBehaviourTag.updateMany({
+              where: {
+                normalCustomerId:
+                  customer.id,
+                active: true,
+                ...(activeTagIds.length >
+                0
+                  ? {
+                      tagId: {
+                        notIn:
+                          activeTagIds,
+                      },
+                    }
+                  : {}),
+              },
+              data: {
+                active: false,
+              },
+            });
 
-        result.tagsDeactivated +=
-          deactivated.count;
 
-        for (const tag of profile.tags) {
-          const existed =
-            existingByTagId.has(
-              tag.id,
-            );
+          for (const tag of tags) {
+            const existed =
+              existingByTagId.has(
+                tag.id,
+              );
 
-          await prisma.customerBehaviourTag.upsert({
-            where: {
-              normalCustomerId_tagId: {
+            await tx.customerBehaviourTag.upsert({
+              where: {
+                normalCustomerId_tagId: {
+                  normalCustomerId:
+                    customer.id,
+                  tagId: tag.id,
+                },
+              },
+              create: {
                 normalCustomerId:
                   customer.id,
                 tagId: tag.id,
+                label: tag.label,
+                category:
+                  tag.category,
+                confidence:
+                  tag.confidence,
+                evidenceCount:
+                  tag.evidenceCount,
+                eligibleCount:
+                  tag.eligibleCount,
+                percentage:
+                  tag.percentage,
+                windowDays:
+                  tag.windowDays,
+                windowStartAt,
+                windowEndAt: now,
+                lastObservedAt:
+                  tag.lastObservedAt
+                    ? new Date(
+                        tag.lastObservedAt,
+                      )
+                    : null,
+                active: true,
+                explanation:
+                  tag.explanation,
               },
-            },
-            create: {
-              normalCustomerId:
-                customer.id,
-              tagId: tag.id,
-              label: tag.label,
-              category:
-                tag.category,
-              confidence:
-                tag.confidence,
-              evidenceCount:
-                tag.evidenceCount,
-              eligibleCount:
-                tag.eligibleCount,
-              percentage:
-                tag.percentage,
-              windowDays:
-                tag.windowDays,
-              windowStartAt,
-              windowEndAt: now,
-              lastObservedAt:
-                tag.lastObservedAt
-                  ? new Date(
-                      tag.lastObservedAt,
-                    )
-                  : null,
-              active: true,
-              explanation:
-                tag.explanation,
-            },
-            update: {
-              label: tag.label,
-              category:
-                tag.category,
-              confidence:
-                tag.confidence,
-              evidenceCount:
-                tag.evidenceCount,
-              eligibleCount:
-                tag.eligibleCount,
-              percentage:
-                tag.percentage,
-              windowDays:
-                tag.windowDays,
-              windowStartAt,
-              windowEndAt: now,
-              lastObservedAt:
-                tag.lastObservedAt
-                  ? new Date(
-                      tag.lastObservedAt,
-                    )
-                  : null,
-              active: true,
-              explanation:
-                tag.explanation,
-            },
-          });
+              update: {
+                label: tag.label,
+                category:
+                  tag.category,
+                confidence:
+                  tag.confidence,
+                evidenceCount:
+                  tag.evidenceCount,
+                eligibleCount:
+                  tag.eligibleCount,
+                percentage:
+                  tag.percentage,
+                windowDays:
+                  tag.windowDays,
+                windowStartAt,
+                windowEndAt: now,
+                lastObservedAt:
+                  tag.lastObservedAt
+                    ? new Date(
+                        tag.lastObservedAt,
+                      )
+                    : null,
+                active: true,
+                explanation:
+                  tag.explanation,
+              },
+            });
 
-          if (existed) {
-            result.tagsUpdated += 1;
-          } else {
-            result.tagsCreated += 1;
+            if (existed) {
+              updated += 1;
+            } else {
+              created += 1;
+            }
           }
-        }
 
+          return { created, updated, deactivated: deactivated.count };
+        });
+        result.tagsCreated += changes.created;
+        result.tagsUpdated += changes.updated;
+        result.tagsDeactivated += changes.deactivated;
         result.customersProcessed += 1;
         result.activeTags +=
-          profile.tags.length;
+          tags.length;
 
-        if (profile.tags.length > 0) {
+        if (tags.length > 0) {
           result.customersWithTags += 1;
         }
       } catch (error) {
         result.customersProcessed += 1;
         result.failedCustomers += 1;
+        result.failedCustomerIds.push(customer.id);
 
         console.error(
           `Customer behaviour tag sync failed for ${customer.id}:`,
@@ -321,5 +339,11 @@ export async function syncCustomerBehaviourTags(
     }
   }
 
+  result.nextCursor = cursorId;
+  result.hasMore = Boolean(cursorId && await prisma.normalCustomer.findFirst({
+    where: { id: { gt: cursorId! }, ...(options.scope === "all" ? {} : { OR: [
+      { lastBookingAt: { gte: windowStartAt } }, { behaviourTags: { some: { active: true } } },
+    ] }) }, select: { id: true },
+  }));
   return result;
 }

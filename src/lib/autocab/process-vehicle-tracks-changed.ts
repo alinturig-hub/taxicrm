@@ -1,9 +1,11 @@
 import { Prisma } from "@/generated/prisma/client";
+import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
 import {
-  isObject,
-  normaliseString,
-} from "@/lib/autocab/booking-mappers";
-import { prisma } from "@/lib/prisma";
+  lockWebhookEntities,
+  driverIdentityUpdate,
+  vehicleIdentityUpdate,
+  type WebhookAfterCommit,
+} from "@/lib/autocab/webhook-processing";
 import {
   broadcastFleetVehicleUpdate,
   type FleetVehicleUpdate,
@@ -29,18 +31,13 @@ function parseOptionalInteger(value: unknown): number | null {
   return parsed;
 }
 
-function parseCoordinate(
-  value: unknown,
-  fieldName: string,
-): Prisma.Decimal {
+function parseCoordinate(value: unknown, fieldName: string): Prisma.Decimal {
   if (typeof value !== "number" && typeof value !== "string") {
     throw new Error(`Missing ${fieldName}.`);
   }
 
   const normalised =
-    typeof value === "number"
-      ? value.toString()
-      : value.trim();
+    typeof value === "number" ? value.toString() : value.trim();
 
   if (!normalised) {
     throw new Error(`Missing ${fieldName}.`);
@@ -63,17 +60,13 @@ function parseSnapshotDate(value: unknown): Date {
   const date = new Date(normalised);
 
   if (Number.isNaN(date.getTime())) {
-    throw new Error(
-      `Invalid VehicleTrack Timestamp: ${normalised}`,
-    );
+    throw new Error(`Invalid VehicleTrack Timestamp: ${normalised}`);
   }
 
   return date;
 }
 
-function getVehicleTracks(
-  payload: Prisma.JsonValue,
-): Prisma.JsonObject[] {
+function getVehicleTracks(payload: Prisma.JsonValue): Prisma.JsonObject[] {
   if (!isObject(payload)) {
     throw new Error("Webhook payload is not a JSON object.");
   }
@@ -86,15 +79,14 @@ function getVehicleTracks(
     );
   }
 
-  return tracks.filter(
-    (track): track is Prisma.JsonObject => isObject(track),
-  );
+  return tracks.filter((track): track is Prisma.JsonObject => isObject(track));
 }
 
 export async function processVehicleTracksChangedWebhook(
   webhookEventId: string,
-): Promise<void> {
-  const webhookEvent = await prisma.webhookEvent.findUnique({
+  tx: Prisma.TransactionClient,
+): Promise<WebhookAfterCommit> {
+  const webhookEvent = await tx.webhookEvent.findUnique({
     where: {
       id: webhookEventId,
     },
@@ -106,301 +98,200 @@ export async function processVehicleTracksChangedWebhook(
   });
 
   if (!webhookEvent) {
-    throw new Error(
-      `WebhookEvent not found: ${webhookEventId}`,
-    );
-  }
-
-  if (webhookEvent.status === "PROCESSED") {
-    return;
+    throw new Error(`WebhookEvent not found: ${webhookEventId}`);
   }
 
   const tracks = getVehicleTracks(webhookEvent.payload);
 
-  await prisma.webhookEvent.update({
-    where: {
-      id: webhookEvent.id,
-    },
-    data: {
-      status: "PROCESSING",
-      processingError: null,
-      attemptCount: {
-        increment: 1,
-      },
-    },
+  const keys = tracks.flatMap((track) => {
+    const vehicle = isObject(track.Vehicle)
+      ? normaliseString(track.Vehicle.Id)
+      : null;
+    const driver = isObject(track.Driver)
+      ? normaliseString(track.Driver.Id)
+      : null;
+    return [
+      ...(vehicle ? [`AUTOCAB:vehicle:${vehicle}`] : []),
+      ...(driver ? [`AUTOCAB:driver:${driver}`] : []),
+    ];
   });
-
+  await lockWebhookEntities(tx, keys);
   const realtimeUpdates: FleetVehicleUpdate[] = [];
+  for (const track of tracks) {
+    if (!isObject(track.Vehicle)) {
+      throw new Error("VehicleTrack is missing the Vehicle payload.");
+    }
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      for (const track of tracks) {
-        if (!isObject(track.Vehicle)) {
-          throw new Error(
-            "VehicleTrack is missing the Vehicle payload.",
-          );
-        }
+    const vehiclePayload = track.Vehicle;
+    const vehicleExternalId = normaliseString(vehiclePayload.Id);
 
-        const vehiclePayload = track.Vehicle;
-        const vehicleExternalId = normaliseString(
-          vehiclePayload.Id,
-        );
+    if (!vehicleExternalId) {
+      throw new Error("VehicleTrack is missing the Autocab vehicle ID.");
+    }
 
-        if (!vehicleExternalId) {
-          throw new Error(
-            "VehicleTrack is missing the Autocab vehicle ID.",
-          );
-        }
+    const snapshotAt = parseSnapshotDate(track.Timestamp);
+    const existingVehicle = await tx.vehicle.findUnique({
+      where: {
+        provider_externalId: {
+          provider: "AUTOCAB",
+          externalId: vehicleExternalId,
+        },
+      },
+      select: { lastSeenAt: true },
+    });
+    if (existingVehicle?.lastSeenAt && existingVehicle.lastSeenAt >= snapshotAt)
+      continue;
 
-        let driverId: string | null = null;
-        let driverUpdate: FleetVehicleUpdate["driver"] = null;
+    let driverId: string | null = null;
+    let driverUpdate: FleetVehicleUpdate["driver"] = null;
 
-        if (isObject(track.Driver)) {
-          const driverPayload = track.Driver;
-          const driverExternalId = normaliseString(
-            driverPayload.Id,
-          );
+    if (isObject(track.Driver)) {
+      const driverPayload = track.Driver;
+      const driverExternalId = normaliseString(driverPayload.Id);
 
-          if (driverExternalId) {
-            const driver = await tx.driver.upsert({
-              where: {
-                provider_externalId: {
-                  provider: "AUTOCAB",
-                  externalId: driverExternalId,
-                },
-              },
-              create: {
-                provider: "AUTOCAB",
-                externalId: driverExternalId,
-                callsign: normaliseString(
-                  driverPayload.Callsign,
-                ),
-                forename: normaliseString(
-                  driverPayload.Forename,
-                ),
-                surname: normaliseString(
-                  driverPayload.Surname,
-                ),
-                badgeNumber: normaliseString(
-                  driverPayload.BadgeNumber,
-                ),
-                licenceNumber: normaliseString(
-                  driverPayload.LicenceNumber,
-                ),
-                rawPayload:
-                  driverPayload as Prisma.InputJsonObject,
-              },
-              update: {
-                callsign: normaliseString(
-                  driverPayload.Callsign,
-                ),
-                forename: normaliseString(
-                  driverPayload.Forename,
-                ),
-                surname: normaliseString(
-                  driverPayload.Surname,
-                ),
-                badgeNumber: normaliseString(
-                  driverPayload.BadgeNumber,
-                ),
-                licenceNumber: normaliseString(
-                  driverPayload.LicenceNumber,
-                ),
-              },
-            });
-
-            driverId = driver.id;
-
-            const driverName = [
-              driver.forename,
-              driver.surname,
-            ]
-              .filter(Boolean)
-              .join(" ");
-
-            driverUpdate = {
-              id: driver.id,
-              externalId: driver.externalId,
-              callsign: driver.callsign,
-              name: driverName || null,
-              badgeNumber: driver.badgeNumber,
-            };
-          }
-        }
-
-        if (!isObject(track.CurrentLocation)) {
-          throw new Error(
-            `VehicleTrack for vehicle ${vehicleExternalId} is missing CurrentLocation.`,
-          );
-        }
-
-        const latitude = parseCoordinate(
-          track.CurrentLocation.Latitude,
-          "CurrentLocation.Latitude",
-        );
-
-        const longitude = parseCoordinate(
-          track.CurrentLocation.Longitude,
-          "CurrentLocation.Longitude",
-        );
-
-        const vehicleStatus =
-          normaliseString(track.VehicleStatus) ?? "Unknown";
-
-        const bookingId = parseOptionalInteger(
-          track.BookingId,
-        );
-
-        const snapshotAt = parseSnapshotDate(
-          track.Timestamp,
-        );
-
-        const vehicle = await tx.vehicle.upsert({
+      if (driverExternalId) {
+        const driver = await tx.driver.upsert({
           where: {
             provider_externalId: {
               provider: "AUTOCAB",
-              externalId: vehicleExternalId,
+              externalId: driverExternalId,
             },
           },
           create: {
             provider: "AUTOCAB",
-            externalId: vehicleExternalId,
-            callsign: normaliseString(
-              vehiclePayload.Callsign,
-            ),
-            deviceId: normaliseString(
-              vehiclePayload.DeviceId,
-            ),
-            vinNumber: normaliseString(
-              vehiclePayload.VINNumber,
-            ),
-            plateNumber: normaliseString(
-              vehiclePayload.PlateNumber,
-            ),
-            registration: normaliseString(
-              vehiclePayload.Registration,
-            ),
-            currentDriverId: driverId,
-            currentStatus: vehicleStatus,
-            currentBookingId: bookingId,
-            currentLatitude: latitude,
-            currentLongitude: longitude,
-            lastSeenAt: snapshotAt,
+            externalId: driverExternalId,
+            callsign: normaliseString(driverPayload.Callsign),
+            forename: normaliseString(driverPayload.Forename),
+            surname: normaliseString(driverPayload.Surname),
+            badgeNumber: normaliseString(driverPayload.BadgeNumber),
+            licenceNumber: normaliseString(driverPayload.LicenceNumber),
+            rawPayload: driverPayload as Prisma.InputJsonObject,
           },
           update: {
-            callsign: normaliseString(
-              vehiclePayload.Callsign,
-            ),
-            deviceId: normaliseString(
-              vehiclePayload.DeviceId,
-            ),
-            vinNumber: normaliseString(
-              vehiclePayload.VINNumber,
-            ),
-            plateNumber: normaliseString(
-              vehiclePayload.PlateNumber,
-            ),
-            registration: normaliseString(
-              vehiclePayload.Registration,
-            ),
-            rawPayload:
-              vehiclePayload as Prisma.InputJsonObject,
-            currentDriverId: driverId,
-            currentStatus: vehicleStatus,
-            currentBookingId: bookingId,
-            currentLatitude: latitude,
-            currentLongitude: longitude,
-            lastSeenAt: snapshotAt,
+            ...driverIdentityUpdate(driverPayload),
           },
         });
 
-        const latestSnapshot =
-          await tx.vehicleSnapshot.findFirst({
-            where: {
-              vehicleId: vehicle.id,
-            },
-            orderBy: {
-              snapshotAt: "desc",
-            },
-            select: {
-              snapshotAt: true,
-            },
-          });
+        driverId = driver.id;
 
-        const shouldCreateSnapshot =
-          !latestSnapshot ||
-          snapshotAt.getTime() -
-            latestSnapshot.snapshotAt.getTime() >=
-            30 * 1000;
+        const driverName = [driver.forename, driver.surname]
+          .filter(Boolean)
+          .join(" ");
 
-        if (shouldCreateSnapshot) {
-          await tx.vehicleSnapshot.create({
-            data: {
-              provider: "AUTOCAB",
-              vehicleId: vehicle.id,
-              driverId,
-              bookingId,
-              vehicleStatus,
-              latitude,
-              longitude,
-              snapshotAt,
-              sourceWebhookId: webhookEvent.id,
-              rawPayload:
-                track as Prisma.InputJsonObject,
-            },
-          });
-        }
-
-        realtimeUpdates.push({
-          id: vehicle.id,
-          provider: vehicle.provider,
-          externalId: vehicle.externalId,
-          callsign: vehicle.callsign,
-          registration:
-            vehicle.registration ??
-            vehicle.plateNumber ??
-            null,
-          status: vehicleStatus,
-          bookingId,
-          latitude: Number(latitude.toString()),
-          longitude: Number(longitude.toString()),
-          lastSeenAt: snapshotAt.toISOString(),
-          isLive: true,
-          driver: driverUpdate,
-        });
+        driverUpdate = {
+          id: driver.id,
+          externalId: driver.externalId,
+          callsign: driver.callsign,
+          name: driverName || null,
+          badgeNumber: driver.badgeNumber,
+        };
       }
+    }
 
-      await tx.webhookEvent.update({
-        where: {
-          id: webhookEvent.id,
+    if (!isObject(track.CurrentLocation)) {
+      throw new Error(
+        `VehicleTrack for vehicle ${vehicleExternalId} is missing CurrentLocation.`,
+      );
+    }
+
+    const latitude = parseCoordinate(
+      track.CurrentLocation.Latitude,
+      "CurrentLocation.Latitude",
+    );
+
+    const longitude = parseCoordinate(
+      track.CurrentLocation.Longitude,
+      "CurrentLocation.Longitude",
+    );
+
+    const vehicleStatus = normaliseString(track.VehicleStatus) ?? "Unknown";
+
+    const bookingId = parseOptionalInteger(track.BookingId);
+
+    const vehicle = await tx.vehicle.upsert({
+      where: {
+        provider_externalId: {
+          provider: "AUTOCAB",
+          externalId: vehicleExternalId,
         },
+      },
+      create: {
+        provider: "AUTOCAB",
+        externalId: vehicleExternalId,
+        callsign: normaliseString(vehiclePayload.Callsign),
+        deviceId: normaliseString(vehiclePayload.DeviceId),
+        vinNumber: normaliseString(vehiclePayload.VINNumber),
+        plateNumber: normaliseString(vehiclePayload.PlateNumber),
+        registration: normaliseString(vehiclePayload.Registration),
+        currentDriverId: driverId,
+        currentStatus: vehicleStatus,
+        currentBookingId: bookingId,
+        currentLatitude: latitude,
+        currentLongitude: longitude,
+        lastSeenAt: snapshotAt,
+      },
+      update: {
+        ...vehicleIdentityUpdate(vehiclePayload),
+        rawPayload: vehiclePayload as Prisma.InputJsonObject,
+        currentDriverId: driverId,
+        currentStatus: vehicleStatus,
+        currentBookingId: bookingId,
+        currentLatitude: latitude,
+        currentLongitude: longitude,
+        lastSeenAt: snapshotAt,
+      },
+    });
+
+    const latestSnapshot = await tx.vehicleSnapshot.findFirst({
+      where: {
+        vehicleId: vehicle.id,
+      },
+      orderBy: {
+        snapshotAt: "desc",
+      },
+      select: {
+        snapshotAt: true,
+      },
+    });
+
+    const shouldCreateSnapshot =
+      !latestSnapshot ||
+      snapshotAt.getTime() - latestSnapshot.snapshotAt.getTime() >= 30 * 1000;
+
+    if (shouldCreateSnapshot) {
+      await tx.vehicleSnapshot.create({
         data: {
-          status: "PROCESSED",
-          processingError: null,
-          processedAt: new Date(),
+          provider: "AUTOCAB",
+          vehicleId: vehicle.id,
+          driverId,
+          bookingId,
+          vehicleStatus,
+          latitude,
+          longitude,
+          snapshotAt,
+          sourceWebhookId: webhookEvent.id,
+          rawPayload: track as Prisma.InputJsonObject,
         },
       });
-    });
-
-    for (const update of realtimeUpdates) {
-      broadcastFleetVehicleUpdate(update);
     }
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown VehicleTracksChanged processing error.";
 
-    await prisma.webhookEvent.update({
-      where: {
-        id: webhookEvent.id,
-      },
-      data: {
-        status: "FAILED",
-        processingError: message.slice(0, 5000),
-      },
+    realtimeUpdates.push({
+      id: vehicle.id,
+      provider: vehicle.provider,
+      externalId: vehicle.externalId,
+      callsign: vehicle.callsign,
+      registration: vehicle.registration ?? vehicle.plateNumber ?? null,
+      status: vehicleStatus,
+      bookingId,
+      latitude: Number(latitude.toString()),
+      longitude: Number(longitude.toString()),
+      lastSeenAt: snapshotAt.toISOString(),
+      isLive: true,
+      driver: driverUpdate,
     });
-
-    throw error;
   }
+
+  return async () => {
+    for (const update of realtimeUpdates) broadcastFleetVehicleUpdate(update);
+  };
 }

@@ -7,11 +7,13 @@ export type RevenueBooking = {
   arrivedAt?: Date | null;
   price?: unknown;
   cost?: unknown;
+  provider?: string | null;
   accountId?: string | null;
   accountCode?: string | null;
 };
 
 export type AccountRevenueRuleValue = {
+  provider: string;
   accountId: string;
   accountCode: string;
   waitingChargeable: boolean;
@@ -66,16 +68,16 @@ export function isAccountNoFareBooking(
 }
 
 export function accountRevenueRuleKey(
-  booking: Pick<RevenueBooking, "accountId" | "accountCode">,
+  booking: Pick<RevenueBooking, "provider" | "accountId">,
 ): string | null {
   const accountId = booking.accountId?.trim();
-  const accountCode = booking.accountCode?.trim();
+  const provider = booking.provider?.trim() || "AUTOCAB";
 
-  if (!accountId || !accountCode) {
+  if (!accountId) {
     return null;
   }
 
-  return `${accountId}::${accountCode}`;
+  return JSON.stringify([provider, accountId]);
 }
 
 export function calculateNoFareWaitingCharge(
@@ -128,7 +130,7 @@ export async function loadAccountRevenueRuleMap(
 ): Promise<Map<string, AccountRevenueRuleValue>> {
   const uniqueAccounts = new Map<
     string,
-    { accountId: string }
+    { provider: string; accountId: string }
   >();
 
   for (const booking of bookings) {
@@ -139,6 +141,7 @@ export async function loadAccountRevenueRuleMap(
     }
 
     uniqueAccounts.set(key, {
+      provider: booking.provider?.trim() || "AUTOCAB",
       accountId: booking.accountId!.trim(),
     });
   }
@@ -149,10 +152,10 @@ export async function loadAccountRevenueRuleMap(
 
   const rules = await prisma.accountRevenueRule.findMany({
     where: {
-      provider: "AUTOCAB",
       OR: Array.from(uniqueAccounts.values()),
     },
     select: {
+      provider: true,
       accountId: true,
       accountCode: true,
       waitingChargeable: true,
@@ -162,7 +165,7 @@ export async function loadAccountRevenueRuleMap(
 
   return new Map(
     rules.map((rule) => [
-      rule.accountId,
+      accountRevenueRuleKey(rule)!,
       rule,
     ]),
   );

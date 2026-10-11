@@ -171,6 +171,7 @@ async function calculateBookingMetrics(
       cancelledAt: true,
       price: true,
       cost: true,
+      provider: true,
       accountId: true,
       accountCode: true,
     },

@@ -25,7 +25,7 @@ export default function AccountsConfigurationPage() {
 
         <div className="mt-4 rounded-xl border border-blue-500/20 bg-blue-500/10 px-4 py-3">
           <p className="text-sm text-blue-200">
-            Default waiting rate: £0.30 per minute.
+            Waiting rates must be configured explicitly for each account.
             Time is not rounded; only the final
             monetary amount is rounded to 2 decimal
             places.

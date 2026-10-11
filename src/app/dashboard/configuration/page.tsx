@@ -2,6 +2,12 @@ import Link from "next/link";
 
 const configurationModules = [
   {
+    title: "SMS Gateway",
+    description: "Preview Orion SMS configuration and request fields. No settings are saved and no messages are sent yet.",
+    href: "/dashboard/configuration/sms",
+    status: "Preview",
+  },
+  {
     title: "Integrations",
     description:
       "Configure and monitor external systems such as Autocab, payment providers and communication platforms.",

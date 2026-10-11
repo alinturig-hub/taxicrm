@@ -218,6 +218,7 @@ export async function GET() {
               arrivedAt: true,
               price: true,
               cost: true,
+              provider: true,
               accountId: true,
               accountCode: true,
             },

@@ -11,7 +11,7 @@ type AccountRule = {
   accountCode: string;
   displayName: string;
   waitingChargeable: boolean;
-  waitingRatePerMinute: number;
+  waitingRatePerMinute: number | null;
   configured: boolean;
 };
 
@@ -279,7 +279,7 @@ export default function AccountRevenueRules() {
                       min="0"
                       step="0.01"
                       value={
-                        account.waitingRatePerMinute
+                        account.waitingRatePerMinute ?? ""
                       }
                       disabled={
                         !account.waitingChargeable
@@ -289,10 +289,7 @@ export default function AccountRevenueRules() {
                           index,
                           {
                             waitingRatePerMinute:
-                              Number(
-                                event.target
-                                  .value,
-                              ),
+                              event.target.value === "" ? null : Number(event.target.value),
                           },
                         )
                       }

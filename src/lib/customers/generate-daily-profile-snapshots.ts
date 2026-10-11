@@ -66,38 +66,6 @@ export async function generateDailyProfileSnapshots({
       safeActiveDays * 24 * 60 * 60 * 1000,
   );
 
-  try {
-    await ensureHourlyWeatherCurrent();
-  } catch (error) {
-    console.error(
-      "Daily snapshot weather refresh failed:",
-      error,
-    );
-  }
-
-  const weatherObservations =
-    await prisma.hourlyWeatherObservation.findMany({
-      where: {
-        locationKey: "PLYMOUTH",
-      },
-      orderBy: {
-        observedAt: "asc",
-      },
-      select: {
-        observedAt: true,
-        temperature: true,
-        apparentTemperature: true,
-        precipitation: true,
-        rain: true,
-        snowfall: true,
-        windSpeed: true,
-        windGusts: true,
-        cloudCover: true,
-        isDay: true,
-        weatherCode: true,
-      },
-    });
-
   const eligibleCustomers =
     await prisma.$queryRaw<
       EligibleCustomer[]
@@ -139,6 +107,38 @@ export async function generateDailyProfileSnapshots({
       hasMore: false,
     };
   }
+
+  try {
+    await ensureHourlyWeatherCurrent(now);
+  } catch (error) {
+    console.error(
+      "Daily snapshot weather refresh failed:",
+      error,
+    );
+  }
+
+  const weatherObservations =
+    await prisma.hourlyWeatherObservation.findMany({
+      where: {
+        locationKey: "PLYMOUTH",
+      },
+      orderBy: {
+        observedAt: "asc",
+      },
+      select: {
+        observedAt: true,
+        temperature: true,
+        apparentTemperature: true,
+        precipitation: true,
+        rain: true,
+        snowfall: true,
+        windSpeed: true,
+        windGusts: true,
+        cloudCover: true,
+        isDay: true,
+        weatherCode: true,
+      },
+    });
 
   const customers =
     await prisma.normalCustomer.findMany({

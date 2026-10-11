@@ -82,6 +82,7 @@ export async function GET(
               pickupDueTime: true,
               completedAt: true,
               price: true,
+              fare: true,
               distance: true,
               paymentType: true,
               bookingSource: true,

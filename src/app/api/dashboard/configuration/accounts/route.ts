@@ -34,9 +34,8 @@ async function canManageAccounts(
 
 function ruleKey(
   accountId: string,
-  accountCode: string,
 ) {
-  return `${accountId}::${accountCode}`;
+  return JSON.stringify(["AUTOCAB", accountId.trim()]);
 }
 
 export async function GET() {
@@ -58,6 +57,7 @@ export async function GET() {
     const [bookings, rules] = await Promise.all([
       prisma.booking.findMany({
         where: {
+          provider: "AUTOCAB",
           accountId: {
             not: null,
           },
@@ -93,7 +93,6 @@ export async function GET() {
       rules.map((rule) => [
         ruleKey(
           rule.accountId,
-          rule.accountCode,
         ),
         rule,
       ]),
@@ -118,7 +117,7 @@ export async function GET() {
           booking.accountCode.trim();
 
         const rule = ruleMap.get(
-          ruleKey(accountId, accountCode),
+          ruleKey(accountId),
         );
 
         return {
@@ -130,11 +129,7 @@ export async function GET() {
             accountCode,
           waitingChargeable:
             rule?.waitingChargeable ?? false,
-          waitingRatePerMinute:
-            Number(
-              rule?.waitingRatePerMinute ??
-                0.3,
-            ),
+          waitingRatePerMinute: rule ? Number(rule.waitingRatePerMinute) : null,
           configured: Boolean(rule),
         };
       });
@@ -143,7 +138,6 @@ export async function GET() {
       detected.map((account) =>
         ruleKey(
           account.accountId,
-          account.accountCode,
         ),
       ),
     );
@@ -154,7 +148,6 @@ export async function GET() {
           !detectedKeys.has(
             ruleKey(
               rule.accountId,
-              rule.accountCode,
             ),
           ),
       )
@@ -162,8 +155,7 @@ export async function GET() {
         accountId: rule.accountId,
         accountCode: rule.accountCode,
         displayName:
-          rule.displayName ??
-          rule.accountCode,
+          rule.displayName ?? rule.accountCode,
         waitingChargeable:
           rule.waitingChargeable,
         waitingRatePerMinute:
@@ -297,6 +289,9 @@ export async function PUT(
           );
 
     if (
+      body.waitingRatePerMinute === null ||
+      body.waitingRatePerMinute === undefined ||
+      body.waitingRatePerMinute === "" ||
       !Number.isFinite(rate) ||
       rate < 0 ||
       rate > 100

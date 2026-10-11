@@ -1,6 +1,10 @@
 import { Prisma } from "@/generated/prisma/client";
 import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
-import { prisma } from "@/lib/prisma";
+import {
+  lockWebhookEntities,
+  driverIdentityUpdate,
+  vehicleIdentityUpdate,
+} from "@/lib/autocab/webhook-processing";
 
 function parseRequiredDate(value: unknown, fieldName: string): Date {
   const normalised = normaliseString(value);
@@ -32,8 +36,9 @@ function parseOptionalDate(value: unknown): Date | null {
 
 export async function processDriverShiftStartedEndedWebhook(
   webhookEventId: string,
+  tx: Prisma.TransactionClient,
 ): Promise<void> {
-  const webhookEvent = await prisma.webhookEvent.findUnique({
+  const webhookEvent = await tx.webhookEvent.findUnique({
     where: {
       id: webhookEventId,
     },
@@ -67,19 +72,6 @@ export async function processDriverShiftStartedEndedWebhook(
   const driverExternalId = normaliseString(driverPayload.Id);
 
   if (!driverExternalId) {
-    await prisma.webhookEvent.update({
-      where: {
-        id: webhookEvent.id,
-      },
-      data: {
-        status: "FAILED",
-        processingError: "Missing Autocab driver ID.",
-        attemptCount: {
-          increment: 1,
-        },
-      },
-    });
-
     throw new Error("Missing Autocab driver ID.");
   }
 
@@ -100,227 +92,186 @@ export async function processDriverShiftStartedEndedWebhook(
         )
       : null;
 
-  await prisma.webhookEvent.update({
+  await lockWebhookEntities(tx, [`AUTOCAB:driver:${driverExternalId}`]);
+  const driver = await tx.driver.upsert({
     where: {
-      id: webhookEvent.id,
-    },
-    data: {
-      status: "PROCESSING",
-      processingError: null,
-      attemptCount: {
-        increment: 1,
+      provider_externalId: {
+        provider: "AUTOCAB",
+        externalId: driverExternalId,
       },
+    },
+    create: {
+      provider: "AUTOCAB",
+      externalId: driverExternalId,
+      callsign: normaliseString(driverPayload.Callsign),
+      forename: normaliseString(driverPayload.Forename),
+      surname: normaliseString(driverPayload.Surname),
+      badgeNumber: normaliseString(driverPayload.BadgeNumber),
+      licenceNumber: normaliseString(driverPayload.LicenceNumber),
+      rawPayload: driverPayload as Prisma.InputJsonObject,
+    },
+    update: {
+      ...driverIdentityUpdate(driverPayload),
+      rawPayload: driverPayload as Prisma.InputJsonObject,
     },
   });
 
-  try {
-    await prisma.$transaction(async (tx) => {
-      const driver = await tx.driver.upsert({
+  let vehicleId: string | null = null;
+
+  if (isObject(payload.Vehicle)) {
+    const vehiclePayload = payload.Vehicle;
+    const vehicleExternalId = normaliseString(vehiclePayload.Id);
+
+    if (vehicleExternalId) {
+      const vehicle = await tx.vehicle.upsert({
         where: {
           provider_externalId: {
             provider: "AUTOCAB",
-            externalId: driverExternalId,
+            externalId: vehicleExternalId,
           },
         },
         create: {
           provider: "AUTOCAB",
-          externalId: driverExternalId,
-          callsign: normaliseString(driverPayload.Callsign),
-          forename: normaliseString(driverPayload.Forename),
-          surname: normaliseString(driverPayload.Surname),
-          badgeNumber: normaliseString(driverPayload.BadgeNumber),
-          licenceNumber: normaliseString(driverPayload.LicenceNumber),
-          rawPayload: driverPayload as Prisma.InputJsonObject,
+          externalId: vehicleExternalId,
+          callsign: normaliseString(vehiclePayload.Callsign),
+          deviceId: normaliseString(vehiclePayload.DeviceId),
+          vinNumber: normaliseString(vehiclePayload.VINNumber),
+          plateNumber: normaliseString(vehiclePayload.PlateNumber),
+          registration: normaliseString(vehiclePayload.Registration),
+          rawPayload: vehiclePayload as Prisma.InputJsonObject,
         },
         update: {
-          callsign: normaliseString(driverPayload.Callsign),
-          forename: normaliseString(driverPayload.Forename),
-          surname: normaliseString(driverPayload.Surname),
-          badgeNumber: normaliseString(driverPayload.BadgeNumber),
-          licenceNumber: normaliseString(driverPayload.LicenceNumber),
-          rawPayload: driverPayload as Prisma.InputJsonObject,
+          ...vehicleIdentityUpdate(vehiclePayload),
+          rawPayload: vehiclePayload as Prisma.InputJsonObject,
         },
       });
 
-      let vehicleId: string | null = null;
+      vehicleId = vehicle.id;
+    }
+  }
 
-      if (isObject(payload.Vehicle)) {
-        const vehiclePayload = payload.Vehicle;
-        const vehicleExternalId = normaliseString(vehiclePayload.Id);
+  if (isEnded) {
+    const toleranceMs = 2_000;
 
-        if (vehicleExternalId) {
-          const vehicle = await tx.vehicle.upsert({
-            where: {
-              provider_externalId: {
-                provider: "AUTOCAB",
-                externalId: vehicleExternalId,
-              },
-            },
-            create: {
-              provider: "AUTOCAB",
-              externalId: vehicleExternalId,
-              callsign: normaliseString(vehiclePayload.Callsign),
-              deviceId: normaliseString(vehiclePayload.DeviceId),
-              vinNumber: normaliseString(vehiclePayload.VINNumber),
-              plateNumber: normaliseString(vehiclePayload.PlateNumber),
-              registration: normaliseString(vehiclePayload.Registration),
-              rawPayload: vehiclePayload as Prisma.InputJsonObject,
-            },
-            update: {
-              callsign: normaliseString(vehiclePayload.Callsign),
-              deviceId: normaliseString(vehiclePayload.DeviceId),
-              vinNumber: normaliseString(vehiclePayload.VINNumber),
-              plateNumber: normaliseString(vehiclePayload.PlateNumber),
-              registration: normaliseString(vehiclePayload.Registration),
-              rawPayload: vehiclePayload as Prisma.InputJsonObject,
-            },
-          });
+    const matchingActiveShift = await tx.driverShift.findFirst({
+      where: {
+        provider: "AUTOCAB",
+        driverId: driver.id,
+        status: "ACTIVE",
+        startedAt: {
+          gte: new Date(startedAt.getTime() - toleranceMs),
+          lte: new Date(startedAt.getTime() + toleranceMs),
+        },
+      },
+      orderBy: {
+        startedAt: "desc",
+      },
+    });
 
-          vehicleId = vehicle.id;
-        }
-      }
+    if (matchingActiveShift) {
+      const matchedDurationSeconds = endedAt
+        ? Math.max(
+            0,
+            Math.floor(
+              (endedAt.getTime() - matchingActiveShift.startedAt.getTime()) /
+                1000,
+            ),
+          )
+        : null;
 
-      if (isEnded) {
-        const toleranceMs = 2_000;
-
-        const matchingActiveShift = await tx.driverShift.findFirst({
-          where: {
-            provider: "AUTOCAB",
-            driverId: driver.id,
-            status: "ACTIVE",
-            startedAt: {
-              gte: new Date(startedAt.getTime() - toleranceMs),
-              lte: new Date(startedAt.getTime() + toleranceMs),
-            },
-          },
-          orderBy: {
-            startedAt: "desc",
-          },
-        });
-
-        if (matchingActiveShift) {
-          const matchedDurationSeconds = endedAt
-            ? Math.max(
-                0,
-                Math.floor(
-                  (endedAt.getTime() -
-                    matchingActiveShift.startedAt.getTime()) /
-                    1000,
-                ),
-              )
-            : null;
-
-          await tx.driverShift.update({
-            where: {
-              id: matchingActiveShift.id,
-            },
-            data: {
-              vehicleId,
-              status: "ENDED",
-              subEventType,
-              endedAt,
-              modifiedAt,
-              durationSeconds: matchedDurationSeconds,
-              sourceWebhookEvent: webhookEvent.id,
-              rawPayload: payload as Prisma.InputJsonObject,
-            },
-          });
-        } else {
-          await tx.driverShift.upsert({
-            where: {
-              provider_driverId_startedAt: {
-                provider: "AUTOCAB",
-                driverId: driver.id,
-                startedAt,
-              },
-            },
-            create: {
-              provider: "AUTOCAB",
-              driverId: driver.id,
-              vehicleId,
-              status: "ENDED",
-              subEventType,
-              startedAt,
-              endedAt,
-              modifiedAt,
-              durationSeconds,
-              sourceWebhookEvent: webhookEvent.id,
-              rawPayload: payload as Prisma.InputJsonObject,
-            },
-            update: {
-              vehicleId,
-              status: "ENDED",
-              subEventType,
-              endedAt,
-              modifiedAt,
-              durationSeconds,
-              sourceWebhookEvent: webhookEvent.id,
-              rawPayload: payload as Prisma.InputJsonObject,
-            },
-          });
-        }
-      } else {
-        await tx.driverShift.upsert({
-          where: {
-            provider_driverId_startedAt: {
-              provider: "AUTOCAB",
-              driverId: driver.id,
-              startedAt,
-            },
-          },
-          create: {
-            provider: "AUTOCAB",
-            driverId: driver.id,
-            vehicleId,
-            status: "ACTIVE",
-            subEventType,
-            startedAt,
-            endedAt: null,
-            modifiedAt,
-            durationSeconds: null,
-            sourceWebhookEvent: webhookEvent.id,
-            rawPayload: payload as Prisma.InputJsonObject,
-          },
-          update: {
-            vehicleId,
-            status: "ACTIVE",
-            subEventType,
-            endedAt: null,
-            modifiedAt,
-            durationSeconds: null,
-            sourceWebhookEvent: webhookEvent.id,
-            rawPayload: payload as Prisma.InputJsonObject,
-          },
-        });
-      }
-
-      await tx.webhookEvent.update({
+      await tx.driverShift.update({
         where: {
-          id: webhookEvent.id,
+          id: matchingActiveShift.id,
         },
         data: {
-          status: "PROCESSED",
-          processingError: null,
-          processedAt: new Date(),
+          vehicleId,
+          status: "ENDED",
+          subEventType,
+          endedAt,
+          modifiedAt,
+          durationSeconds: matchedDurationSeconds,
+          sourceWebhookEvent: webhookEvent.id,
+          rawPayload: payload as Prisma.InputJsonObject,
         },
       });
-    });
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : "Unknown DriverShiftStartedEnded processing error.";
-
-    await prisma.webhookEvent.update({
+    } else {
+      await tx.driverShift.upsert({
+        where: {
+          provider_driverId_startedAt: {
+            provider: "AUTOCAB",
+            driverId: driver.id,
+            startedAt,
+          },
+        },
+        create: {
+          provider: "AUTOCAB",
+          driverId: driver.id,
+          vehicleId,
+          status: "ENDED",
+          subEventType,
+          startedAt,
+          endedAt,
+          modifiedAt,
+          durationSeconds,
+          sourceWebhookEvent: webhookEvent.id,
+          rawPayload: payload as Prisma.InputJsonObject,
+        },
+        update: {
+          vehicleId,
+          status: "ENDED",
+          subEventType,
+          endedAt,
+          modifiedAt,
+          durationSeconds,
+          sourceWebhookEvent: webhookEvent.id,
+          rawPayload: payload as Prisma.InputJsonObject,
+        },
+      });
+    }
+  } else {
+    const endedShift = await tx.driverShift.findFirst({
       where: {
-        id: webhookEvent.id,
-      },
-      data: {
-        status: "FAILED",
-        processingError: message.slice(0, 5000),
+        provider: "AUTOCAB",
+        driverId: driver.id,
+        status: "ENDED",
+        startedAt: {
+          gte: new Date(startedAt.getTime() - 2000),
+          lte: new Date(startedAt.getTime() + 2000),
+        },
       },
     });
-
-    throw error;
+    if (endedShift) return;
+    await tx.driverShift.upsert({
+      where: {
+        provider_driverId_startedAt: {
+          provider: "AUTOCAB",
+          driverId: driver.id,
+          startedAt,
+        },
+      },
+      create: {
+        provider: "AUTOCAB",
+        driverId: driver.id,
+        vehicleId,
+        status: "ACTIVE",
+        subEventType,
+        startedAt,
+        endedAt: null,
+        modifiedAt,
+        durationSeconds: null,
+        sourceWebhookEvent: webhookEvent.id,
+        rawPayload: payload as Prisma.InputJsonObject,
+      },
+      update: {
+        vehicleId,
+        status: "ACTIVE",
+        subEventType,
+        endedAt: null,
+        modifiedAt,
+        durationSeconds: null,
+        sourceWebhookEvent: webhookEvent.id,
+        rawPayload: payload as Prisma.InputJsonObject,
+      },
+    });
   }
 }

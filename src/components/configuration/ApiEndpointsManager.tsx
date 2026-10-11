@@ -29,11 +29,13 @@ type ApiResponse = {
   message?: string;
   endpoints?: ApiEndpoint[];
   endpoint?: ApiEndpoint;
+  stored?: {created: number; updated: number; eligible: number} | null;
   preview?: {
     statusCode: number;
     responseTimeMs: number;
     responseType: string;
     data: unknown;
+    token: string;
   };
 };
 
@@ -59,13 +61,14 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Europe/London",
   }).format(new Date(value));
 }
 
 export default function ApiEndpointsManager() {
   const [url, setUrl] = useState("");
   const [recordKey, setRecordKey] = useState("id");
-  const [storeRecords, setStoreRecords] = useState(false);
+  const [storeRecords, setStoreRecords] = useState(true);
   const [jsonSchema, setJsonSchema] = useState("");
   const [exampleResponse, setExampleResponse] = useState("");
   const [syncingId, setSyncingId] = useState<string | null>(null);
@@ -74,6 +77,8 @@ export default function ApiEndpointsManager() {
   const [testing, setTesting] = useState(false);
   const [preview, setPreview] =
     useState<ApiResponse["preview"] | null>(null);
+  const [previewInput, setPreviewInput] = useState("");
+  const inputKey = JSON.stringify([url.trim(), testParameters]);
   const [endpoints, setEndpoints] =
     useState<ApiEndpoint[]>([]);
   const [loading, setLoading] =
@@ -166,6 +171,7 @@ export default function ApiEndpointsManager() {
       }
 
       setPreview(payload.preview);
+      setPreviewInput(inputKey);
       setSuccess(
         `HTTP ${payload.preview.statusCode} in ${payload.preview.responseTimeMs} ms.`,
       );
@@ -182,6 +188,7 @@ export default function ApiEndpointsManager() {
 
   async function addEndpoint() {
     try {
+      if (!preview || previewInput !== inputKey) throw new Error("Try API again after changing the URL or parameters.");
       setAdding(true);
       setError(null);
       setSuccess(null);
@@ -198,6 +205,10 @@ export default function ApiEndpointsManager() {
             url: url.trim(),
             recordKey: recordKey.trim() || undefined,
             storeRecords,
+            previewData: preview.data,
+            previewToken: preview.token,
+            previewStatusCode: preview.statusCode,
+            previewResponseTimeMs: preview.responseTimeMs,
             jsonSchema: jsonSchema.trim()
               ? JSON.parse(jsonSchema)
               : undefined,
@@ -226,11 +237,11 @@ export default function ApiEndpointsManager() {
       setUrl("");
       setPreview(null);
       setRecordKey("id");
-      setStoreRecords(false);
+      setStoreRecords(true);
       setJsonSchema("");
       setExampleResponse("");
       setSuccess(
-        `${payload.endpoint.name} connected successfully.`,
+        payload.stored ? `${payload.endpoint.name}: ${payload.stored.eligible} records saved in TaxiCRM.` : `${payload.endpoint.name}: API response saved.`,
       );
 
       await loadEndpoints();
@@ -485,11 +496,11 @@ export default function ApiEndpointsManager() {
               disabled={
                 adding ||
                 url.trim().length === 0 ||
-                !preview
+                !preview || previewInput !== inputKey
               }
               className="rounded-xl bg-blue-600 px-5 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {adding ? "Saving…" : "Save API"}
+              {adding ? "Saving…" : storeRecords ? "Save API & Data" : "Save API"}
             </button>
           </div>
         </div>
@@ -626,7 +637,7 @@ export default function ApiEndpointsManager() {
                       <td className="px-5 py-4 text-slate-300">
                         {endpoint.storeRecords
                           ? `Key: ${endpoint.recordKey ?? "—"}`
-                          : "Raw only"}
+                          : "Response saved"}
                       </td>
 
                       <td className="px-5 py-4">
@@ -638,9 +649,7 @@ export default function ApiEndpointsManager() {
                             }
                             disabled={
                               !endpoint.storeRecords ||
-                              !endpoint.recordKey ||
                               endpoint.url.includes("{") ||
-                              endpoint.responseType !== "array" ||
                               syncingId === endpoint.id
                             }
                             className="rounded-lg bg-blue-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
@@ -650,14 +659,14 @@ export default function ApiEndpointsManager() {
                               : "Sync Now"}
                           </button>
 
-                          {endpoint.storeRecords ? (
+                          {(
                             <a
                               href={`/dashboard/configuration/api-endpoints/${endpoint.id}`}
                               className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-2 text-xs font-semibold text-emerald-300 transition hover:bg-emerald-500/20"
                             >
-                              View Saved Data
+                              View Response & Data
                             </a>
-                          ) : null}
+                          )}
 
                           <button
                             type="button"

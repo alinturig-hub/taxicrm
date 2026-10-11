@@ -113,6 +113,12 @@ const navigationGroups: NavigationGroup[] = [
         available: true,
       },
       {
+        label: "Hackney Drivers",
+        href: "/dashboard/intelligence/hackney",
+        icon: "performance",
+        available: true,
+      },
+      {
         label: "Performance",
         href: "/dashboard/intelligence/performance",
         icon: "performance",

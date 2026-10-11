@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  Fragment,
   useEffect,
   useMemo,
   useState,
@@ -13,12 +14,13 @@ type Endpoint = {
   url: string;
   recordKey: string | null;
   storeRecords: boolean;
+  sampleResponse: unknown;
 };
 
 type RecordItem = {
   id: string;
   externalId: string;
-  data: Record<string, unknown>;
+  data: unknown;
   isActive: boolean;
   sourceVersion: string | null;
   lastSyncedAt: string;
@@ -34,7 +36,13 @@ type RecordsResponse = {
     inactive: number;
   };
   records?: RecordItem[];
+  pagination?: {page: number; pageSize: number; pages: number};
 };
+
+function fields(value: unknown): Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown> : {value};
+}
 
 function displayValue(value: unknown) {
   if (
@@ -68,14 +76,20 @@ export default function ApiEndpointRecordsViewer({
     useState("");
   const [expandedId, setExpandedId] =
     useState<string | null>(null);
+  const [recordKey, setRecordKey] = useState("id");
+  const [saving, setSaving] = useState(false);
+  const [page, setPage] = useState(1);
+  const [reload, setReload] = useState(0);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   useEffect(() => {
     void (async () => {
       try {
         setLoading(true);
+        setError(null);
 
         const response = await fetch(
-          `/api/dashboard/configuration/api-endpoints/${endpointId}/records`,
+          `/api/dashboard/configuration/api-endpoints/${endpointId}/records?page=${page}`,
           {
             cache: "no-store",
           },
@@ -95,6 +109,7 @@ export default function ApiEndpointRecordsViewer({
         }
 
         setPayload(result);
+        setRecordKey(result.endpoint?.recordKey ?? "id");
       } catch (error) {
         setError(
           error instanceof Error
@@ -105,10 +120,24 @@ export default function ApiEndpointRecordsViewer({
         setLoading(false);
       }
     })();
-  }, [endpointId]);
+  }, [endpointId, reload, page]);
 
-  const records =
-    payload?.records ?? [];
+  const records = useMemo(() => payload?.records ?? [], [payload]);
+
+  async function saveResponse() {
+    setSaving(true); setSaveError(null);
+    try {
+      const response = await fetch(`/api/dashboard/configuration/api-endpoints/${endpointId}`, {
+        method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({recordKey}),
+      });
+      const result = await response.json();
+      if (!response.ok || !result.success) throw new Error(result.message ?? "Could not save data.");
+      setReload(value => value + 1);
+    } catch (error) { setSaveError(error instanceof Error ? error.message : "Could not save data."); }
+    finally { setSaving(false); }
+  }
+
+  const columns = useMemo(() => Array.from(new Set(records.flatMap(record => Object.keys(fields(record.data))))).slice(0, 8), [records]);
 
   const filteredRecords =
     useMemo(() => {
@@ -161,6 +190,17 @@ export default function ApiEndpointRecordsViewer({
         </p>
       </div>
 
+      <section className="rounded-xl border border-slate-800 bg-slate-900 p-4 space-y-3">
+        <h2 className="font-semibold text-white">Original API response</h2>
+        <details><summary className="cursor-pointer text-blue-400">View response before saving</summary>
+          <pre className="max-h-96 overflow-auto whitespace-pre-wrap text-xs text-slate-300">{JSON.stringify(payload.endpoint.sampleResponse, null, 2)}</pre>
+        </details>
+        <label className="block text-sm text-slate-300">Record Key (blank saves the complete response)
+          <input value={recordKey} onChange={event => setRecordKey(event.target.value)} className="ml-3 rounded border border-slate-700 bg-slate-950 p-2" />
+        </label>
+        <button onClick={() => void saveResponse()} disabled={saving} className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">{saving ? "Saving…" : "Save Data in TaxiCRM"}</button>
+        {saveError ? <p className="text-red-300">{saveError}</p> : null}
+      </section>
       <div className="grid gap-4 sm:grid-cols-3">
         <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
           <p className="text-xs uppercase text-slate-500">
@@ -190,6 +230,11 @@ export default function ApiEndpointRecordsViewer({
         </div>
       </div>
 
+      <div className="flex items-center gap-3 text-sm text-slate-300">
+        <button disabled={page <= 1} onClick={() => setPage(value => value - 1)} className="rounded border border-slate-700 p-2 disabled:opacity-40">Previous</button>
+        <span>Page {page} of {payload.pagination?.pages ?? 1}</span>
+        <button disabled={page >= (payload.pagination?.pages ?? 1)} onClick={() => setPage(value => value + 1)} className="rounded border border-slate-700 p-2 disabled:opacity-40">Next</button>
+      </div>
       <div className="rounded-2xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 p-4">
           <form
@@ -204,7 +249,7 @@ export default function ApiEndpointRecordsViewer({
               onChange={(event) =>
                 setSearchInput(event.target.value)
               }
-              placeholder="Search saved data…"
+              placeholder="Search this page…"
               className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-sm text-white outline-none focus:border-blue-500"
             />
 
@@ -234,11 +279,8 @@ export default function ApiEndpointRecordsViewer({
           <table className="min-w-full text-left text-sm">
             <thead className="border-b border-slate-800 bg-slate-950/40 text-xs uppercase text-slate-500">
               <tr>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">ID</th>
-                <th className="px-4 py-3">Enabled</th>
-                <th className="px-4 py-3">Short Code</th>
-                <th className="px-4 py-3">Requirement</th>
+                <th className="px-4 py-3">Record ID</th>
+                {columns.map(column => <th key={column} className="px-4 py-3">{column}</th>)}
                 <th className="px-4 py-3">Status</th>
                 <th className="px-4 py-3">Action</th>
               </tr>
@@ -246,31 +288,10 @@ export default function ApiEndpointRecordsViewer({
 
             <tbody className="divide-y divide-slate-800">
               {filteredRecords.map((record) => (
-                <>
+                <Fragment key={record.id}>
                   <tr key={record.id}>
-                    <td className="px-4 py-3 font-semibold text-white">
-                      {displayValue(record.data.name)}
-                    </td>
-
-                    <td className="px-4 py-3 font-mono text-slate-300">
-                      {record.externalId}
-                    </td>
-
-                    <td className="px-4 py-3">
-                      {record.data.enabled === true ? (
-                        <span className="text-emerald-300">Yes</span>
-                      ) : (
-                        <span className="text-slate-500">No</span>
-                      )}
-                    </td>
-
-                    <td className="px-4 py-3 font-mono text-slate-300">
-                      {displayValue(record.data.shortCode)}
-                    </td>
-
-                    <td className="px-4 py-3 text-slate-300">
-                      {displayValue(record.data.requirement)}
-                    </td>
+                    <td className="px-4 py-3 font-mono text-slate-300">{record.externalId}</td>
+                    {columns.map(column => <td key={column} className="max-w-sm px-4 py-3 text-slate-300"><div className="max-h-24 overflow-auto">{displayValue(fields(record.data)[column])}</div></td>)}
 
                     <td className="px-4 py-3">
                       {record.isActive ? (
@@ -306,7 +327,7 @@ export default function ApiEndpointRecordsViewer({
                   {expandedId === record.id ? (
                     <tr key={`${record.id}-json`}>
                       <td
-                        colSpan={7}
+                        colSpan={columns.length + 3}
                         className="bg-slate-950 px-4 py-4"
                       >
                         <pre className="max-h-96 overflow-auto whitespace-pre-wrap font-mono text-xs leading-6 text-slate-300">
@@ -319,7 +340,7 @@ export default function ApiEndpointRecordsViewer({
                       </td>
                     </tr>
                   ) : null}
-                </>
+                </Fragment>
               ))}
             </tbody>
           </table>

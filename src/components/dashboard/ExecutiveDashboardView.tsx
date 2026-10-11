@@ -256,6 +256,9 @@ export default async function ExecutiveDashboardView() {
           <p className="mt-2 text-sm text-slate-400">
             FlaggedBooking jobs, including those without recorded fares.
           </p>
+          <Link href="/dashboard/intelligence/hackney" className="mt-3 inline-block text-sm font-semibold text-blue-400">
+            View Hackney Driver Performance →
+          </Link>
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <DispatchMetric
               label="Total Hackney Jobs"

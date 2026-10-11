@@ -1,5 +1,7 @@
 "use client";
 
+import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
+
 import {
   useEffect,
   useState,
@@ -167,6 +169,7 @@ type ProfileResponse = {
       bookedAtTime: string | null;
       pickupDueTime: string | null;
       price: number | string | null;
+      fare?: number | string | null;
       paymentType: string | null;
       locations: Array<{
         type: "PICKUP" | "DESTINATION";
@@ -3129,6 +3132,9 @@ function Bookings({
                 Date
               </th>
               <th className="px-4 py-3 text-right">
+                Fare
+              </th>
+              <th className="px-4 py-3 text-right">
                 Price
               </th>
             </tr>
@@ -3173,7 +3179,10 @@ function Bookings({
                       )}
                     </td>
                     <td className="px-4 py-4 text-right font-semibold text-white">
-                      {money(booking.price)}
+                      {bookingPriceDisplay(booking.fare)}
+                    </td>
+                    <td className="px-4 py-4 text-right font-semibold text-white">
+                      {bookingPriceDisplay(booking.price)}
                     </td>
                   </tr>
                 );

@@ -1,5 +1,8 @@
+import type { PlaceIntelligence } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { getGeoapifyCredentials } from "@/lib/integrations/geoapify/configuration";
+
+const activePlaceLookups = new Map<string, Promise<PlaceIntelligence>>();
 
 const PROVIDER = "GEOAPIFY";
 const LOCATION_KEY_DECIMALS = 5;
@@ -525,8 +528,7 @@ export async function enrichBookingLocation(
   }
 
   if (
-    location.placeIntelligence?.status ===
-    "READY"
+    (location.placeIntelligence?.status === "READY" || location.placeIntelligence?.status === "NOT_FOUND")
   ) {
     return location.placeIntelligence;
   }
@@ -557,6 +559,24 @@ export async function enrichBookingLocation(
     longitude,
   );
 
+  const active = activePlaceLookups.get(locationKey);
+  if (active) {
+    const place = await active;
+    await connectLocation(location.id, place.id);
+    return place;
+  }
+  const lookup = lookupPlace(location, locationKey, latitude, longitude);
+  activePlaceLookups.set(locationKey, lookup);
+  try { return await lookup; }
+  finally { if (activePlaceLookups.get(locationKey) === lookup) activePlaceLookups.delete(locationKey); }
+}
+
+async function lookupPlace(
+  location: { id: string; address: string },
+  locationKey: string,
+  latitude: number,
+  longitude: number,
+) {
   const cached =
     await prisma.placeIntelligence.findUnique({
       where: {
@@ -564,7 +584,7 @@ export async function enrichBookingLocation(
       },
     });
 
-  if (cached?.status === "READY") {
+  if (cached?.status === "READY" || cached?.status === "NOT_FOUND") {
     await connectLocation(
       location.id,
       cached.id,

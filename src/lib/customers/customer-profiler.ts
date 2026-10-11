@@ -21,6 +21,7 @@ export type ProfileBooking = {
   pickupDueTime: Date | null;
   completedAt: Date | null;
   price: unknown;
+  fare?: unknown;
   distance: unknown;
   paymentType: string | null;
   bookingSource: string | null;

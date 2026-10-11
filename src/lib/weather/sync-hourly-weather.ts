@@ -26,7 +26,7 @@ type OpenMeteoResponse = {
 };
 
 function validateDate(value: string) {
-  if (!DATE_PATTERN.test(value)) {
+  if (!DATE_PATTERN.test(value) || !Number.isFinite(Date.parse(value)) || new Date(value).toISOString().slice(0, 10) !== value) {
     throw new Error(
       `Invalid weather date: ${value}`,
     );
@@ -36,9 +36,11 @@ function validateDate(value: string) {
 export async function syncHourlyWeather(
   from: string,
   to: string,
+  allowBoundaryRetry = true,
 ) {
   validateDate(from);
   validateDate(to);
+  if (from > to) throw new Error("Weather start_date exceeds end_date.");
 
   const url = new URL(
     "https://archive-api.open-meteo.com/v1/archive",
@@ -68,6 +70,7 @@ export async function syncHourlyWeather(
 
   const response = await fetch(url, {
     cache: "no-store",
+    signal: AbortSignal.timeout(60000),
   });
 
   const payload =
@@ -78,6 +81,11 @@ export async function syncHourlyWeather(
     payload.error ||
     !payload.hourly?.time
   ) {
+    const maximum = archiveMaximumDate(payload.reason);
+    if (allowBoundaryRetry && maximum && to > maximum) {
+      if (from > maximum) return { source: SOURCE, locationKey: LOCATION_KEY, from, to: maximum, imported: 0, unavailable: true };
+      return syncHourlyWeather(from, maximum, false);
+    }
     throw new Error(
       payload.reason ??
         `Weather provider returned ${response.status}.`,
@@ -159,6 +167,12 @@ export async function syncHourlyWeather(
   };
 }
 
+export function archiveMaximumDate(reason?: string): string | null {
+  const match = reason?.match(/end_date[^\n]*?from (\d{4}-\d{2}-\d{2}) to (\d{4}-\d{2}-\d{2})/i);
+  if (!match) return null;
+  try { validateDate(match[2]); return match[2]; } catch { return null; }
+}
+
 const londonDateFormatter =
   new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/London",
@@ -208,8 +222,8 @@ export async function ensureHourlyWeatherCurrent(
   );
 
   return {
-    updated: true,
-    through: today,
+    updated: result.imported > 0,
+    through: result.to,
     imported: result.imported,
   };
 }

@@ -29,9 +29,7 @@ export function normaliseInteger(value: unknown): number | null {
   return null;
 }
 
-export function normaliseDecimal(
-  value: unknown,
-): Prisma.Decimal | null {
+export function normaliseDecimal(value: unknown): Prisma.Decimal | null {
   if (typeof value === "number" && Number.isFinite(value)) {
     return new Prisma.Decimal(value.toString());
   }
@@ -62,7 +60,6 @@ export function normaliseBoolean(value: unknown): boolean | null {
 
   return null;
 }
-
 
 export function normaliseDate(value: unknown): Date | null {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
@@ -98,26 +95,17 @@ export function hasOwn(object: JsonObject, key: string): boolean {
   return Object.prototype.hasOwnProperty.call(object, key);
 }
 
-export function getObject(
-  object: JsonObject,
-  key: string,
-): JsonObject | null {
+export function getObject(object: JsonObject, key: string): JsonObject | null {
   const value = object[key];
   return isObject(value) ? value : null;
 }
 
-export function getArray(
-  object: JsonObject,
-  key: string,
-): unknown[] | null {
+export function getArray(object: JsonObject, key: string): unknown[] | null {
   const value = object[key];
   return Array.isArray(value) ? value : null;
 }
 
-function getFirstPresent(
-  object: JsonObject,
-  ...keys: string[]
-): unknown {
+function getFirstPresent(object: JsonObject, ...keys: string[]): unknown {
   for (const key of keys) {
     if (hasOwn(object, key)) {
       return object[key];
@@ -170,9 +158,7 @@ export function assignIfPresent<T>(
   }
 }
 
-export function buildLocationData(
-  location: JsonObject,
-): {
+export function buildLocationData(location: JsonObject): {
   address: string;
   zoneId: string | null;
   zoneDescriptor: string | null;
@@ -192,16 +178,10 @@ export function buildLocationData(
   return {
     address,
     zoneId: zone ? normaliseString(zone.Id) : null,
-    zoneDescriptor: zone
-      ? normaliseString(zone.Descriptor)
-      : null,
+    zoneDescriptor: zone ? normaliseString(zone.Descriptor) : null,
     zoneName: zone ? normaliseString(zone.Name) : null,
-    longitude: coordinates
-      ? normaliseDecimal(coordinates.Longitude)
-      : null,
-    latitude: coordinates
-      ? normaliseDecimal(coordinates.Latitude)
-      : null,
+    longitude: coordinates ? normaliseDecimal(coordinates.Longitude) : null,
+    latitude: coordinates ? normaliseDecimal(coordinates.Latitude) : null,
   };
 }
 
@@ -228,20 +208,12 @@ export function buildBookingCreateData(
     driverCallSign: driver ? normaliseString(driver.Callsign) : null,
     driverForename: driver ? normaliseString(driver.Forename) : null,
     driverSurname: driver ? normaliseString(driver.Surname) : null,
-    driverBadgeNumber: driver
-      ? normaliseString(driver.BadgeNumber)
-      : null,
+    driverBadgeNumber: driver ? normaliseString(driver.BadgeNumber) : null,
 
     vehicleId: vehicle ? normaliseString(vehicle.Id) : null,
-    vehicleCallSign: vehicle
-      ? normaliseString(vehicle.Callsign)
-      : null,
-    vehicleRegistration: vehicle
-      ? normaliseString(vehicle.Registration)
-      : null,
-    vehiclePlateNumber: vehicle
-      ? normaliseString(vehicle.PlateNumber)
-      : null,
+    vehicleCallSign: vehicle ? normaliseString(vehicle.Callsign) : null,
+    vehicleRegistration: vehicle ? normaliseString(vehicle.Registration) : null,
+    vehiclePlateNumber: vehicle ? normaliseString(vehicle.PlateNumber) : null,
 
     dispatchedAt: normaliseDate(payload.DispatchedAtTime),
     arrivedAt: normaliseDate(payload.VehicleArrivedAtTime),
@@ -259,13 +231,11 @@ export function buildBookingCreateData(
     paymentType: normaliseString(payload.PaymentType),
     accountType: normaliseString(payload.AccountType),
     accountId: account ? normaliseString(account.Id) : null,
-    accountCode: account
-      ? normaliseString(account.AccountCode)
-      : null,
+    accountCode: account ? normaliseString(account.AccountCode) : null,
     accountName: account
-      ? normaliseString(account.DisplayName) ??
+      ? (normaliseString(account.DisplayName) ??
         normaliseString(account.Name) ??
-        normaliseString(account.AccountCode)
+        normaliseString(account.AccountCode))
       : null,
 
     companyId: company ? normaliseString(company.Id) : null,
@@ -285,56 +255,31 @@ export function buildBookingCreateData(
     flightDetails: normaliseString(payload.FlightDetails),
     bookedBy: normaliseString(payload.BookedBy),
     bookingSource: normaliseString(payload.BookingSource),
-    cabExchangeReference: normaliseString(
-      payload.CabExchangeAgentBookingRef,
-    ),
+    cabExchangeReference: normaliseString(payload.CabExchangeAgentBookingRef),
     loyaltyCardId: normaliseString(payload.LoyaltyCardID),
     loyaltyCardCostValue:
-      normaliseDecimal(payload.LoyaltyCardCostValue) ??
-      new Prisma.Decimal(0),
+      normaliseDecimal(payload.LoyaltyCardCostValue) ?? new Prisma.Decimal(0),
     isStreetPickup: normaliseBoolean(payload.IsStreetPickup) ?? false,
 
     fare: pricing
-      ? normaliseDecimal(
-          getFirstPresent(pricing, "Fare", "fare"),
-        )
+      ? normaliseDecimal(getFirstPresent(pricing, "Fare", "fare"))
       : null,
     cost: pricing
-      ? normaliseDecimal(
-          getFirstPresent(pricing, "Cost", "cost"),
-        )
+      ? normaliseDecimal(getFirstPresent(pricing, "Cost", "cost"))
       : null,
     price: pricing
-      ? normaliseDecimal(
-          getFirstPresent(pricing, "Price", "price"),
-        )
+      ? normaliseDecimal(getFirstPresent(pricing, "Price", "price"))
       : null,
     accountAmount: pricing
       ? normaliseDecimal(
-          getFirstPresent(
-            pricing,
-            "AccountAmount",
-            "accountAmount",
-          ),
+          getFirstPresent(pricing, "AccountAmount", "accountAmount"),
         )
       : null,
     cashAmount: pricing
-      ? normaliseDecimal(
-          getFirstPresent(
-            pricing,
-            "CashAmount",
-            "cashAmount",
-          ),
-        )
+      ? normaliseDecimal(getFirstPresent(pricing, "CashAmount", "cashAmount"))
       : null,
     cardAmount: pricing
-      ? normaliseDecimal(
-          getFirstPresent(
-            pricing,
-            "CardAmount",
-            "cardAmount",
-          ),
-        )
+      ? normaliseDecimal(getFirstPresent(pricing, "CardAmount", "cardAmount"))
       : null,
     extraCost: pricing ? normaliseDecimal(pricing.ExtraCost) : null,
     fixedCost: pricing ? normaliseDecimal(pricing.FixedCost) : null,
@@ -349,16 +294,10 @@ export function buildBookingCreateData(
     waitingTimeChargeable: pricing
       ? normaliseDecimal(pricing.WaitingTimeChargeable)
       : null,
-    gratuityAmount: pricing
-      ? normaliseDecimal(pricing.GratuityAmount)
-      : null,
+    gratuityAmount: pricing ? normaliseDecimal(pricing.GratuityAmount) : null,
     costSource: pricing ? normaliseString(pricing.CostSource) : null,
-    pricingTariff: pricing
-      ? normaliseString(pricing.PricingTariff)
-      : null,
-    pricingSource: pricing
-      ? normaliseString(pricing.PricingSource)
-      : null,
+    pricingTariff: pricing ? normaliseString(pricing.PricingTariff) : null,
+    pricingSource: pricing ? normaliseString(pricing.PricingSource) : null,
 
     distance: normaliseDecimal(payload.Distance),
     systemDistance: normaliseDecimal(payload.SystemDistance),
@@ -406,11 +345,27 @@ export function buildBookingUpdateData(
     const driver = getAssignedDriver(payload);
 
     if (driver) {
-      data.driverId = normaliseString(driver.Id);
-      data.driverCallSign = normaliseString(driver.Callsign);
-      data.driverForename = normaliseString(driver.Forename);
-      data.driverSurname = normaliseString(driver.Surname);
-      data.driverBadgeNumber = normaliseString(driver.BadgeNumber);
+      for (const [source, target] of [
+        ["Id", "driverId"],
+        ["Callsign", "driverCallSign"],
+        ["Forename", "driverForename"],
+        ["Surname", "driverSurname"],
+        ["BadgeNumber", "driverBadgeNumber"],
+      ]) {
+        assignIfPresent(data, driver, source, target, normaliseString);
+      }
+    } else if (
+      payload.Driver === null ||
+      payload.DriverDetails === null ||
+      getObject(payload, "DriverDetails")?.Driver === null
+    ) {
+      Object.assign(data, {
+        driverId: null,
+        driverCallSign: null,
+        driverForename: null,
+        driverSurname: null,
+        driverBadgeNumber: null,
+      });
     }
   }
 
@@ -452,13 +407,7 @@ export function buildBookingUpdateData(
     "originalBookingId",
     normaliseString,
   );
-  assignIfPresent(
-    data,
-    payload,
-    "BookingType",
-    "bookingType",
-    normaliseString,
-  );
+  assignIfPresent(data, payload, "BookingType", "bookingType", normaliseString);
   assignIfPresent(
     data,
     payload,
@@ -481,13 +430,7 @@ export function buildBookingUpdateData(
     "dropOffDueTime",
     normaliseDate,
   );
-  assignIfPresent(
-    data,
-    payload,
-    "BookedAtTime",
-    "bookedAtTime",
-    normaliseDate,
-  );
+  assignIfPresent(data, payload, "BookedAtTime", "bookedAtTime", normaliseDate);
 
   assignIfPresent(data, payload, "Name", "customerName", normaliseString);
   assignIfPresent(
@@ -505,32 +448,18 @@ export function buildBookingUpdateData(
     normaliseString,
   );
 
-  assignIfPresent(
-    data,
-    payload,
-    "PaymentType",
-    "paymentType",
-    normaliseString,
-  );
-  assignIfPresent(
-    data,
-    payload,
-    "AccountType",
-    "accountType",
-    normaliseString,
-  );
+  assignIfPresent(data, payload, "PaymentType", "paymentType", normaliseString);
+  assignIfPresent(data, payload, "AccountType", "accountType", normaliseString);
 
   if (hasOwn(payload, "Account")) {
     const account = getObject(payload, "Account");
 
     data.accountId = account ? normaliseString(account.Id) : null;
-    data.accountCode = account
-      ? normaliseString(account.AccountCode)
-      : null;
+    data.accountCode = account ? normaliseString(account.AccountCode) : null;
     data.accountName = account
-      ? normaliseString(account.DisplayName) ??
+      ? (normaliseString(account.DisplayName) ??
         normaliseString(account.Name) ??
-        normaliseString(account.AccountCode)
+        normaliseString(account.AccountCode))
       : null;
   }
 
@@ -542,35 +471,15 @@ export function buildBookingUpdateData(
     data.companyRegisteredNo = company
       ? normaliseString(company.RegisteredNumber)
       : null;
-    data.companyCode = company
-      ? normaliseString(company.CompanyCode)
-      : null;
+    data.companyCode = company ? normaliseString(company.CompanyCode) : null;
   }
 
   assignIfPresent(data, payload, "Priority", "priority", normaliseInteger);
-  assignIfPresent(
-    data,
-    payload,
-    "Passengers",
-    "passengers",
-    normaliseInteger,
-  );
+  assignIfPresent(data, payload, "Passengers", "passengers", normaliseInteger);
   assignIfPresent(data, payload, "Luggage", "luggage", normaliseInteger);
 
-  assignIfPresent(
-    data,
-    payload,
-    "DriverNote",
-    "driverNote",
-    normaliseString,
-  );
-  assignIfPresent(
-    data,
-    payload,
-    "OfficeNote",
-    "officeNote",
-    normaliseString,
-  );
+  assignIfPresent(data, payload, "DriverNote", "driverNote", normaliseString);
+  assignIfPresent(data, payload, "OfficeNote", "officeNote", normaliseString);
   assignIfPresent(
     data,
     payload,
@@ -645,27 +554,9 @@ export function buildBookingUpdateData(
       data.pricingSource = null;
       data.promotionCodeDiscount = Prisma.JsonNull;
     } else {
-      assignDecimalFromKeys(
-        data,
-        pricing,
-        "fare",
-        "Fare",
-        "fare",
-      );
-      assignDecimalFromKeys(
-        data,
-        pricing,
-        "cost",
-        "Cost",
-        "cost",
-      );
-      assignDecimalFromKeys(
-        data,
-        pricing,
-        "price",
-        "Price",
-        "price",
-      );
+      assignDecimalFromKeys(data, pricing, "fare", "Fare", "fare");
+      assignDecimalFromKeys(data, pricing, "cost", "Cost", "cost");
+      assignDecimalFromKeys(data, pricing, "price", "Price", "price");
       assignDecimalFromKeys(
         data,
         pricing,
@@ -774,13 +665,7 @@ export function buildBookingUpdateData(
     }
   }
 
-  assignIfPresent(
-    data,
-    payload,
-    "Distance",
-    "distance",
-    normaliseDecimal,
-  );
+  assignIfPresent(data, payload, "Distance", "distance", normaliseDecimal);
   assignIfPresent(
     data,
     payload,
@@ -883,6 +768,3 @@ export function buildBookingUpdateData(
 
   return data as Prisma.BookingUpdateInput;
 }
-
-
-

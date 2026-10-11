@@ -1,5 +1,6 @@
 import { createServer } from "node:http";
 import next from "next";
+import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
 import { WebSocket, WebSocketServer } from "ws";
 
 const dev = process.env.NODE_ENV !== "production";
@@ -423,13 +424,7 @@ async function postInternalJob(path, body) {
   const payload =
     await response.json();
 
-  if (!response.ok) {
-    throw new Error(
-      payload.message ||
-        payload.error ||
-        `HTTP ${response.status}`,
-    );
-  }
+  assertJobSucceeded(response, payload);
 
   return payload;
 }
@@ -466,7 +461,7 @@ async function runDrainingJob(
       hasMore = payload.hasMore === true;
       batches += 1;
 
-      if (hasMore) {
+      if (hasMore && batches < MAX_DRAIN_BATCHES) {
         await new Promise((resolve) => {
           setTimeout(
             resolve,
@@ -502,7 +497,7 @@ async function runSingleJob(
   state.running = true;
 
   try {
-    await postInternalJob(path, body);
+    if (await postInternalJob(path, body) === null) return;
     console.log(`${name} completed.`);
   } catch (error) {
     console.error(
@@ -593,6 +588,7 @@ server.listen(port, hostname, () => {
     drain: true,
   });
 
+  if (historicalBackfillEnabled()) {
   scheduleJob({
     name: "Geoapify historical place backfill",
     path: "/api/dashboard/integrations/geoapify/enrich",
@@ -606,6 +602,9 @@ server.listen(port, hostname, () => {
     intervalMs: GEOAPIFY_BACKFILL_INTERVAL_MS,
     drain: true,
   });
+  } else {
+    console.log("Historical Geoapify backfill scheduler disabled.");
+  }
 });
 
 function shutdown(signal) {

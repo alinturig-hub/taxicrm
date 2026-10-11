@@ -246,7 +246,12 @@ export async function POST(request: Request) {
       bookingId?: unknown;
       scope?: unknown;
       dailyCreditCeiling?: unknown;
+      dryRun?: unknown;
     };
+
+    if (body.dryRun !== undefined && typeof body.dryRun !== "boolean") {
+      return NextResponse.json({ success: false, error: "INVALID_DRY_RUN" }, { status: 400 });
+    }
 
     const bookingId =
       typeof body.bookingId === "string"
@@ -258,7 +263,7 @@ export async function POST(request: Request) {
 
     if (
       cronAuthorized &&
-      historicalOnly
+      historicalOnly && body.dryRun !== true
     ) {
       jobRun =
         await startCustomerIntelligenceJobRun(
@@ -296,6 +301,7 @@ export async function POST(request: Request) {
     const locations =
       await prisma.bookingLocation.findMany({
         where: {
+          type: { in: ["PICKUP", "DESTINATION"] },
           booking: bookingId
             ? {
                 externalId: bookingId,
@@ -383,6 +389,21 @@ export async function POST(request: Request) {
           },
         },
       });
+
+    if (body.dryRun === true) {
+      const missingCoordinates = await prisma.bookingLocation.count({
+        where: { type: { in: ["PICKUP", "DESTINATION"] }, OR: [{ latitude: null }, { longitude: null }],
+          ...(bookingId ? { booking: { externalId: bookingId } } : historicalOnly ? {booking: {OR: [
+            {pickupDueTime: {lte: new Date()}}, {pickupDueTime: null, bookedAtTime: {lte: new Date()}},
+          ]}} : {}),
+        },
+      });
+      return NextResponse.json({ success: true, dryRun: true, selected: locations.length,
+        processed: 0, requested: limit, scope: historicalOnly ? "HISTORICAL" : "ALL",
+        missingCoordinates, containsPersonalData: false,
+        message: "Preview only: no place lookups, credit reservations or database writes.",
+      });
+    }
 
     const results: Array<{
       locationId: string;

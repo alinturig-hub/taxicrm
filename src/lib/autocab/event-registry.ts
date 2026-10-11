@@ -12,6 +12,10 @@ import { processBookingRecoveredWebhook } from "@/lib/autocab/process-booking-re
 import { processBookingRunningLateWebhook } from "@/lib/autocab/process-booking-running-late";
 import { processDriverShiftStartedEndedWebhook } from "@/lib/autocab/process-driver-shift-started-ended";
 import { processVehicleTracksChangedWebhook } from "@/lib/autocab/process-vehicle-tracks-changed";
+import {
+  normaliseEventType,
+  type WebhookHandler,
+} from "@/lib/autocab/webhook-processing";
 
 export const AUTOCAB_EVENT_CATEGORIES = [
   "BOOKING",
@@ -37,7 +41,7 @@ export const AUTOCAB_EVENT_STAGES = [
 
 export type AutocabEventStage = (typeof AUTOCAB_EVENT_STAGES)[number];
 
-export type AutocabEventHandler = (webhookEventId: string) => Promise<void>;
+export type AutocabEventHandler = WebhookHandler;
 
 export type AutocabEventDefinition = {
   eventType: string;
@@ -215,9 +219,14 @@ export const AUTOCAB_EVENT_REGISTRY = new Map<string, AutocabEventDefinition>(
 export function getAutocabEventDefinition(
   eventType: string,
 ): AutocabEventDefinition | null {
-  return AUTOCAB_EVENT_REGISTRY.get(eventType) ?? null;
+  return (
+    Array.from(AUTOCAB_EVENT_REGISTRY.values()).find(
+      (event) =>
+        normaliseEventType(event.eventType) === normaliseEventType(eventType),
+    ) ?? null
+  );
 }
 
 export function isRegisteredAutocabEvent(eventType: string): boolean {
-  return AUTOCAB_EVENT_REGISTRY.has(eventType);
+  return getAutocabEventDefinition(eventType) !== null;
 }

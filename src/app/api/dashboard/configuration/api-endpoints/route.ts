@@ -3,6 +3,9 @@ import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { storeApiResponse, apiRecords, ApiRecordError } from "@/lib/integrations/autocab/generic-api-sync/store";
+import { signApiPreview, verifyApiPreview, ApiPreviewError } from "@/lib/integrations/autocab/generic-api-sync/preview";
+import { Prisma } from "@/generated/prisma/client";
 import { getAutocabApiCredentials } from "@/lib/integrations/autocab/configuration";
 
 export const runtime = "nodejs";
@@ -120,6 +123,10 @@ export async function POST(
         storeRecords?: unknown;
         parameters?: Record<string, unknown>;
         previewOnly?: unknown;
+        previewData?: unknown;
+        previewToken?: unknown;
+        previewStatusCode?: unknown;
+        previewResponseTimeMs?: unknown;
       };
 
     if (
@@ -178,33 +185,8 @@ export async function POST(
       );
     }
 
-    const credentials =
-      await getAutocabApiCredentials();
-
-    const configuredBase =
-      new URL(credentials.baseUrl);
-
-    const endpointUrl =
-      new URL(resolvedUrl);
-
-    if (
-      endpointUrl.protocol !== "https:" &&
-      endpointUrl.protocol !== "http:"
-    ) {
-      throw new Error(
-        "API URL must use HTTP or HTTPS.",
-      );
-    }
-
-    if (
-      endpointUrl.host !==
-      configuredBase.host
-    ) {
-      throw new Error(
-        "This endpoint does not belong to the configured Autocab API host.",
-      );
-    }
-
+    const endpointUrl = new URL(resolvedUrl);
+    if (!["https:", "http:"].includes(endpointUrl.protocol)) throw new Error("API URL must use HTTP or HTTPS.");
     const recordKey =
       typeof body.recordKey === "string" &&
       body.recordKey.trim().length > 0
@@ -212,85 +194,27 @@ export async function POST(
         : null;
 
     const storeRecords =
-      body.storeRecords === true;
+      body.storeRecords !== false;
 
-    if (storeRecords && !recordKey) {
-      return NextResponse.json(
-        {
-          success: false,
-          error: "RECORD_KEY_REQUIRED",
-          message:
-            "Record Key is required when Store Records is enabled.",
-        },
-        {
-          status: 400,
-        },
-      );
-    }
-
-    const startedAt = Date.now();
-
-    const response = await fetch(
-      endpointUrl.toString(),
-      {
-        method: "GET",
-        headers: {
-          Accept: "application/json",
-          "Cache-Control": "no-cache",
-          "Ocp-Apim-Subscription-Key":
-            credentials.apiKey,
-        },
-        cache: "no-store",
-      },
-    );
-
-    const responseTimeMs =
-      Date.now() - startedAt;
-
-    const text =
-      await response.text();
-
-    let parsed: unknown = null;
-
-    try {
-      parsed = text
-        ? JSON.parse(text)
-        : null;
-    } catch {
-      parsed = {
-        raw: text.slice(0, 5000),
-      };
-    }
-
-    if (
-      endpointUrl.pathname === "/booking/v1/zones" &&
-      Array.isArray(parsed)
-    ) {
-      parsed = parsed.filter((item) => {
-        if (
-          !item ||
-          typeof item !== "object" ||
-          Array.isArray(item)
-        ) {
-          return false;
-        }
-
-        const zone = item as {
-          active?: unknown;
-          companyId?: unknown;
-        };
-
-        return (
-          zone.active === true &&
-          zone.companyId === 1
-        );
-      });
-    }
-
-    if (!response.ok) {
-      throw new Error(
-        `Autocab API returned HTTP ${response.status}.`,
-      );
+    let parsed: unknown;
+    let statusCode = 200, responseTimeMs = 0;
+    if (body.previewOnly !== true) {
+      if (typeof body.previewToken !== "string" || !Object.hasOwn(body, "previewData")) throw new ApiPreviewError("Preview this API before saving.");
+      verifyApiPreview(endpointUrl.toString(), [body.previewData, body.previewStatusCode, body.previewResponseTimeMs], body.previewToken);
+      if (typeof body.previewStatusCode !== "number" || typeof body.previewResponseTimeMs !== "number") throw new ApiPreviewError("Invalid preview metadata.");
+      statusCode = body.previewStatusCode; responseTimeMs = body.previewResponseTimeMs;
+      parsed = body.previewData;
+    } else {
+      const credentials = await getAutocabApiCredentials();
+      if (endpointUrl.origin !== new URL(credentials.baseUrl).origin) throw new Error("This endpoint does not belong to the configured Autocab API host.");
+      const startedAt = Date.now();
+      const response = await fetch(endpointUrl, { method: "GET", redirect: "error",
+        headers: { Accept: "application/json", "Ocp-Apim-Subscription-Key": credentials.apiKey },
+        cache: "no-store", signal: AbortSignal.timeout(60000) });
+      statusCode = response.status;
+      if (!response.ok) throw new Error(`Autocab API returned HTTP ${response.status}.`);
+      parsed = await response.json();
+      responseTimeMs = Date.now() - startedAt;
     }
 
     const responseType =
@@ -305,16 +229,21 @@ export async function POST(
       return NextResponse.json({
         success: true,
         preview: {
-          statusCode: response.status,
+          statusCode,
           responseTimeMs,
           responseType,
           data: parsed,
+          token: signApiPreview(endpointUrl.toString(), [parsed, statusCode, responseTimeMs]),
         },
       });
     }
 
+    if (storeRecords) apiRecords(parsed, recordKey);
+    const saved = await prisma.$transaction(async (tx) => {
+    const previous = await tx.apiEndpointConfiguration.findUnique({where: {url: configuredUrl}, select: {id: true}});
+    if (previous) await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`api-records:${previous.id}`}, 0))::text`;
     const endpoint =
-      await prisma.apiEndpointConfiguration.upsert({
+      await tx.apiEndpointConfiguration.upsert({
         where: {
           url: configuredUrl,
         },
@@ -339,12 +268,12 @@ export async function POST(
           storeRecords,
           lastTestedAt: new Date(),
           lastStatusCode:
-            response.status,
+            statusCode,
           lastResponseTimeMs:
             responseTimeMs,
           lastError: null,
           sampleResponse:
-            parsed as object,
+            parsed === null ? Prisma.JsonNull : parsed as Prisma.InputJsonValue,
         },
         update: {
           provider: "AUTOCAB",
@@ -366,18 +295,22 @@ export async function POST(
           storeRecords,
           lastTestedAt: new Date(),
           lastStatusCode:
-            response.status,
+            statusCode,
           lastResponseTimeMs:
             responseTimeMs,
           lastError: null,
           sampleResponse:
-            parsed as object,
+            parsed === null ? Prisma.JsonNull : parsed as Prisma.InputJsonValue,
         },
       });
 
+    const stored = storeRecords ? await storeApiResponse(endpoint.id, parsed, recordKey, tx) : null;
+    return {endpoint, stored};
+    }, {timeout: 60000});
     return NextResponse.json({
       success: true,
-      endpoint,
+      endpoint: saved.endpoint,
+      stored: saved.stored,
     });
   } catch (error) {
     console.error(
@@ -396,7 +329,7 @@ export async function POST(
             : "API endpoint could not be configured.",
       },
       {
-        status: 500,
+        status: error instanceof ApiPreviewError || error instanceof ApiRecordError ? 400 : 500,
       },
     );
   }

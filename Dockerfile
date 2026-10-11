@@ -4,7 +4,9 @@ WORKDIR /app
 
 COPY package*.json ./
 
-RUN npm ci
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    npm ci
 
 FROM node:24-alpine AS builder
 
@@ -13,8 +15,12 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-RUN npx prisma generate
-RUN npm run build
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    npx prisma generate
+RUN --mount=type=secret,id=proxy_ca \
+    if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
+    DATABASE_URL=postgresql://build_only@127.0.0.1:1/build_only NEXT_TELEMETRY_DISABLED=1 npm run build
 
 FROM node:24-alpine AS runner
 
@@ -30,6 +36,7 @@ COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/next.config.mjs ./
 COPY --from=builder /app/server.mjs ./server.mjs
+COPY --from=builder /app/src/lib/scheduler-result.mjs ./src/lib/scheduler-result.mjs
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/prisma ./prisma
 COPY --from=builder /app/prisma.config.ts ./prisma.config.ts

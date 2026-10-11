@@ -8,7 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   context: {
     params: Promise<{
       id: string;
@@ -27,6 +27,9 @@ export async function GET(
     );
   }
 
+  const page = Number(new URL(request.url).searchParams.get("page") ?? "1");
+  if (!Number.isSafeInteger(page) || page < 1 || page > 1000000) return NextResponse.json({success: false, message: "Invalid page."}, {status: 400});
+  const pageSize = 100;
   const { id } = await context.params;
 
   const endpoint =
@@ -38,6 +41,7 @@ export async function GET(
         url: true,
         recordKey: true,
         storeRecords: true,
+        sampleResponse: true,
       },
     });
 
@@ -55,6 +59,7 @@ export async function GET(
   const [records, total, active] =
     await Promise.all([
       prisma.apiEndpointRecord.findMany({
+        take: pageSize, skip: (page - 1) * pageSize,
         where: {
           endpointId: id,
         },
@@ -88,6 +93,7 @@ export async function GET(
       active,
       inactive: total - active,
     },
+    pagination: {page, pageSize, pages: Math.max(1, Math.ceil(total / pageSize))},
     records,
   });
 }
