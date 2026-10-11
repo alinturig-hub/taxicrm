@@ -24,20 +24,23 @@ export function normaliseCustomerTelephone(
     "",
   );
 
+  // E.164 pentru numerele UK: o singură formă (+44…) pentru toate scrierile
+  // („07…", „00447…", „447…", „+447…"), ca aceeași persoană să nu primească
+  // două fișe de client.
   if (/^0044[0-9]{10}$/.test(digits)) {
-    return `0${digits.slice(4)}`;
+    return `+44${digits.slice(4)}`;
   }
 
   if (/^44[0-9]{10}$/.test(digits)) {
-    return `0${digits.slice(2)}`;
+    return `+44${digits.slice(2)}`;
   }
 
   if (/^7[0-9]{9}$/.test(digits)) {
-    return `0${digits}`;
+    return `+44${digits}`;
   }
 
   if (/^0[0-9]{10}$/.test(digits)) {
-    return digits;
+    return `+44${digits.slice(1)}`;
   }
 
   // Keep unknown or international formats stable.
