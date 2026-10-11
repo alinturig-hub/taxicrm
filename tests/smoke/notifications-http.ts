@@ -23,13 +23,14 @@ async function main() {
     const lookup = await request("POST", {action: "lookup", phones: ["+447700900000"]});
     assert.equal(lookup.status, 200); assert.equal((await lookup.json()).rows[0].total, 1);
     assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-audit", {method: "POST"})).status, 401);
-    const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, text: "Synthetic zero", recipient: ""}]};
+    const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, text: "Synthetic zero", recipient: ""}]};
     const preview = await request("POST", {action: "preview", workflow});
     assert.equal(preview.status, 200); assert.equal((await preview.json()).counts.known, 1);
     assert.equal((await request("POST", {action: "save", workflow: {...workflow, sourceValue: "never-observed"}})).status, 400);
     const saved = await request("POST", {action: "save", workflow});
     assert.equal(saved.status, 200); const {id} = await saved.json();
-    assert.ok((await prisma.notificationJob.findUniqueOrThrow({where: {id}})).nextRunAt.getTime() > Date.now()+86300000);
+    const firstCheck = (await prisma.notificationJob.findUniqueOrThrow({where: {id}})).nextRunAt.getTime();
+    assert.ok(firstCheck > Date.now()+43100000 && firstCheck < Date.now()+43300000);
     assert.equal((await request("POST", {action: "save", id, workflow: {...workflow, isEnabled: false}})).status, 200);
     assert.equal((await request("PUT", {...config, isEnabled: true})).status, 200);
     const test = {action: "test", requestId: randomUUID(), destination: "+447700900000", message: "Synthetic queued test; no provider request"};

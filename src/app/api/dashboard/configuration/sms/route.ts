@@ -3,7 +3,7 @@ import { createHash } from "node:crypto";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { publicGateway, saveGateway, validateJob, readCounts, planEvents } from "@/lib/notifications/operations";
+import { publicGateway, saveGateway, validateJob, readCounts, planEvents, inactivityHours } from "@/lib/notifications/operations";
 import { smsGatewayPreview } from "@/lib/notifications/sms-gateway-preview";
 import { auditFreephoneNumbers } from "@/lib/notifications/phone-audit";
 export const dynamic = "force-dynamic";
@@ -56,7 +56,8 @@ export async function POST(request: Request) {
     const config = validateJob(body.workflow);
     if (body.action === "preview") {
       const counts = await readCounts(config, new Date());
-      return NextResponse.json({counts, events: planEvents(config, counts)});
+      const inactivityCounts = inactivityHours(config) === 24 ? counts : await readCounts(config, new Date(), prisma, inactivityHours(config));
+      return NextResponse.json({counts, inactivityCounts, events: planEvents(config, counts, inactivityCounts)});
     }
     if (body.action !== "save") throw new Error("Unknown action.");
     if (config.isEnabled) {
@@ -64,9 +65,11 @@ export async function POST(request: Request) {
       if (!counts.known) throw new Error("This source value has not been observed. Verify the Autocab field and value before enabling.");
     }
     const data = {...config, rules: JSON.parse(JSON.stringify(config.rules))};
+    const existing = typeof body.id === "string" && body.id !== "$gateway-test" ? await prisma.notificationJob.findUniqueOrThrow({where: {id: body.id}}) : null;
+    const resetSchedule = existing && (!existing.isEnabled && config.isEnabled || existing.sourceField !== config.sourceField || existing.sourceValue !== config.sourceValue || inactivityHours({...existing, rules: existing.rules as typeof config.rules}) !== inactivityHours(config));
     const job = typeof body.id === "string" && body.id !== "$gateway-test"
-      ? await prisma.notificationJob.update({where: {id: body.id}, data})
-      : await prisma.notificationJob.create({data: {...data, nextRunAt: new Date(Date.now() + 86400000)}});
+      ? await prisma.notificationJob.update({where: {id: body.id}, data: {...data, ...(resetSchedule ? {nextRunAt: new Date(Date.now() + inactivityHours(config) * 3600000)} : {})}})
+      : await prisma.notificationJob.create({data: {...data, nextRunAt: new Date(Date.now() + inactivityHours(config) * 3600000)}});
     if (!job.isEnabled) await prisma.notificationDelivery.updateMany({where: {jobRun: {jobId: job.id}, status: {in: ["PENDING", "RETRY"]}}, data: {status: "CANCELLED", lastError: "Workflow disabled by administrator"}});
     return NextResponse.json({success: true, id: job.id});
   } catch (error) {

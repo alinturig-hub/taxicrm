@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import {test} from "node:test";
 import {encryptSecret} from "@/lib/security/encryption";
-import {sendOrion, validateJob, planEvents} from "./operations";
+import {sendOrion, validateJob, planEvents, inactivityHours, checkInterval} from "./operations";
 const config = {name: "Synthetic freephone", sourceField: "bookingSource", sourceValue: "synthetic", defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "DAILY_REPORT", enabled: true, recipient: "", text: "{freephone}: {count}"}, {event: "NO_BOOKINGS", enabled: true, recipient: "", text: "No bookings"}, {event: "BELOW_THRESHOLD", enabled: true, recipient: "", text: "Below {threshold}", threshold: 5}]};
 test("workflow activation requires a verified source and explicit event configuration", () => {
   assert.equal(validateJob(config).sourceField, "bookingSource");
@@ -35,4 +35,14 @@ test("Orion uses exact signed endpoint and JSON fields, without leaking provider
   }
   assert.equal((await sendOrion(gateway, "+447700900000", "Synthetic", async () => {throw new Error("signed URL must never be exposed");})).status, "UNCERTAIN");
   assert.equal((await sendOrion(gateway, "+447700900000", "Synthetic", async () => new Response("x".repeat(20000)))).status, "UNCERTAIN");
+});
+
+test("12 hour window is explicit, validated and independent of daily reports", () => {
+  const job = validateJob({...config, rules: [{...config.rules[1], windowHours: 12, text: "{count} bookings in {period}"}]});
+  assert.equal(inactivityHours(job), 12); assert.equal(checkInterval(job), 60000);
+  const daily = {count: 1, known: 1, missingDate: 0, missingSource: 0, from: "", through: ""};
+  assert.equal(planEvents(job, daily, {...daily, count: 0})[0].text, "0 bookings in 12 hours");
+  assert.equal(planEvents(job, daily, {...daily, count: 0, missingDate: 1}).length, 0);
+  assert.throws(() => validateJob({...config, rules: [{...config.rules[1], windowHours: 6}]}));
+  assert.equal(checkInterval(validateJob(config)), 86400000);
 });

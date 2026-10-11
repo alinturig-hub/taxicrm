@@ -32,11 +32,13 @@ test("gateway persistence masks secrets and preserves the signature during sende
   assert.equal((await prisma.smsGatewayConfiguration.findUniqueOrThrow({where: {id: "default"}})).signedParametersEncrypted, saved.signedParametersEncrypted);
   await assert.rejects(saveGateway({endpoint: "https://invalid.test", isEnabled: true}));
 });
-test("source counting respects rolling 24h boundaries, future bookings and missing dates", async () => {
-  const now = new Date();
+test("source counting respects rolling 12/24h boundaries across London DST, future bookings and missing dates", async () => {
+  const now = new Date("2026-10-25T12:00:00Z");
   for (const [suffix, bookedAtTime] of [["start", new Date(now.getTime()-86400000)], ["inside", new Date(now.getTime()-1000)], ["end", now], ["future", new Date(now.getTime()+1000)], ["missing", null]] as const) await prisma.booking.create({data: {externalId: `${prefix}-${suffix}`, bookingSource: source, bookedAtTime, rawPayload: {synthetic: true}}});
   const counts = await readCounts({sourceField: "bookingSource", sourceValue: source}, now);
   assert.equal(counts.count, 2); assert.equal(counts.missingDate, 1);
+  const twelve = await readCounts({sourceField: "bookingSource", sourceValue: source}, now, prisma, 12);
+  assert.equal(twelve.count, 2); assert.equal(now.getTime()-new Date(twelve.from).getTime(), 12*3600000);
   await prisma.booking.deleteMany({where: {externalId: {startsWith: prefix}}});
 });
 test("concurrent workers plan once and send each event once; repeated ticks are idempotent", async () => {
@@ -66,6 +68,54 @@ test("rate-limit retries stop at five and ambiguous/crashed requests are never r
   const crashed = await prisma.notificationDelivery.create({data: {jobRunId: run.id, eventType: "BELOW_THRESHOLD", destination, message: "Synthetic crashed", status: "SENDING", leaseUntil: new Date(now.getTime()-1000)}});
   await notificationTick(now, async () => {throw new Error("Must not be sent");});
   assert.equal((await prisma.notificationDelivery.findUniqueOrThrow({where: {id: crashed.id}})).status, "UNCERTAIN");
+});
+test("12 consecutive hours alert once, recover and rearm, including concurrent checks", async () => {
+  await saveGateway({endpoint: signed, isEnabled: true});
+  const now = new Date();
+  const line = `${prefix}-12-hour-line`;
+  const booking = await prisma.booking.create({data: {externalId: `${prefix}-12-hour-booking`, bookingSource: line, bookedAtTime: new Date(now.getTime()-12*3600000+60000), rawPayload: {synthetic: true}}});
+  const job = await prisma.notificationJob.create({data: {name: `${prefix}-12-hour-monitor`, sourceField: "bookingSource", sourceValue: line, defaultRecipient: destination, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, recipient: "", text: "Possible problem: no bookings in {period}"}], sourceConfirmed: true, isEnabled: true, createdAt: new Date(now.getTime()-12*3600000), nextRunAt: now}});
+  let requests = 0;
+  const fake: typeof fetch = async (_url, init) => {requests++; assert.match(JSON.parse(String(init?.body)).message, /12 hours/); return new Response('{"success":true}');};
+  await notificationTick(now, fake); assert.equal(requests, 0);
+  const boundary = new Date(now.getTime()+60000);
+  await Promise.all([notificationTick(boundary, fake), notificationTick(boundary, fake)]);
+  assert.equal(requests, 1);
+  const firstRunCount = await prisma.notificationJobRun.count({where: {jobId: job.id}});
+  await notificationTick(new Date(now.getTime()+120000), fake); assert.equal(requests, 1);
+  assert.equal(await prisma.notificationJobRun.count({where: {jobId: job.id}}), firstRunCount);
+  const recovery = new Date(now.getTime()+180000);
+  await prisma.booking.update({where: {id: booking.id}, data: {bookedAtTime: recovery}});
+  await notificationTick(recovery, fake); assert.equal(requests, 1);
+  await notificationTick(new Date(recovery.getTime()+12*3600000), fake); assert.equal(requests, 2);
+  await notificationTick(new Date(recovery.getTime()+12*3600000+60000), fake); assert.equal(requests, 2);
+  await prisma.notificationJob.update({where: {id: job.id}, data: {isEnabled: false}});
+});
+test("frequent inactivity checks do not turn periodic reports into minute SMS", async () => {
+  await saveGateway({endpoint: signed, isEnabled: true});
+  const now = new Date();
+  const job = await prisma.notificationJob.create({data: {name: `${prefix}-mixed-window`, sourceField: "bookingSource", sourceValue: source, defaultRecipient: destination, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, recipient: "", text: "Zero for {period}"}, rules[0]], sourceConfirmed: true, isEnabled: true, createdAt: new Date(now.getTime()-12*3600000), nextRunAt: now}});
+  const messages: string[] = [];
+  const fake: typeof fetch = async (_url, init) => {messages.push(JSON.parse(String(init?.body)).message); return new Response('{"success":true}');};
+  await notificationTick(now, fake); assert.equal(messages.length, 1);
+  await notificationTick(new Date(now.getTime()+60000), fake); assert.equal(messages.length, 1);
+  await notificationTick(new Date(now.getTime()+12*3600000), fake); assert.equal(messages.length, 2);
+  assert.equal(await prisma.notificationDelivery.count({where: {jobRun: {jobId: job.id}, eventType: "DAILY_REPORT"}}), 1);
+  await prisma.notificationJob.update({where: {id: job.id}, data: {isEnabled: false}});
+});
+test("booking recovery cancels an inactivity SMS waiting for provider retry", async () => {
+  await saveGateway({endpoint: signed, isEnabled: true});
+  const now = new Date();
+  const line = `${prefix}-recovery-retry`;
+  const booking = await prisma.booking.create({data: {externalId: line, bookingSource: line, bookedAtTime: new Date(now.getTime()-13*3600000), rawPayload: {synthetic: true}}});
+  const job = await prisma.notificationJob.create({data: {name: line, sourceField: "bookingSource", sourceValue: line, defaultRecipient: destination, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, recipient: "", text: "Zero for {period}"}], sourceConfirmed: true, isEnabled: true, nextRunAt: now}});
+  await notificationTick(now, async () => new Response("", {status: 429}));
+  assert.equal(await prisma.notificationDelivery.count({where: {jobRun: {jobId: job.id}, status: "RETRY"}}), 1);
+  const recovery = new Date(now.getTime()+60000);
+  await prisma.booking.update({where: {id: booking.id}, data: {bookedAtTime: recovery}});
+  await notificationTick(recovery, async () => {throw new Error("Recovered line must not send queued alert");});
+  assert.equal(await prisma.notificationDelivery.count({where: {jobRun: {jobId: job.id}, status: "CANCELLED"}}), 1);
+  await prisma.notificationJob.update({where: {id: job.id}, data: {isEnabled: false}});
 });
 test("disabled gateway performs no planning or delivery", async () => {
   await prisma.smsGatewayConfiguration.update({where: {id: "default"}, data: {isEnabled: false}});

@@ -1,6 +1,6 @@
 export const freephoneEvents = ["DAILY_REPORT", "NO_BOOKINGS", "BELOW_THRESHOLD"] as const;
 export type FreephoneEvent = typeof freephoneEvents[number];
-export type FreephoneRule = {event: FreephoneEvent; enabled: boolean; text: string; recipient: string; threshold?: number};
+export type FreephoneRule = {event: FreephoneEvent; enabled: boolean; text: string; recipient: string; threshold?: number; windowHours?: 12 | 24};
 export type FreephoneWorkflow = {name: string; defaultRecipient: string; rules: FreephoneRule[]};
 export type FreephoneObservation = {sourceName: string | null; bookedAt: Date | null};
 
@@ -18,8 +18,9 @@ export function previewFreephoneWorkflow(workflow: FreephoneWorkflow, count: num
     seen.add(rule.event);
     if (!rule.text.trim()) throw new Error(`SMS text is required for ${rule.event}.`);
     if (rule.event === "BELOW_THRESHOLD" && (!Number.isSafeInteger(rule.threshold) || rule.threshold! < 1)) throw new Error("Set a positive integer booking threshold.");
+    if (rule.windowHours !== undefined && (rule.event !== "NO_BOOKINGS" || ![12, 24].includes(rule.windowHours))) throw new Error("Use a 12 or 24 hour inactivity window.");
     const to = recipient(rule.recipient.trim() || workflow.defaultRecipient.trim());
-    const values: Record<string, string> = {freephone: workflow.name.trim(), count: String(count), period: "24 hours", threshold: String(rule.threshold ?? "")};
+    const values: Record<string, string> = {freephone: workflow.name.trim(), count: String(count), period: `${rule.event === "NO_BOOKINGS" ? rule.windowHours ?? 24 : 24} hours`, threshold: String(rule.threshold ?? "")};
     const text = rule.text.replace(/\{([a-z_]+)\}/g, (placeholder, name: string) => {
       if (!Object.hasOwn(values, name)) throw new Error(`Unknown message placeholder: ${placeholder}`);
       if (name === "threshold" && rule.event !== "BELOW_THRESHOLD") throw new Error("The threshold placeholder is only available for the threshold event.");

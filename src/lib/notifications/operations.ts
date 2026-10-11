@@ -9,6 +9,8 @@ import { normaliseFreephoneNumber, telephoneSql } from "./phone-audit";
 export const sourceFields = ["bookingSource", "bookedBy", "ourReference", "telephoneNumber"] as const;
 export type JobInput = {name: string; sourceField: typeof sourceFields[number]; sourceValue: string; defaultRecipient: string; rules: FreephoneRule[]; sourceConfirmed: boolean; isEnabled: boolean};
 const day = 86400000;
+export function inactivityHours(job: Pick<JobInput, "rules">): 12 | 24 {return job.rules.find(r => r.event === "NO_BOOKINGS" && r.enabled)?.windowHours ?? 24;}
+export function checkInterval(job: Pick<JobInput, "rules">) {return inactivityHours(job) === 12 ? 60000 : day;}
 
 export function validateJob(value: unknown): JobInput {
   if (!value || typeof value !== "object") throw new Error("Invalid workflow.");
@@ -24,11 +26,11 @@ export function validateJob(value: unknown): JobInput {
   return {...d, name: d.name.trim(), sourceValue: d.sourceField === "telephoneNumber" ? normaliseFreephoneNumber(d.sourceValue) : d.sourceValue.trim()};
 }
 
-export async function readCounts(job: Pick<JobInput, "sourceField" | "sourceValue">, through: Date, db: Prisma.TransactionClient = prisma) {
+export async function readCounts(job: Pick<JobInput, "sourceField" | "sourceValue">, through: Date, db: Prisma.TransactionClient = prisma, hours: 12 | 24 = 24) {
   if (!sourceFields.includes(job.sourceField)) throw new Error("Invalid source field.");
   const field = job.sourceField === "telephoneNumber" ? telephoneSql() : Prisma.raw(`"${job.sourceField}"`); // Only the fixed allowlist above.
   const value = job.sourceField === "telephoneNumber" ? normaliseFreephoneNumber(job.sourceValue) : job.sourceValue;
-  const from = new Date(through.getTime() - day);
+  const from = new Date(through.getTime() - hours * 3600000);
   const rows = await db.$queryRaw<{count: bigint; known: bigint; missingDate: bigint; missingSource: bigint}[]>(Prisma.sql`
     SELECT count(*) FILTER (WHERE ${field} = ${value} AND "bookedAtTime" > ${from} AND "bookedAtTime" <= ${through}) AS count,
       count(*) FILTER (WHERE ${field} = ${value}) AS known,
@@ -39,10 +41,11 @@ export async function readCounts(job: Pick<JobInput, "sourceField" | "sourceValu
   return {count: Number(r.count), known: Number(r.known), missingDate: Number(r.missingDate), missingSource: Number(r.missingSource), from: from.toISOString(), through: through.toISOString()};
 }
 
-export function planEvents(job: JobInput, counts: Awaited<ReturnType<typeof readCounts>>) {
+export function planEvents(job: JobInput, counts: Awaited<ReturnType<typeof readCounts>>, inactivityCounts = counts) {
   const complete = counts.known > 0 && counts.missingDate === 0 && counts.missingSource === 0;
   return previewFreephoneWorkflow({name: job.name, defaultRecipient: job.defaultRecipient, rules: job.rules}, counts.count)
-    .filter(e => e.triggered && (complete || e.event === "DAILY_REPORT"))
+    .map(e => e.event === "NO_BOOKINGS" ? previewFreephoneWorkflow({name: job.name, defaultRecipient: job.defaultRecipient, rules: job.rules.filter(r => r.event === "NO_BOOKINGS")}, inactivityCounts.count)[0] : e)
+    .filter(e => (e.event === "NO_BOOKINGS" ? inactivityCounts.count === 0 && inactivityCounts.known > 0 && inactivityCounts.missingDate === 0 && inactivityCounts.missingSource === 0 : e.triggered && (complete || e.event === "DAILY_REPORT")))
     .map(e => ({...e, text: complete ? e.text : `${e.text}\nData incomplete: missing source/date or source not observed; counts may be understated.`}));
 }
 
@@ -112,11 +115,25 @@ export async function notificationTick(now = new Date(), transport: typeof fetch
       if (!jobs.length) return false;
       const job = await tx.notificationJob.findUniqueOrThrow({where: {id: jobs[0].id}});
       const config = validateJob({...job, rules: job.rules});
-      const nextRunAt = new Date(job.nextRunAt.getTime() + (Math.floor((now.getTime() - job.nextRunAt.getTime()) / day) + 1) * day);
-      const counts = await readCounts(config, now, tx);
-      const events = planEvents(config, counts);
-      const run = await tx.notificationJobRun.create({data: {jobId: job.id, scheduledFor: job.nextRunAt, status: "COMPLETED", result: {...counts, planned: events.length}, finishedAt: now}});
-      for (const event of events) await tx.notificationDelivery.create({data: {jobRunId: run.id, eventType: event.event, destination: event.recipient, message: event.text, nextAttemptAt: now}});
+      const interval = checkInterval(config);
+      const nextRunAt = new Date(job.nextRunAt.getTime() + (Math.floor((now.getTime() - job.nextRunAt.getTime()) / interval) + 1) * interval);
+      const hours = inactivityHours(config);
+      const latest = await tx.notificationJobRun.findFirst({where: {jobId: job.id}, orderBy: {scheduledFor: "desc"}, select: {result: true}});
+      const previous = latest?.result as {monitorKey?: string; inactivityAlertActive?: boolean; lastPeriodicAt?: string} | null;
+      const monitorKey = JSON.stringify([config.sourceField, config.sourceValue, hours]);
+      const prior = previous?.monitorKey === monitorKey ? previous : null;
+      const lastPeriodic = prior?.lastPeriodicAt ? new Date(prior.lastPeriodicAt) : job.createdAt;
+      const periodicDue = hours === 24 || now.getTime() - lastPeriodic.getTime() >= day;
+      const inactivityCounts = await readCounts(config, now, tx, hours);
+      const counts = hours === 24 || !periodicDue ? inactivityCounts : await readCounts(config, now, tx);
+      const events = planEvents(config, counts, inactivityCounts).filter(e => e.event === "NO_BOOKINGS" ? !prior?.inactivityAlertActive : periodicDue);
+      const inactivityAlertActive = inactivityCounts.count > 0 ? false : Boolean(prior?.inactivityAlertActive || events.some(e => e.event === "NO_BOOKINGS"));
+      if (inactivityCounts.count > 0) await tx.notificationDelivery.updateMany({where: {jobRun: {jobId: job.id}, eventType: "NO_BOOKINGS", status: {in: ["PENDING", "RETRY"]}}, data: {status: "CANCELLED", lastError: "Bookings resumed before the inactivity alert was sent"}});
+      // Persist state transitions and daily checkpoints, rather than one history row per minute.
+      if (events.length || periodicDue || !prior || prior.inactivityAlertActive !== inactivityAlertActive) {
+        const run = await tx.notificationJobRun.create({data: {jobId: job.id, scheduledFor: job.nextRunAt, status: "COMPLETED", result: {...counts, inactivityCounts, windowHours: hours, monitorKey, inactivityAlertActive, lastPeriodicAt: (periodicDue ? now : lastPeriodic).toISOString(), planned: events.length}, finishedAt: now}});
+        for (const event of events) await tx.notificationDelivery.create({data: {jobRunId: run.id, eventType: event.event, destination: event.recipient, message: event.text, nextAttemptAt: now}});
+      }
       await tx.notificationJob.update({where: {id: job.id}, data: {nextRunAt}});
       return true;
     }, {timeout: 15000});
