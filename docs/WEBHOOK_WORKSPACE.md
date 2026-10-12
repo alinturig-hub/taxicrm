@@ -17,3 +17,9 @@ The receiver resolves a configured event URL's source, rejects disabled sources,
 This code requires the migration before deployment. It has approval for synthetic local migration only, not a production migration or release. Do not deploy this commit to an unmigrated real database.
 
 Validated locally: production build, 2 provider unit tests, 15 existing webhook integration tests, 1 migration preservation test and the Chromium browser workflow including encrypted key storage, blank-key preservation, disabled-source rejection, authentication, header redaction and restricted provider deletion. No real database migration or deployment executed.
+
+## Direct event editor
+
+The Integration Webhook Manager previously linked Edit to `/dashboard/integrations/autocab/webhooks/[id]` without an implemented page. The direct route now loads only that configuration's selected fields, ordered conditions and provider base URL, without fetching event history or payloads. The webhook route segment includes a loading boundary. Missing IDs resolve to the not-found UI (streamed responses can have HTTP 200); readers without configuration.manage receive a disabled editor and API mutations remain forbidden.
+
+The synthetic Chromium workflow validates direct navigation, saving, permission restrictions and missing-ID handling before exercising the provider workspace. Local warm direct-page loading was approximately 250–270 ms; this does not measure or establish production latency. Production timing diagnosis would require authenticated browser network timing or request/query duration logs for the reported URL. This route has not been deployed: the pending provider migration remains authorized only for the isolated database.
