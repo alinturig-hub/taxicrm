@@ -33,6 +33,7 @@ type LiveOperations = {
   };
   drivers: {
     onShift: number;
+    offShift: number;
     liveConfirmed: number;
     unconfirmedOpen: number;
     withVehicle: number;
@@ -586,17 +587,17 @@ export default function LiveOperationsDashboard() {
           />
 
           <StatCard
-            label="Drivers seen working"
-            value={operations.drivers.liveConfirmed}
-            description="Open shift and matching working vehicle signal within two minutes"
+            label="Drivers on shift"
+            value={operations.drivers.onShift}
+            description="Latest Shift Start has no matching Shift End; independent of GPS"
             icon="D"
             accent="emerald"
           />
 
           <StatCard
-            label="Recent vehicle signals"
-            value={operations.fleet.live}
-            description="Vehicles seen during the last two minutes"
+            label="Drivers off shift"
+            value={operations.drivers.offShift}
+            description="Latest recorded shift was closed by Shift End"
             icon="V"
             accent="violet"
           />
@@ -642,12 +643,17 @@ export default function LiveOperationsDashboard() {
 
             <div className="mt-4">
               <MetricRow
+                label="On shift with recent vehicle signal"
+                value={operations.drivers.liveConfirmed}
+                tone="emerald"
+              />
+              <MetricRow
                 label="Latest recorded open shifts"
                 value={operations.drivers.onShift}
                 tone="slate"
               />
               <MetricRow
-                label="Open shifts without live confirmation"
+                label="On shift without recent vehicle signal"
                 value={operations.drivers.unconfirmedOpen}
                 tone="amber"
               />

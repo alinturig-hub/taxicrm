@@ -93,6 +93,9 @@ export function driverPresence(
   const withVehicle = open.filter((shift) => shift.vehicleId !== null).length;
   return {
     onShift: open.length,
+    offShift: Array.from(latest.values()).filter(
+      (shift) => shift.status === "ENDED",
+    ).length,
     withVehicle,
     withoutVehicle: open.length - withVehicle,
     liveConfirmed: verified.size,

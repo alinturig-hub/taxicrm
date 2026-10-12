@@ -424,6 +424,83 @@ test("ended shift is not reopened by a delayed Started event", async () => {
   assert.equal(shifts[0].durationSeconds, 7200);
 });
 
+test("shift retries with timestamp jitter keep one closure and old ends do not close a newer shift", async () => {
+  const base = {
+    Driver: { Id: `${prefix}-shift-retries` },
+    StartedDate: `${date}T08:00:00Z`,
+  };
+  for (const payload of [
+    { ...base, SubEventType: "Started" },
+    { ...base, SubEventType: "Ended", EndedDate: `${date}T10:00:00Z` },
+    {
+      ...base,
+      StartedDate: `${date}T08:00:01Z`,
+      SubEventType: "Ended",
+      EndedDate: `${date}T10:00:00Z`,
+    },
+    { ...base, SubEventType: "Ended", EndedDate: `${date}T09:00:00Z` },
+    { ...base, StartedDate: `${date}T11:00:00Z`, SubEventType: "Started" },
+    { ...base, SubEventType: "Ended", EndedDate: `${date}T10:00:00Z` },
+  ]) {
+    const item = await event("DriverShiftStartedEnded", payload);
+    await processWebhookEvent(item.id);
+  }
+  const rows = await prisma.driverShift.findMany({
+    where: { driver: { externalId: `${prefix}-shift-retries` } },
+    orderBy: { startedAt: "asc" },
+  });
+  assert.equal(rows.length, 2);
+  assert.equal(rows[0].status, "ENDED");
+  assert.equal(rows[0].endedAt?.toISOString(), `${date}T10:00:00.000Z`);
+  assert.equal(rows[1].status, "ACTIVE");
+  assert.equal(rows[1].endedAt, null);
+});
+
+test("Started remains authoritative when optional EndedDate carries a placeholder", async () => {
+  const item = await event("DriverShiftStartedEnded", {
+    Driver: { Id: `${prefix}-shift-placeholder` },
+    StartedDate: `${date}T08:00:00Z`,
+    SubEventType: "Started",
+    EndedDate: "0001-01-01T00:00:00Z",
+  });
+  await processWebhookEvent(item.id);
+  const row = await prisma.driverShift.findFirstOrThrow({
+    where: { driver: { externalId: `${prefix}-shift-placeholder` } },
+  });
+  assert.equal(row.status, "ACTIVE");
+  assert.equal(row.endedAt, null);
+});
+
+test("unknown shift subtype and reversed dates fail without inventing an active shift", async () => {
+  for (const payload of [
+    {
+      Driver: { Id: `${prefix}-shift-invalid` },
+      StartedDate: `${date}T08:00:00Z`,
+      SubEventType: "Unknown",
+    },
+    {
+      Driver: { Id: `${prefix}-shift-invalid` },
+      StartedDate: `${date}T08:00:00Z`,
+      SubEventType: "Ended",
+      EndedDate: `${date}T07:00:00Z`,
+    },
+  ]) {
+    const item = await event("DriverShiftStartedEnded", payload);
+    await assert.rejects(processWebhookEvent(item.id), /SubEventType|precedes/);
+    assert.equal(
+      (await prisma.webhookEvent.findUniqueOrThrow({ where: { id: item.id } }))
+        .status,
+      "FAILED",
+    );
+  }
+  assert.equal(
+    await prisma.driver.count({
+      where: { externalId: `${prefix}-shift-invalid` },
+    }),
+    0,
+  );
+});
+
 test("late and duplicate vehicle tracks cannot overwrite live position or badge", async () => {
   const track = (hour: string, latitude: number, badge: string) => ({
     Vehicle: { Id: `${prefix}-vehicle` },

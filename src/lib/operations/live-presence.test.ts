@@ -25,6 +25,7 @@ test("a newer ended shift wins over an old active shift even with fresh vehicle 
     now,
   );
   assert.equal(result.onShift, 0);
+  assert.equal(result.offShift, 1);
   assert.equal(result.liveConfirmed, 0);
 });
 test("old open records require fresh matching working telemetry; stale, future, off-duty and unassigned signals do not confirm", () => {
@@ -65,4 +66,15 @@ test("stale status is not counted as current clear or busy, unknown status is ex
   assert.equal(result.unknown, 1);
   assert.equal(result.live, 2);
   assert.equal(result.stale, 1);
+});
+
+test("GPS loss or NotWorking does not end a shift; missing events are not an Off shift inference", () => {
+  const active = [shift("ACTIVE", "2026-10-12T08:00:00Z")];
+  for (const cars of [[], [vehicle("NotWorking", "2026-10-12T11:59:00Z")]]) {
+    const state = driverPresence(active, cars, now);
+    assert.equal(state.onShift, 1);
+    assert.equal(state.offShift, 0);
+    assert.equal(state.liveConfirmed, 0);
+  }
+  assert.equal(driverPresence([], [], now).offShift, 0);
 });

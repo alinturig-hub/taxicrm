@@ -46,7 +46,10 @@ export async function GET(request: Request) {
       }>
     >`
       SELECT DISTINCT ON ("driverId") "driverId", "vehicleId", status, "startedAt", "endedAt"
-      FROM "DriverShift" WHERE "startedAt" <= ${now}
+      FROM "DriverShift" WHERE "startedAt" <= ${now} AND (
+          (status = 'ACTIVE' AND lower("subEventType") = 'started') OR
+          (status = 'ENDED' AND lower("subEventType") = 'ended')
+        )
       ORDER BY "driverId", "startedAt" DESC, CASE WHEN status = 'ENDED' THEN 0 ELSE 1 END, id DESC`,
     prisma.vehicle.findMany({
       where: { lastSeenAt: { not: null } },
@@ -58,14 +61,29 @@ export async function GET(request: Request) {
       },
     }),
   ]);
+  const activeDriverRows = await prisma.driverShift.findMany({
+    where: { status: "ACTIVE" },
+    select: { driverId: true },
+  });
+  const endedDrivers = new Set(
+    latest
+      .filter((shift) => shift.status === "ENDED")
+      .map((shift) => shift.driverId),
+  );
+  const legacyActiveDriversNowOff = new Set(
+    activeDriverRows
+      .filter((shift) => endedDrivers.has(shift.driverId))
+      .map((shift) => shift.driverId),
+  ).size;
   const presence = driverPresence(latest, vehicles, now);
   const fleet = fleetPresence(vehicles, now);
   return NextResponse.json({
     checkedAt: now.toISOString(),
     ...counts[0],
     currentEvidence: { drivers: presence, fleet },
+    legacyActiveDriversNowOff,
     containsPersonalData: false,
     definition:
-      "Distinct drivers with stored ACTIVE shifts; this is not live presence.",
+      "On/Off follows the latest recorded Shift Start/End. GPS is separate; legacy ACTIVE rows may be superseded by later ended shifts.",
   });
 }

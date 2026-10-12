@@ -209,7 +209,8 @@ try {
       fleetMapRequests++;
   });
   await page.goto(origin + "/dashboard/live");
-  await page.getByText("Drivers seen working", { exact: true }).waitFor();
+  await page.getByText("Drivers on shift", { exact: true }).waitFor();
+  await page.getByText("Drivers off shift", { exact: true }).waitFor();
   assert.equal(
     await page.getByText("Live Fleet Map", { exact: true }).count(),
     0,

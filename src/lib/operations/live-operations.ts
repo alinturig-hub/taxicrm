@@ -51,6 +51,7 @@ export type LiveOperationsData = {
 
   drivers: {
     onShift: number;
+    offShift: number;
     liveConfirmed: number;
     unconfirmedOpen: number;
     withVehicle: number;
@@ -386,7 +387,10 @@ export async function getLiveOperations(
         endedAt: Date | null;
       }>
     >`SELECT DISTINCT ON ("driverId") "driverId", "vehicleId", status, "startedAt", "endedAt"
-        FROM "DriverShift" WHERE "startedAt" <= ${now}
+        FROM "DriverShift" WHERE "startedAt" <= ${now} AND (
+          (status = 'ACTIVE' AND lower("subEventType") = 'started') OR
+          (status = 'ENDED' AND lower("subEventType") = 'ended')
+        )
         ORDER BY "driverId", "startedAt" DESC, CASE WHEN status = 'ENDED' THEN 0 ELSE 1 END, id DESC`,
 
     prisma.bookingTimelineEvent.findMany({
@@ -517,6 +521,7 @@ export async function getLiveOperations(
 
     drivers: {
       onShift: driverSummary.onShift,
+      offShift: driverSummary.offShift,
       liveConfirmed: driverSummary.liveConfirmed,
       unconfirmedOpen: driverSummary.unconfirmedOpen,
       withVehicle: driversWithVehicle,

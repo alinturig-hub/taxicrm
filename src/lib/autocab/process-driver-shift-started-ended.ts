@@ -82,7 +82,17 @@ export async function processDriverShiftStartedEndedWebhook(
 
   const subEventType = normaliseString(payload.SubEventType) ?? "Unknown";
 
-  const isEnded = subEventType.toLowerCase() === "ended";
+  const kind = subEventType.toLowerCase();
+  if (kind !== "started" && kind !== "ended") {
+    throw new Error(
+      "Unknown driver shift SubEventType; expected Started or Ended.",
+    );
+  }
+  const isEnded = kind === "ended";
+  if (isEnded && normaliseString(payload.EndedDate) && !endedAt)
+    throw new Error("Invalid EndedDate.");
+  if (isEnded && endedAt && endedAt < startedAt)
+    throw new Error("EndedDate precedes StartedDate.");
 
   const durationSeconds =
     isEnded && endedAt
@@ -157,18 +167,21 @@ export async function processDriverShiftStartedEndedWebhook(
       where: {
         provider: "AUTOCAB",
         driverId: driver.id,
-        status: "ACTIVE",
         startedAt: {
           gte: new Date(startedAt.getTime() - toleranceMs),
           lte: new Date(startedAt.getTime() + toleranceMs),
         },
       },
-      orderBy: {
-        startedAt: "desc",
-      },
+      orderBy: [{ status: "asc" }, { startedAt: "desc" }],
     });
 
     if (matchingActiveShift) {
+      // A retry/older end cannot erase or regress an already recorded closure.
+      if (
+        matchingActiveShift.endedAt &&
+        (!endedAt || endedAt < matchingActiveShift.endedAt)
+      )
+        return;
       const matchedDurationSeconds = endedAt
         ? Math.max(
             0,
@@ -184,7 +197,7 @@ export async function processDriverShiftStartedEndedWebhook(
           id: matchingActiveShift.id,
         },
         data: {
-          vehicleId,
+          vehicleId: vehicleId ?? matchingActiveShift.vehicleId,
           status: "ENDED",
           subEventType,
           endedAt,
@@ -263,7 +276,11 @@ export async function processDriverShiftStartedEndedWebhook(
         rawPayload: payload as Prisma.InputJsonObject,
       },
       update: {
-        vehicleId,
+        ...(isObject(payload.Vehicle) && vehicleId
+          ? { vehicleId }
+          : payload.Vehicle === null
+            ? { vehicleId: null }
+            : {}),
         status: "ACTIVE",
         subEventType,
         endedAt: null,
