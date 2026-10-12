@@ -80,13 +80,25 @@ export function validateJob(value: unknown): JobInput {
     throw new Error(
       "Confirm the source mapping and enable at least one event before activation.",
     );
+  // Execution metadata comes from the server, never from a stale form snapshot.
   return {
-    ...d,
     name: d.name.trim(),
+    sourceField: d.sourceField,
     sourceValue:
       d.sourceField === "telephoneNumber"
         ? normaliseFreephoneNumber(d.sourceValue)
         : d.sourceValue.trim(),
+    defaultRecipient: d.defaultRecipient,
+    sourceConfirmed: d.sourceConfirmed,
+    isEnabled: d.isEnabled,
+    rules: d.rules.map((r) => ({
+      event: r.event,
+      enabled: r.enabled,
+      text: r.text,
+      recipient: r.recipient,
+      ...(r.threshold !== undefined ? { threshold: r.threshold } : {}),
+      ...(r.windowHours !== undefined ? { windowHours: r.windowHours } : {}),
+    })),
   };
 }
 
@@ -118,15 +130,19 @@ export async function readCounts(
       futureDates: bigint;
     }[]
   >(Prisma.sql`
-    SELECT count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${from} AND ${time} <= ${through}) AS count,
+    SELECT count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${from.toISOString()}::timestamptz AND ${time} <= ${through.toISOString()}::timestamptz) AS count,
       count(*) FILTER (WHERE ${field} = ${value}) AS known,
       count(*) FILTER (WHERE ${field} = ${value} AND ${time} IS NULL) AS "missingDate",
-      count(*) FILTER (WHERE (${field} IS NULL OR btrim(${field}) = '') AND ${time} > ${from} AND ${time} <= ${through}) AS "missingSource",
+      count(*) FILTER (WHERE (${field} IS NULL OR btrim(${field}) = '') AND ${time} > ${from.toISOString()}::timestamptz AND ${time} <= ${through.toISOString()}::timestamptz) AS "missingSource",
       count(*) FILTER (WHERE ${field} = ${value} AND "bookedAtTime" IS NULL AND ${time} IS NOT NULL) AS "payloadDateUsed",
-      count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${through}) AS "futureDates"
+      count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${through.toISOString()}::timestamptz) AS "futureDates"
     FROM "Booking" WHERE provider = 'AUTOCAB'`);
   const r = rows[0];
   return {
+    sourceScope:
+      job.sourceField === "telephoneNumber"
+        ? ("PHONE_MATCH" as const)
+        : ("GENERIC" as const),
     count: Number(r.count),
     known: Number(r.known),
     missingDate: Number(r.missingDate),
@@ -142,10 +158,11 @@ export function planEvents(
   job: JobInput,
   counts: Omit<
     Awaited<ReturnType<typeof readCounts>>,
-    "payloadDateUsed" | "futureDates"
+    "payloadDateUsed" | "futureDates" | "sourceScope"
   > & {
     payloadDateUsed?: number;
     futureDates?: number;
+    sourceScope?: "PHONE_MATCH" | "GENERIC";
   },
   inactivityCounts = counts,
 ) {
@@ -176,12 +193,20 @@ export function planEvents(
         ? inactivityCounts.count === 0 && inactiveComplete
         : e.triggered && (complete || e.event === "DAILY_REPORT"),
     )
-    .map((e) => ({
-      ...e,
-      text: (e.event === "NO_BOOKINGS" ? inactiveComplete : complete)
+    .map((e) => {
+      const evidence = bookingEvidenceReadiness(
+        e.event === "NO_BOOKINGS" ? inactivityCounts : counts,
+      );
+      const text = evidence.ready
         ? e.text
-        : `${e.text}\nData incomplete: missing source/date or source not observed; counts may be understated.`,
-    }));
+        : `${e.text}\nData incomplete: missing source/date or source not observed; counts may be understated.`;
+      return {
+        ...e,
+        text: evidence.warnings.length
+          ? `${text}\nData warning: ${evidence.warnings.join(" ")}`
+          : text,
+      };
+    });
 }
 
 export async function saveGateway(value: Record<string, unknown>) {

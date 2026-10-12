@@ -36,6 +36,9 @@ async function main() {
     assert.equal(saved.status, 200); const {id} = await saved.json();
     const firstCheck = (await prisma.notificationJob.findUniqueOrThrow({where: {id}})).nextRunAt.getTime();
     assert.ok(firstCheck > Date.now()+43100000 && firstCheck < Date.now()+43300000);
+    const protectedSchedule = (await prisma.notificationJob.findUniqueOrThrow({where:{id}})).nextRunAt.getTime();
+    assert.equal((await request("POST", {action:"save",id,workflow:{...workflow,id:"$gateway-test",nextRunAt:"1999-01-01T00:00:00Z"}})).status,200);
+    assert.equal((await prisma.notificationJob.findUniqueOrThrow({where:{id}})).nextRunAt.getTime(),protectedSchedule);
     assert.equal((await request("POST", {action: "save", id, workflow: {...workflow, isEnabled: false}})).status, 200);
     await prisma.booking.create({data: {externalId: prefix + "-missing", bookingSource: prefix, rawPayload: {BookedAtTime: "2026-10-12T12:00:00", synthetic: true}}});
     const blocked = await request("POST", {action: "preview", workflow});

@@ -37,6 +37,16 @@ test("canonical payload evidence is read-only, timezone explicit, calendar valid
           },
         },
       });
+    await prisma.booking.create({
+      data: {
+        externalId: prefix + "-invalid-phone",
+        rawPayload: {
+          BookedAtTime: "2026-10-25T11:00:00Z",
+          TelephoneNumber: ["+447700900043"],
+          synthetic: true,
+        },
+      },
+    });
     const before = await prisma.booking.findMany({
       where: { externalId: { startsWith: prefix } },
       orderBy: { externalId: "asc" },
@@ -51,6 +61,7 @@ test("canonical payload evidence is read-only, timezone explicit, calendar valid
     assert.equal(counts.known, 6);
     assert.equal(counts.payloadDateUsed, 2);
     assert.equal(counts.missingDate, 3);
+    assert.equal(counts.missingSource, 1);
     const audit = await auditFreephoneNumbers([phone, "01632960000"], now);
     const ordered = [
       phone,
@@ -127,5 +138,61 @@ test("draft provisioning is concurrent/idempotent and cannot overwrite an existi
     );
   } finally {
     await prisma.notificationJob.deleteMany({ where: { name } });
+  }
+});
+
+test("mapped UTC times keep the same 12-hour boundary in a Europe/London database session across DST", async () => {
+  const prefix = `timezone-synthetic-${randomUUID()}`;
+  const phone = "07700900047";
+  const now = new Date("2026-10-25T12:00:00Z");
+  try {
+    await prisma.booking.create({
+      data: {
+        externalId: prefix + "-mapped",
+        telephoneNumber: phone,
+        bookedAtTime: new Date("2026-10-25T00:30:00Z"),
+        rawPayload: { synthetic: true },
+      },
+    });
+    await prisma.booking.create({
+      data: {
+        externalId: prefix + "-boundary",
+        telephoneNumber: phone,
+        bookedAtTime: new Date("2026-10-25T00:00:00Z"),
+        rawPayload: { synthetic: true },
+      },
+    });
+    await prisma.booking.create({
+      data: {
+        externalId: prefix + "-raw",
+        telephoneNumber: phone,
+        rawPayload: {
+          BookedAtTime: "2026-10-25T01:30:00+01:00",
+          synthetic: true,
+        },
+      },
+    });
+    const utc = await readCounts(
+      { sourceField: "telephoneNumber", sourceValue: phone },
+      now,
+      prisma,
+      12,
+    );
+    assert.equal(utc.count, 2);
+    const london = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SET LOCAL TIME ZONE 'Europe/London'`;
+      return readCounts(
+        { sourceField: "telephoneNumber", sourceValue: phone },
+        now,
+        tx,
+        12,
+      );
+    });
+    assert.equal(london.count, 2);
+    assert.equal(london.payloadDateUsed, 1);
+  } finally {
+    await prisma.booking.deleteMany({
+      where: { externalId: { startsWith: prefix } },
+    });
   }
 });

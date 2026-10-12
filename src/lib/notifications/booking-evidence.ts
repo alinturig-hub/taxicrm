@@ -5,5 +5,5 @@ export function originalBookingTimeSql() {
   return Prisma.sql`CASE WHEN ${value} ~ '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(\\.[0-9]+)?(Z|[+-][0-9]{2}:[0-9]{2})$' AND pg_input_is_valid(${value}, 'timestamp with time zone') THEN (${value})::timestamptz ELSE NULL END`;
 }
 export function bookingTimeSql() {
-  return Prisma.sql`coalesce("bookedAtTime", ${originalBookingTimeSql()})`;
+  return Prisma.sql`coalesce(CASE WHEN pg_typeof("bookedAtTime")::text = 'timestamp without time zone' THEN "bookedAtTime" AT TIME ZONE 'UTC' ELSE "bookedAtTime" END, ${originalBookingTimeSql()})`;
 }

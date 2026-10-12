@@ -8,7 +8,7 @@ type AuditResult = {
     last12h: number;
     last24h: number;
     missingSource: number;
-    readiness: { ready: boolean; blockers: string[] };
+    readiness: { ready: boolean; blockers: string[]; warnings: string[] };
     missingDate: number;
     payloadDateUsed: number;
   }[];
@@ -21,7 +21,7 @@ type EvidencePreview = {
     missingSource: number;
     payloadDateUsed: number;
   };
-  readiness: { ready: boolean; blockers: string[] };
+  readiness: { ready: boolean; blockers: string[]; warnings: string[] };
 };
 type Gateway = {
   endpoint: string;
@@ -400,9 +400,12 @@ export default function NotificationSettings() {
                       </td>
                       <td
                         className="p-2"
-                        title={row.readiness.blockers.join(" ")}
+                        title={[
+                          ...(row.readiness?.blockers ?? []),
+                          ...(row.readiness?.warnings ?? []),
+                        ].join(" ")}
                       >
-                        {row.readiness.ready ? "Ready" : "Blocked"}
+                        {row.readiness?.ready ? "Ready" : "Blocked"}
                       </td>
                       <td className="p-2">{row.payloadDateUsed}</td>
                     </tr>
@@ -642,8 +645,9 @@ export default function NotificationSettings() {
             ))}
             <p className="text-xs text-slate-400">
               Text fields: {"{freephone}, {count}, {period}, {threshold}"}. Each
-              triggered event sends its own message. Missing source/date data
-              suppresses zero and threshold alerts; reports include a warning.
+              triggered event sends its own message. Missing or future matching
+              dates block alerts. Unidentified feed records remain visible as
+              warnings for known phone lines.
             </p>
             <label className="block text-sm text-slate-300">
               <input
@@ -727,6 +731,11 @@ export default function NotificationSettings() {
                 {preview.readiness.blockers.map((reason) => (
                   <p key={reason} className="mt-2 text-amber-200">
                     {reason}
+                  </p>
+                ))}
+                {(preview.readiness.warnings ?? []).map((warning) => (
+                  <p key={warning} className="mt-2 text-amber-200">
+                    Feed warning: {warning}
                   </p>
                 ))}
                 <p className="mt-3 text-xs text-slate-400">
