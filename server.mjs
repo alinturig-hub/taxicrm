@@ -3,6 +3,9 @@ import next from "next";
 import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
 import { applySmsSchema } from "./scripts/sms-schema-bootstrap.mjs";
 
+import { applyWebhookProviderSchema } from "./scripts/webhook-provider-bootstrap.mjs";
+if (process.env.ENABLE_WEBHOOK_PROVIDER_MIGRATION === "true") await applyWebhookProviderSchema();
+
 if (process.env.ENABLE_SMS_SCHEMA_MIGRATION === "true") await applySmsSchema();
 import { WebSocket, WebSocketServer } from "ws";
 
