@@ -1,8 +1,12 @@
+import Link from "next/link";
+import { workspaceGroup, workspaceAccess } from "@/lib/workspace/access";
 import AutocabApiConfigurationForm from "@/components/integrations/autocab/AutocabApiConfigurationForm";
 
 export const dynamic = "force-dynamic";
 
-export default function AutocabIntegrationPage() {
+export default async function AutocabIntegrationPage() {
+  await workspaceGroup("integrations");
+  const { access } = await workspaceAccess();
   return (
     <div className="space-y-8">
       <div>
@@ -15,12 +19,37 @@ export default function AutocabIntegrationPage() {
         </h1>
 
         <p className="mt-3 max-w-3xl text-slate-400">
-          Configurează conexiunea REST Autocab și gestionează
-          sincronizarea datelor master pentru șoferi, vehicule
-          și alte entități.
+          Configurează conexiunea REST Autocab și gestionează sincronizarea
+          datelor master pentru șoferi, vehicule și alte entități.
         </p>
       </div>
 
+      <div className="grid gap-3 sm:grid-cols-2">
+        <Link
+          href="/dashboard/integrations/autocab/webhooks"
+          className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
+        >
+          Webhook manager →
+        </Link>
+        {(access.isSuperAdmin ||
+          access.permissions.includes("configuration.view")) && (
+          <Link
+            href="/dashboard/configuration/api-endpoints"
+            className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
+          >
+            Autocab API data sources →
+          </Link>
+        )}
+        {(access.isSuperAdmin ||
+          access.permissions.includes("configuration.view")) && (
+          <Link
+            href="/dashboard/configuration/webhooks"
+            className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
+          >
+            Webhook provider configuration →
+          </Link>
+        )}
+      </div>
       <AutocabApiConfigurationForm />
     </div>
   );

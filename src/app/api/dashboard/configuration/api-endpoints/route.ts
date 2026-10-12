@@ -68,6 +68,7 @@ export async function GET() {
 
   const endpoints =
     await prisma.apiEndpointConfiguration.findMany({
+      where: {provider:"AUTOCAB"},
       orderBy: {
         createdAt: "desc",
       },

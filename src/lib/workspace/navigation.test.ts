@@ -24,7 +24,7 @@ test("nested pages select exactly the owning module and deepest destination", ()
   assert.equal(
     activeNavigation("/dashboard/integrations/autocab/webhooks/new")?.item
       .label,
-    "Integration webhook events",
+    "Autocab integration",
   );
   assert.equal(
     activeNavigation("/dashboard/configuration/webhooks/events")?.item.label,
@@ -37,6 +37,10 @@ test("nested pages select exactly the owning module and deepest destination", ()
   assert.equal(
     activeNavigation("/dashboard/drivers/synthetic")?.item.label,
     "Drivers",
+  );
+  assert.equal(
+    activeNavigation("/dashboard/integrations/local/synthetic")?.item.label,
+    "Local integration",
   );
   assert.equal(activeNavigation("/dashboard/unimplemented"), null);
 });
