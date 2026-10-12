@@ -23,6 +23,11 @@ async function main() {
     const lookup = await request("POST", {action: "lookup", phones: ["+447700900000"]});
     assert.equal(lookup.status, 200); assert.equal((await lookup.json()).rows[0].total, 1);
     assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-audit", {method: "POST"})).status, 401);
+    const imported = await request("POST", {action: "import", entries: [{name: prefix + "-draft", phone: "07700900045", isEnabled: true}]});
+    assert.equal(imported.status, 200); assert.equal((await imported.json()).created.length, 1);
+    const draft = await prisma.notificationJob.findFirstOrThrow({where: {name: prefix + "-draft"}});
+    assert.equal(draft.isEnabled, false); assert.equal(draft.defaultRecipient, "");
+    assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-setup", {method: "POST"})).status, 401);
     const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, text: "Synthetic zero", recipient: ""}]};
     const preview = await request("POST", {action: "preview", workflow});
     assert.equal(preview.status, 200); assert.equal((await preview.json()).counts.known, 1);
@@ -32,6 +37,11 @@ async function main() {
     const firstCheck = (await prisma.notificationJob.findUniqueOrThrow({where: {id}})).nextRunAt.getTime();
     assert.ok(firstCheck > Date.now()+43100000 && firstCheck < Date.now()+43300000);
     assert.equal((await request("POST", {action: "save", id, workflow: {...workflow, isEnabled: false}})).status, 200);
+    await prisma.booking.create({data: {externalId: prefix + "-missing", bookingSource: prefix, rawPayload: {BookedAtTime: "2026-10-12T12:00:00", synthetic: true}}});
+    const blocked = await request("POST", {action: "preview", workflow});
+    assert.equal(blocked.status, 200); assert.equal((await blocked.json()).readiness.ready, false);
+    assert.equal((await request("POST", {action: "save", id, workflow})).status, 400);
+    await prisma.booking.deleteMany({where: {externalId: prefix + "-missing"}});
     assert.equal((await request("PUT", {...config, isEnabled: true})).status, 200);
     const test = {action: "test", requestId: randomUUID(), destination: "+447700900000", message: "Synthetic queued test; no provider request"};
     assert.equal((await request("POST", test)).status, 200);
@@ -45,11 +55,11 @@ async function main() {
     assert.equal((await fetch("http://127.0.0.1:3001/api/internal/notifications", {method: "POST"})).status, 401);
     console.log("PASS: authenticated SMS API, encrypted save/masking, source preview/validation, persisted Add/edit, disabled workflows, idempotent queued tests and operator/cron protection. No provider calls.");
   } finally {
-    const ids = (await prisma.notificationJobRun.findMany({where: {OR: [{job: {name: prefix}}, {jobId: "$gateway-test"}]}, select: {id: true}})).map(r=>r.id);
+    const ids = (await prisma.notificationJobRun.findMany({where: {OR: [{job: {name: {startsWith: prefix}}}, {jobId: "$gateway-test"}]}, select: {id: true}})).map(r=>r.id);
     await prisma.notificationDelivery.deleteMany({where: {jobRunId: {in: ids}}});
     await prisma.notificationJobRun.deleteMany({where: {id: {in: ids}}});
-    await prisma.notificationJob.deleteMany({where: {OR: [{name: prefix}, {id: "$gateway-test"}]}});
-    await prisma.booking.deleteMany({where: {externalId: prefix}});
+    await prisma.notificationJob.deleteMany({where: {OR: [{name: {startsWith: prefix}}, {id: "$gateway-test"}]}});
+    await prisma.booking.deleteMany({where: {externalId: {startsWith: prefix}}});
     await prisma.user.delete({where: {id: user.id}});
     if (original) await prisma.smsGatewayConfiguration.upsert({where: {id: "default"}, create: original, update: original});
     else await prisma.smsGatewayConfiguration.deleteMany({where: {id: "default"}});

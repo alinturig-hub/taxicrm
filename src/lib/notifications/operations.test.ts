@@ -15,7 +15,7 @@ test("data gaps suppress zero and threshold alerts, but reports expose incomplet
   const job = validateJob(config);
   const counts = {count: 0, known: 1, missingDate: 0, missingSource: 0, from: "", through: ""};
   assert.equal(planEvents(job, counts).length, 3);
-  for (const extra of [{known: 0}, {missingDate: 1}, {missingSource: 1}]) {
+  for (const extra of [{known: 0}, {missingDate: 1}, {missingSource: 1}, {futureDates: 1}]) {
     const events = planEvents(job, {...counts, ...extra});
     assert.equal(events.length, 1); assert.match(events[0].text, /Data incomplete/);
   }
