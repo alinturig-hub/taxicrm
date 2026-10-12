@@ -63,13 +63,11 @@ try {
     { id: "synthetic-1", place: "Synthetic North" },
     { id: "synthetic-2", place: "Synthetic South" },
   ];
-  await page
-    .getByLabel("JSON file", { exact: true })
-    .setInputFiles({
-      name: "synthetic.json",
-      mimeType: "application/json",
-      buffer: Buffer.from(JSON.stringify(payload)),
-    });
+  await page.getByLabel("JSON file", { exact: true }).setInputFiles({
+    name: "synthetic.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(payload)),
+  });
   await page
     .getByRole("button", { name: "Preview local data", exact: true })
     .click();
@@ -105,6 +103,32 @@ try {
       (endpoint) => endpoint.id === dataset.id,
     ),
     false,
+  );
+  assert.equal(
+    (
+      await context.request.get(
+        origin +
+          `/api/dashboard/configuration/api-endpoints/${dataset.id}/records`,
+      )
+    ).status(),
+    404,
+  );
+  assert.equal(
+    (
+      await context.request.delete(
+        origin + `/api/dashboard/configuration/api-endpoints/${dataset.id}`,
+      )
+    ).status(),
+    404,
+  );
+  assert.equal(
+    (
+      await context.request.post(
+        origin + `/api/dashboard/configuration/api-endpoints/${dataset.id}`,
+        { data: { recordKey: "id" } },
+      )
+    ).status(),
+    404,
   );
   await prisma.user.update({
     where: { id: user.id },

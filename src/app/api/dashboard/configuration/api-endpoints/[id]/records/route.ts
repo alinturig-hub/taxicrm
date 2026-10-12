@@ -34,7 +34,7 @@ export async function GET(
 
   const endpoint =
     await prisma.apiEndpointConfiguration.findUnique({
-      where: { id },
+      where: { id, provider: "AUTOCAB" },
       select: {
         id: true,
         name: true,

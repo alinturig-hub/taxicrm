@@ -13,7 +13,7 @@ export async function POST(request: Request, context: {params: Promise<{id: stri
   if (!session?.user) return NextResponse.json({success: false, error: "UNAUTHORIZED"}, {status: 401});
   if (!await canManageIntegration(session.user.email)) return NextResponse.json({success: false, error: "FORBIDDEN"}, {status: 403});
   const {id} = await context.params;
-  const endpoint = await prisma.apiEndpointConfiguration.findUnique({where: {id}});
+  const endpoint = await prisma.apiEndpointConfiguration.findUnique({where: {id, provider: "AUTOCAB"}});
   if (!endpoint) return NextResponse.json({success: false, error: "NOT_FOUND"}, {status: 404});
   if (!endpoint.lastTestedAt) return NextResponse.json({success: false, message: "Preview this API first."}, {status: 400});
   const body = await request.json().catch(() => null);
@@ -88,7 +88,7 @@ export async function DELETE(
 
     const endpoint =
       await prisma.apiEndpointConfiguration.findUnique({
-        where: { id },
+        where: { id, provider: "AUTOCAB" },
         select: {
           id: true,
           name: true,
@@ -107,7 +107,7 @@ export async function DELETE(
     }
 
     await prisma.apiEndpointConfiguration.delete({
-      where: { id },
+      where: { id, provider: "AUTOCAB" },
     });
 
     return NextResponse.json({
