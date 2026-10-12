@@ -1,0 +1,724 @@
+/* Shared semantic tokens; legacy utility bridges are scoped to application UI.
+   Map markers, inline chart series and stored content are not recoloured. */
+:root {
+  --background: #f7f6f2;
+  --foreground: #202733;
+  --primary: #0f766e;
+  --primary-hover: #0b625c;
+  --primary-soft: #e8f3f0;
+  --sidebar: #171c25;
+  --sidebar-hover: #28303a;
+  --sidebar-active: #2a3f3e;
+  --sidebar-text: #e4e8ee;
+  --sidebar-muted: #a4afbe;
+  --radius-sm: 8px;
+  --radius-md: 10px;
+  --radius-lg: 12px;
+  --radius-xl: 14px;
+}
+:is([data-workspace], [data-auth]) {
+  color-scheme: light;
+  --background: #f7f6f2;
+  --foreground: #202733;
+  --surface: #ffffff;
+  --surface-subtle: #f4f5f2;
+  --surface-muted: #eaf0ed;
+  --surface-hover: #e5ece8;
+  --border: #dde3e1;
+  --border-strong: #bbc5c0;
+  --text-primary: #202733;
+  --text-secondary: #394452;
+  --text-muted: #566171;
+  --text-faint: #647080;
+  --primary: #0f766e;
+  --primary-hover: #0b625c;
+  --primary-soft: #e8f3f0;
+  --success: #18794e;
+  --success-soft: #eaf6ee;
+  --warning: #9a5b13;
+  --warning-soft: #fff3df;
+  --danger: #b42336;
+  --danger-soft: #fcecef;
+  --ai: #6d28d9;
+  --ai-soft: #f2eefb;
+  color: var(--text-primary);
+}
+[data-workspace][data-theme="dark"] {
+  color-scheme: dark;
+  --background: #141820;
+  --foreground: #f0f2f4;
+  --surface: #1e242e;
+  --surface-subtle: #191f28;
+  --surface-muted: #29323d;
+  --surface-hover: #313d49;
+  --border: #39424e;
+  --border-strong: #566171;
+  --text-primary: #f0f2f4;
+  --text-secondary: #d2d9e1;
+  --text-muted: #b0bac7;
+  --text-faint: #a4afbe;
+  --primary: #82cbb8;
+  --primary-hover: #a8dfce;
+  --primary-soft: #263e38;
+  --success: #86d5ae;
+  --success-soft: #243d32;
+  --warning: #ebc689;
+  --warning-soft: #3d3426;
+  --danger: #f7a2ad;
+  --danger-soft: #402a32;
+  --ai: #c6bbec;
+  --ai-soft: #322c46;
+}
+[data-workspace] .workspace-sidebar[class] {
+  --surface: #202733;
+  --surface-subtle: #171c25;
+  --surface-muted: #29323d;
+  --surface-hover: #313d49;
+  --border: #39424e;
+  --border-strong: #566171;
+  --text-primary: #e4e8ee;
+  --text-secondary: #d2d9e1;
+  --text-muted: #b0bac7;
+  --text-faint: #a4afbe;
+  --primary: #0f766e;
+  --primary-hover: #0b625c;
+  --primary-soft: #2a3f3e;
+  background: #171c25;
+  border-top: 3px solid #b59a68;
+}
+[data-workspace] h1 {
+  letter-spacing: -0.035em;
+}
+[data-workspace] :is(h2, h3) {
+  letter-spacing: -0.015em;
+}
+[data-workspace] :is(table, .tabular-nums) {
+  font-variant-numeric: tabular-nums;
+}
+[data-workspace] .app-ai-card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .bg-brand {
+  background-color: #0f766e;
+  color: #fff;
+}
+:is([data-workspace], [data-auth]) .bg-gradient-to-br {
+  background-image: none;
+  background-color: var(--surface);
+}
+[data-workspace] .workspace-sidebar .bg-gradient-to-br {
+  background-color: #0f766e;
+}
+:is([data-workspace], [data-auth])
+  :is(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 3px;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-workspace] * {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+:is([data-workspace], [data-auth]) .bg-slate-950 {
+  background-color: var(--surface-subtle);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/5 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 5%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/10 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 10%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/20 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 20%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/30 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/40 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 40%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/50 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 50%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/60 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 60%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/70 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 70%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/80 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 80%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/90 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 90%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-950\/95 {
+  background-color: color-mix(in srgb, var(--surface-subtle) 95%, transparent);
+}
+:is([data-workspace], [data-auth]) .hover\:bg-slate-950:hover {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900 {
+  background-color: var(--surface);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/5 {
+  background-color: color-mix(in srgb, var(--surface) 5%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/10 {
+  background-color: color-mix(in srgb, var(--surface) 10%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/20 {
+  background-color: color-mix(in srgb, var(--surface) 20%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/30 {
+  background-color: color-mix(in srgb, var(--surface) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/40 {
+  background-color: color-mix(in srgb, var(--surface) 40%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/50 {
+  background-color: color-mix(in srgb, var(--surface) 50%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/60 {
+  background-color: color-mix(in srgb, var(--surface) 60%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/70 {
+  background-color: color-mix(in srgb, var(--surface) 70%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/80 {
+  background-color: color-mix(in srgb, var(--surface) 80%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/90 {
+  background-color: color-mix(in srgb, var(--surface) 90%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-900\/95 {
+  background-color: color-mix(in srgb, var(--surface) 95%, transparent);
+}
+:is([data-workspace], [data-auth]) .hover\:bg-slate-900:hover {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800 {
+  background-color: var(--surface-muted);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/5 {
+  background-color: color-mix(in srgb, var(--surface-muted) 5%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/10 {
+  background-color: color-mix(in srgb, var(--surface-muted) 10%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/20 {
+  background-color: color-mix(in srgb, var(--surface-muted) 20%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/30 {
+  background-color: color-mix(in srgb, var(--surface-muted) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/40 {
+  background-color: color-mix(in srgb, var(--surface-muted) 40%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/50 {
+  background-color: color-mix(in srgb, var(--surface-muted) 50%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/60 {
+  background-color: color-mix(in srgb, var(--surface-muted) 60%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/70 {
+  background-color: color-mix(in srgb, var(--surface-muted) 70%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/80 {
+  background-color: color-mix(in srgb, var(--surface-muted) 80%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/90 {
+  background-color: color-mix(in srgb, var(--surface-muted) 90%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-800\/95 {
+  background-color: color-mix(in srgb, var(--surface-muted) 95%, transparent);
+}
+:is([data-workspace], [data-auth]) .hover\:bg-slate-800:hover {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700 {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/5 {
+  background-color: color-mix(in srgb, var(--surface-hover) 5%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/10 {
+  background-color: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/20 {
+  background-color: color-mix(in srgb, var(--surface-hover) 20%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/30 {
+  background-color: color-mix(in srgb, var(--surface-hover) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/40 {
+  background-color: color-mix(in srgb, var(--surface-hover) 40%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/50 {
+  background-color: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/60 {
+  background-color: color-mix(in srgb, var(--surface-hover) 60%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/70 {
+  background-color: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/80 {
+  background-color: color-mix(in srgb, var(--surface-hover) 80%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/90 {
+  background-color: color-mix(in srgb, var(--surface-hover) 90%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-700\/95 {
+  background-color: color-mix(in srgb, var(--surface-hover) 95%, transparent);
+}
+:is([data-workspace], [data-auth]) .hover\:bg-slate-700:hover {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600 {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/5 {
+  background-color: color-mix(in srgb, var(--surface-hover) 5%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/10 {
+  background-color: color-mix(in srgb, var(--surface-hover) 10%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/20 {
+  background-color: color-mix(in srgb, var(--surface-hover) 20%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/30 {
+  background-color: color-mix(in srgb, var(--surface-hover) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/40 {
+  background-color: color-mix(in srgb, var(--surface-hover) 40%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/50 {
+  background-color: color-mix(in srgb, var(--surface-hover) 50%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/60 {
+  background-color: color-mix(in srgb, var(--surface-hover) 60%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/70 {
+  background-color: color-mix(in srgb, var(--surface-hover) 70%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/80 {
+  background-color: color-mix(in srgb, var(--surface-hover) 80%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/90 {
+  background-color: color-mix(in srgb, var(--surface-hover) 90%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-slate-600\/95 {
+  background-color: color-mix(in srgb, var(--surface-hover) 95%, transparent);
+}
+:is([data-workspace], [data-auth]) .hover\:bg-slate-600:hover {
+  background-color: var(--surface-hover);
+}
+:is([data-workspace], [data-auth]) .border-slate-950 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/10 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/20 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/30 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/40 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/50 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/60 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/70 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/80 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-950\/90 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/10 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/20 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/30 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/40 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/50 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/60 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/70 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/80 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-900\/90 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/10 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/20 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/30 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/40 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/50 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/60 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/70 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/80 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-800\/90 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/10 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/20 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/30 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/40 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/50 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/60 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/70 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/80 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-700\/90 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/10 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/20 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/30 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/40 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/50 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/60 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/70 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/80 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .border-slate-600\/90 {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) .text-white {
+  color: var(--text-primary);
+}
+:is([data-workspace], [data-auth]) .text-slate-50 {
+  color: var(--text-primary);
+}
+:is([data-workspace], [data-auth]) .text-slate-100 {
+  color: var(--text-primary);
+}
+:is([data-workspace], [data-auth]) .text-slate-200 {
+  color: var(--text-primary);
+}
+:is([data-workspace], [data-auth]) .text-slate-300 {
+  color: var(--text-secondary);
+}
+:is([data-workspace], [data-auth]) .text-slate-400 {
+  color: var(--text-muted);
+}
+:is([data-workspace], [data-auth]) .text-slate-500 {
+  color: var(--text-muted);
+}
+:is([data-workspace], [data-auth]) .text-slate-600 {
+  color: var(--text-faint);
+}
+:is([data-workspace], [data-auth]) .text-blue-200 {
+  color: var(--primary);
+}
+:is([data-workspace], [data-auth]) .text-blue-300 {
+  color: var(--primary);
+}
+:is([data-workspace], [data-auth]) .text-blue-400 {
+  color: var(--primary);
+}
+:is([data-workspace], [data-auth]) .text-blue-500 {
+  color: var(--primary);
+}
+:is([data-workspace], [data-auth]) .text-emerald-200 {
+  color: var(--success);
+}
+:is([data-workspace], [data-auth]) .text-emerald-300 {
+  color: var(--success);
+}
+:is([data-workspace], [data-auth]) .text-emerald-400 {
+  color: var(--success);
+}
+:is([data-workspace], [data-auth]) .text-green-300 {
+  color: var(--success);
+}
+:is([data-workspace], [data-auth]) .text-green-400 {
+  color: var(--success);
+}
+:is([data-workspace], [data-auth]) .text-amber-200 {
+  color: var(--warning);
+}
+:is([data-workspace], [data-auth]) .text-amber-300 {
+  color: var(--warning);
+}
+:is([data-workspace], [data-auth]) .text-amber-400 {
+  color: var(--warning);
+}
+:is([data-workspace], [data-auth]) .text-yellow-300 {
+  color: var(--warning);
+}
+:is([data-workspace], [data-auth]) .text-red-200 {
+  color: var(--danger);
+}
+:is([data-workspace], [data-auth]) .text-red-300 {
+  color: var(--danger);
+}
+:is([data-workspace], [data-auth]) .text-red-400 {
+  color: var(--danger);
+}
+:is([data-workspace], [data-auth]) .text-violet-300 {
+  color: var(--ai);
+}
+:is([data-workspace], [data-auth]) .text-violet-400 {
+  color: var(--ai);
+}
+:is([data-workspace], [data-auth]) .bg-blue-400 {
+  background-color: #0f766e;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .hover\:bg-blue-400:hover {
+  background-color: #0b625c;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .bg-blue-400\/5 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-400\/5 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-400\/10 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-400\/10 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-400\/20 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-400\/20 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-400\/30 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-400\/30 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-500 {
+  background-color: #0f766e;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .hover\:bg-blue-500:hover {
+  background-color: #0b625c;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .bg-blue-500\/5 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-500\/5 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-500\/10 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-500\/10 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-500\/20 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-500\/20 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-500\/30 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-500\/30 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-600 {
+  background-color: #0f766e;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .hover\:bg-blue-600:hover {
+  background-color: #0b625c;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .bg-blue-600\/5 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-600\/5 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-600\/10 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-600\/10 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-600\/20 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-600\/20 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-600\/30 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-600\/30 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-700 {
+  background-color: #0f766e;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .hover\:bg-blue-700:hover {
+  background-color: #0b625c;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .bg-blue-700\/5 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-700\/5 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-700\/10 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-700\/10 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-700\/20 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-700\/20 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+:is([data-workspace], [data-auth]) .bg-blue-700\/30 {
+  background-color: var(--primary-soft);
+}
+:is([data-workspace], [data-auth]) .border-blue-700\/30 {
+  border-color: color-mix(in srgb, var(--primary) 30%, transparent);
+}
+[data-workspace]
+  .workspace-sidebar
+  :is(.text-blue-200, .text-blue-300, .text-blue-400) {
+  color: #bfe7db;
+}
+:is([data-workspace], [data-auth])
+  :is(.bg-blue-500, .bg-blue-600, .bg-blue-700, .bg-brand)
+  .text-white {
+  color: white;
+}
+:is([data-workspace], [data-auth]) .bg-brand.text-white {
+  color: white;
+}
+:is([data-workspace], [data-auth]) .hover\:text-white:hover {
+  color: var(--text-primary);
+}
+:is([data-workspace], [data-auth]) .hover\:text-blue-400:hover {
+  color: var(--primary);
+}
+:is([data-workspace], [data-auth]) .hover\:border-blue-500:hover {
+  border-color: var(--primary);
+}
+[data-workspace] .divide-slate-800 > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--border);
+}
+:is([data-workspace], [data-auth]) :is(.bg-red-500, .bg-red-600, .bg-red-700) {
+  background-color: #b42336;
+  color: white;
+}
+:is([data-workspace], [data-auth])
+  :is(.bg-emerald-500, .bg-emerald-600, .bg-green-600) {
+  background-color: #18794e;
+  color: white;
+}
+:is([data-workspace], [data-auth]) .rounded-2xl {
+  border-radius: 12px;
+}
+:is([data-workspace], [data-auth]) .rounded-xl {
+  border-radius: 10px;
+}
+:is([data-workspace], [data-auth]) .rounded-lg {
+  border-radius: 8px;
+}
+:is([data-workspace], [data-auth]) .bg-white { background-color: var(--surface); }
+:is([data-workspace], [data-auth]) :is(.text-slate-700,.text-slate-900,.text-slate-950) { color: var(--text-primary); }
+:is([data-workspace], [data-auth]) :is(.text-blue-100,.text-blue-600,.text-blue-700) { color: var(--primary); }
+:is([data-workspace], [data-auth]) :is(.text-amber-100,.text-amber-700,.text-yellow-800) { color: var(--warning); }
+:is([data-workspace], [data-auth]) :is(.text-red-100,.text-red-500,.text-red-700) { color: var(--danger); }
+:is([data-workspace], [data-auth]) .text-emerald-700 { color: var(--success); }
+:is([data-workspace], [data-auth]) :is(.text-violet-100,.text-violet-200,.text-violet-700) { color: var(--ai); }

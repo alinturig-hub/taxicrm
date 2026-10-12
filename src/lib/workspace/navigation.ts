@@ -55,21 +55,14 @@ const item = (
 export const navigationGroups: NavigationGroup[] = [
   {
     id: "overview",
-    label: "Workspace",
+    label: "Today",
     description: "Choose your workspace or review the business overview.",
     items: [
       item(
-        "Workspace home",
+        "Today",
         "/dashboard/workspace",
         "dashboard",
         "All TaxiCRM modules, organised around your work.",
-        "dashboard.view",
-      ),
-      item(
-        "Business overview",
-        "/dashboard",
-        "executive",
-        "Revenue, booking activity and business performance.",
         "dashboard.view",
       ),
     ],
@@ -126,12 +119,12 @@ export const navigationGroups: NavigationGroup[] = [
   },
   {
     id: "customers",
-    label: "Customer CRM",
+    label: "Customers",
     description:
       "Understand the people and account customers behind each booking.",
     items: [
       item(
-        "Customer directory",
+        "Customers",
         "/dashboard/customers",
         "customers",
         "Accounts, customer profiles, booking histories and behaviour tags.",
@@ -170,9 +163,16 @@ export const navigationGroups: NavigationGroup[] = [
   },
   {
     id: "intelligence",
-    label: "Intelligence & AI",
+    label: "Performance",
     description: "Turn recorded activity into business and customer insights.",
     items: [
+      item(
+        "Business overview",
+        "/dashboard",
+        "executive",
+        "Revenue, booking activity and business performance.",
+        "dashboard.view",
+      ),
       item(
         "Executive intelligence",
         "/dashboard/intelligence/executive",
@@ -207,13 +207,6 @@ export const navigationGroups: NavigationGroup[] = [
         "predictions",
         "Customer intelligence and booking demand forecasts.",
         "intelligence.view",
-      ),
-      item(
-        "Automation",
-        "/dashboard/ai/automation",
-        "automation",
-        "Review rules and simulate existing automations.",
-        "automation.view",
       ),
     ],
   },
@@ -314,6 +307,13 @@ export const navigationGroups: NavigationGroup[] = [
         "system",
         "Review place categories and amenities.",
         "configuration.view",
+      ),
+      item(
+        "Automation",
+        "/dashboard/ai/automation",
+        "automation",
+        "Review rules and simulate existing automations.",
+        "automation.view",
       ),
       item(
         "Users",

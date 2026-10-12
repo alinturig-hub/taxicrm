@@ -13,7 +13,7 @@ export default async function ChangePasswordPage() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-950 p-6">
+    <main data-auth="true" className="flex min-h-screen items-center justify-center bg-[#171C25] p-6">
       <ChangePasswordForm />
     </main>
   );

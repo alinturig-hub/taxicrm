@@ -4,7 +4,7 @@ export default function ModuleHub({ group }: { group: NavigationGroup }) {
   const shortcuts = group.items.filter((item) => !item.label.endsWith("hub"));
   return (
     <div className="space-y-7">
-      <header className="rounded-2xl border border-slate-800 bg-gradient-to-br from-slate-900 to-[#0b1427] p-6 sm:p-8">
+      <header className="rounded-2xl border border-slate-800 bg-surface p-5 sm:p-6">
         <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-400">
           TaxiCRM / {group.label}
         </p>
@@ -20,7 +20,7 @@ export default function ModuleHub({ group }: { group: NavigationGroup }) {
           <Link
             key={item.href}
             href={item.href}
-            className="group flex min-h-52 flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-blue-500/50 hover:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
+            className="group flex min-h-40 flex-col rounded-2xl border border-slate-800 bg-slate-900/70 p-5 transition hover:border-blue-500/50 hover:bg-slate-900 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-400"
           >
             <div className="flex items-center justify-between">
               <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-blue-500/20 bg-blue-500/10 text-sm font-semibold text-blue-300">
@@ -33,13 +33,13 @@ export default function ModuleHub({ group }: { group: NavigationGroup }) {
                 ↗
               </span>
             </div>
-            <h2 className="mt-5 text-base font-semibold text-white">
+            <h2 className="mt-3 text-base font-semibold text-white">
               {item.label}
             </h2>
             <p className="mt-2 text-sm leading-6 text-slate-400">
               {item.description}
             </p>
-            <span className="mt-auto pt-5 text-xs font-medium text-blue-300">
+            <span className="mt-auto pt-3 text-xs font-medium text-blue-300">
               Open workspace →
             </span>
           </Link>

@@ -20,7 +20,7 @@ export default async function RefusalMapPage({
   const detail = await getRefusalDetail(bookingId);
 
   return (
-    <main className="mx-auto max-w-6xl px-4 py-8">
+    <main data-workspace="true" className="min-h-screen bg-background text-foreground mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">
           Booking refusal — driver location and pickup

@@ -35,6 +35,19 @@ export default function DashboardShell({
     [permissions, role],
   );
   const active = activeNavigation(pathname, navigationGroups);
+  const [theme, setTheme] = useState<"light" | "dark">("light");
+  useEffect(() => {
+    try {
+      if (localStorage.getItem("taxicrm-theme") === "dark") setTheme("dark");
+    } catch {}
+  }, []);
+  function toggleTheme() {
+    const next = theme === "light" ? "dark" : "light";
+    setTheme(next);
+    try {
+      localStorage.setItem("taxicrm-theme", next);
+    } catch {}
+  }
   const [searchOpen, setSearchOpen] = useState(false);
   const [query, setQuery] = useState("");
   const results = searchNavigation(query, navigationGroups);
@@ -121,7 +134,8 @@ export default function DashboardShell({
   return (
     <div
       data-workspace="true"
-      className="min-h-screen bg-[#020817] text-slate-100"
+      data-theme={theme}
+      className="min-h-screen bg-background text-foreground"
     >
       <a
         href="#workspace-content"
@@ -129,7 +143,7 @@ export default function DashboardShell({
       >
         Skip to content
       </a>
-      <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 border-r border-slate-800/90 bg-[#07101f] lg:flex lg:flex-col">
+      <aside className="workspace-sidebar fixed inset-y-0 left-0 z-50 hidden w-64 border-r border-slate-800/90 bg-sidebar lg:flex lg:flex-col">
         <SidebarContent
           groups={navigationGroups}
           pathname={pathname}
@@ -155,7 +169,7 @@ export default function DashboardShell({
             role="dialog"
             aria-modal="true"
             aria-label="Workspace navigation"
-            className="absolute inset-y-0 left-0 flex w-[min(18rem,88vw)] flex-col border-r border-slate-800 bg-[#07101f] shadow-2xl"
+            className="workspace-sidebar absolute inset-y-0 left-0 flex w-[min(18rem,88vw)] flex-col border-r border-slate-800 bg-sidebar shadow-2xl"
           >
             <SidebarContent
               groups={navigationGroups}
@@ -173,7 +187,7 @@ export default function DashboardShell({
       ) : null}
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-40 flex h-16 items-center border-b border-slate-800/90 bg-[#020817]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-40 flex h-16 items-center border-b border-slate-800/90 bg-surface/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
             ref={menuButton}
@@ -196,6 +210,18 @@ export default function DashboardShell({
           </div>
 
           <div className="ml-auto flex items-center gap-2">
+            <button
+              type="button"
+              onClick={toggleTheme}
+              className="workspace-theme-toggle rounded-lg border border-app-border px-3 py-2 text-xs text-app-secondary"
+              aria-label={
+                theme === "light"
+                  ? "Switch to dark theme"
+                  : "Switch to light theme"
+              }
+            >
+              {theme === "light" ? "Dark" : "Light"}
+            </button>
             <div className="relative">
               <button
                 type="button"
@@ -321,7 +347,7 @@ function SidebarContent({
           onClick={onNavigate}
           className="flex min-w-0 items-center gap-3"
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-blue-500 to-violet-600 shadow-lg shadow-blue-950/40">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand text-white">
             <TaxiIcon />
           </div>
 
@@ -351,6 +377,19 @@ function SidebarContent({
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-2">
           {groups.map((group) => {
+            if (
+              (group.id === "overview" || group.id === "customers") &&
+              group.items.length === 1
+            )
+              return (
+                <section key={group.id}>
+                  <SidebarItem
+                    item={group.items[0]}
+                    active={isItemActive(pathname, group.items[0])}
+                    onNavigate={onNavigate}
+                  />
+                </section>
+              );
             const isOpen = openGroup === group.id;
 
             const groupIsActive = group.items.some(
@@ -358,7 +397,14 @@ function SidebarContent({
             );
 
             return (
-              <section key={group.id}>
+              <section
+                key={group.id}
+                className={
+                  group.id === "integrations"
+                    ? "mt-6 border-t border-slate-700 pt-4"
+                    : undefined
+                }
+              >
                 <button
                   type="button"
                   onClick={() => setOpenGroup(isOpen ? "" : group.id)}
@@ -370,7 +416,7 @@ function SidebarContent({
                       : "text-slate-500 hover:bg-slate-900 hover:text-slate-300",
                   ].join(" ")}
                 >
-                  <span className="text-[11px] font-bold uppercase tracking-[0.18em]">
+                  <span className="text-[13px] font-semibold">
                     {group.label}
                   </span>
 
@@ -481,7 +527,7 @@ function SidebarItem({
       ) : null}
 
       {active ? (
-        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400 shadow-[0_0_10px_rgba(96,165,250,0.8)]" />
+        <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-blue-400 " />
       ) : null}
     </>
   );

@@ -84,9 +84,22 @@ try {
   const pageErrors = [];
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto(origin + "/dashboard/workspace");
-  await page
-    .getByRole("heading", { name: "Welcome, Synthetic CRM Team." })
-    .waitFor();
+  await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+  const workspace = page.locator("[data-workspace]");
+  assert.equal(await workspace.getAttribute("data-theme"), "light");
+  assert.equal(
+    await workspace.evaluate((el) => getComputedStyle(el).backgroundColor),
+    "rgb(247, 246, 242)",
+  );
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
+  assert.equal(await workspace.getAttribute("data-theme"), "dark");
+  await page.reload();
+  await page.getByRole("button", { name: "Switch to light theme" }).waitFor();
+  await page.screenshot({
+    path: "/workspace/taxicrm-local/premium-live-dark.png",
+    fullPage: true,
+  });
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
   await page.screenshot({
     path: "/workspace/taxicrm-local/workspace-desktop.png",
     fullPage: true,
@@ -116,7 +129,9 @@ try {
   });
   await page.getByRole("link", { name: /Synthetic UI audience/ }).click();
   await page.getByRole("heading", { name: "Audience segments" }).waitFor();
-  await page.getByRole("option", {name: /Synthetic UI audience/}).waitFor({state: "attached"});
+  await page
+    .getByRole("option", { name: /Synthetic UI audience/ })
+    .waitFor({ state: "attached" });
   assert.equal(
     await page
       .getByRole("combobox", { name: "Filter customers by behaviour tag" })
