@@ -1,3 +1,4 @@
+import { driverPresence, fleetPresence } from "./live-presence";
 import { prisma } from "@/lib/prisma";
 
 const ACTIVE_BOOKING_STATUSES = [
@@ -45,10 +46,13 @@ export type LiveOperationsData = {
     clear: number;
     busy: number;
     notWorking: number;
+    unknown: number;
   };
 
   drivers: {
     onShift: number;
+    liveConfirmed: number;
+    unconfirmedOpen: number;
     withVehicle: number;
     withoutVehicle: number;
   };
@@ -64,11 +68,7 @@ export type LiveOperationsData = {
 
     items: Array<{
       id: string;
-      severity:
-        | "critical"
-        | "warning"
-        | "info"
-        | "success";
+      severity: "critical" | "warning" | "info" | "success";
       title: string;
       subtitle?: string;
       bookingId?: string;
@@ -104,21 +104,12 @@ type LiveOperationsOptions = {
   futureMinutes?: number;
 };
 
-function clampMinutes(
-  value: number | undefined,
-  fallback: number,
-): number {
-  if (
-    value === undefined ||
-    !Number.isFinite(value)
-  ) {
+function clampMinutes(value: number | undefined, fallback: number): number {
+  if (value === undefined || !Number.isFinite(value)) {
     return fallback;
   }
 
-  return Math.min(
-    1440,
-    Math.max(0, Math.round(value)),
-  );
+  return Math.min(1440, Math.max(0, Math.round(value)));
 }
 
 export async function getLiveOperations(
@@ -127,31 +118,17 @@ export async function getLiveOperations(
   const now = new Date();
   const today = startOfToday(now);
 
-  const pastMinutes = clampMinutes(
-    options.pastMinutes,
-    60,
-  );
+  const pastMinutes = clampMinutes(options.pastMinutes, 60);
 
-  const futureMinutes = clampMinutes(
-    options.futureMinutes,
-    120,
-  );
+  const futureMinutes = clampMinutes(options.futureMinutes, 120);
 
-  const liveWindowStart = new Date(
-    now.getTime() - pastMinutes * 60 * 1000,
-  );
+  const liveWindowStart = new Date(now.getTime() - pastMinutes * 60 * 1000);
 
-  const liveWindowEnd = new Date(
-    now.getTime() + futureMinutes * 60 * 1000,
-  );
+  const liveWindowEnd = new Date(now.getTime() + futureMinutes * 60 * 1000);
 
-  const dueSoonEnd = new Date(
-    now.getTime() + 10 * 60 * 1000,
-  );
+  const dueSoonEnd = new Date(now.getTime() + 10 * 60 * 1000);
 
-  const upcomingEnd = new Date(
-    now.getTime() + 20 * 60 * 1000,
-  );
+  const upcomingEnd = new Date(now.getTime() + 20 * 60 * 1000);
 
   const activeWindowWhere = {
     status: {
@@ -163,13 +140,7 @@ export async function getLiveOperations(
     },
   };
 
-  const liveThreshold = new Date(
-    now.getTime() - 2 * 60 * 1000,
-  );
-
-  const acceptedWarningThreshold = new Date(
-    now.getTime() - 15 * 60 * 1000,
-  );
+  const acceptedWarningThreshold = new Date(now.getTime() - 15 * 60 * 1000);
 
   const [
     created,
@@ -334,12 +305,7 @@ export async function getLiveOperations(
     prisma.booking.count({
       where: {
         status: {
-          in: [
-            "CREATED",
-            "DISPATCHED",
-            "ACCEPTED",
-            "ARRIVED",
-          ],
+          in: ["CREATED", "DISPATCHED", "ACCEPTED", "ARRIVED"],
         },
         pickupDueTime: {
           gte: liveWindowStart,
@@ -403,24 +369,25 @@ export async function getLiveOperations(
         },
       },
       select: {
+        id: true,
+        currentDriverId: true,
         currentStatus: true,
         currentBookingId: true,
         lastSeenAt: true,
       },
     }),
 
-    prisma.driverShift.findMany({
-      where: {
-        status: "ACTIVE",
-      },
-      orderBy: {
-        startedAt: "desc",
-      },
-      select: {
-        driverId: true,
-        vehicleId: true,
-      },
-    }),
+    prisma.$queryRaw<
+      Array<{
+        driverId: string;
+        vehicleId: string | null;
+        status: string;
+        startedAt: Date;
+        endedAt: Date | null;
+      }>
+    >`SELECT DISTINCT ON ("driverId") "driverId", "vehicleId", status, "startedAt", "endedAt"
+        FROM "DriverShift" WHERE "startedAt" <= ${now}
+        ORDER BY "driverId", "startedAt" DESC, CASE WHEN status = 'ENDED' THEN 0 ELSE 1 END, id DESC`,
 
     prisma.bookingTimelineEvent.findMany({
       orderBy: {
@@ -459,65 +426,13 @@ export async function getLiveOperations(
     }),
   ]);
 
-  const fleet = trackedVehicles.reduce(
-    (summary, vehicle) => {
-      summary.totalTracked += 1;
-
-      const isLive =
-        vehicle.lastSeenAt !== null &&
-        vehicle.lastSeenAt >= liveThreshold;
-
-      if (isLive) {
-        summary.live += 1;
-      } else {
-        summary.stale += 1;
-      }
-
-      if (vehicle.currentStatus === "Clear") {
-        summary.clear += 1;
-      } else if (
-        vehicle.currentStatus === "NotWorking"
-      ) {
-        summary.notWorking += 1;
-      } else {
-        summary.busy += 1;
-      }
-
-      return summary;
-    },
-    {
-      totalTracked: 0,
-      live: 0,
-      stale: 0,
-      clear: 0,
-      busy: 0,
-      notWorking: 0,
-    },
-  );
-
-  const uniqueActiveShifts = Array.from(
-    activeShifts.reduce((byDriver, shift) => {
-      if (!byDriver.has(shift.driverId)) {
-        byDriver.set(shift.driverId, shift);
-      }
-      return byDriver;
-    }, new Map<string, (typeof activeShifts)[number]>()),
-    ([, shift]) => shift,
-  );
-
-  const driversWithVehicle = uniqueActiveShifts.filter(
-    (shift) => shift.vehicleId !== null,
-  ).length;
-
-  const driversWithoutVehicle =
-    uniqueActiveShifts.length - driversWithVehicle;
+  const fleet = fleetPresence(trackedVehicles, now);
+  const driverSummary = driverPresence(activeShifts, trackedVehicles, now);
+  const driversWithVehicle = driverSummary.withVehicle;
+  const driversWithoutVehicle = driverSummary.withoutVehicle;
 
   const activeBookings =
-    created +
-    dispatched +
-    accepted +
-    arrived +
-    passengerOnBoard;
+    created + dispatched + accepted + arrived + passengerOnBoard;
 
   const totalAlerts =
     overdueWithoutDriver +
@@ -527,9 +442,8 @@ export async function getLiveOperations(
 
   const recentActivityFeed = recentActivity.map((event) => {
     const pickup =
-      event.booking.locations.find(
-        (location) => location.type === "PICKUP",
-      )?.address ?? null;
+      event.booking.locations.find((location) => location.type === "PICKUP")
+        ?.address ?? null;
 
     const destination =
       event.booking.locations.find(
@@ -537,31 +451,20 @@ export async function getLiveOperations(
       )?.address ?? null;
 
     const driverName =
-      [
-        event.booking.driverForename,
-        event.booking.driverSurname,
-      ]
+      [event.booking.driverForename, event.booking.driverSurname]
         .filter(Boolean)
         .join(" ") ||
       event.booking.driverCallSign ||
       null;
 
     const priceValue =
-      event.booking.price === null
-        ? 0
-        : Number(event.booking.price);
+      event.booking.price === null ? 0 : Number(event.booking.price);
 
     const fareValue =
-      event.booking.fare === null
-        ? 0
-        : Number(event.booking.fare);
+      event.booking.fare === null ? 0 : Number(event.booking.fare);
 
     const displayPrice =
-      priceValue > 0
-        ? priceValue
-        : fareValue > 0
-          ? fareValue
-          : null;
+      priceValue > 0 ? priceValue : fareValue > 0 ? fareValue : null;
 
     return {
       id: event.id,
@@ -613,7 +516,9 @@ export async function getLiveOperations(
     fleet,
 
     drivers: {
-      onShift: uniqueActiveShifts.length,
+      onShift: driverSummary.onShift,
+      liveConfirmed: driverSummary.liveConfirmed,
+      unconfirmedOpen: driverSummary.unconfirmedOpen,
       withVehicle: driversWithVehicle,
       withoutVehicle: driversWithoutVehicle,
     },
@@ -629,45 +534,49 @@ export async function getLiveOperations(
 
       items: [
         ...(overdueWithoutDriver > 0
-          ? [{
-              id: "overdue-without-driver",
-              severity: "critical" as const,
-              title:
-                `${overdueWithoutDriver} overdue bookings without driver`,
-              subtitle:
-                "Pickup time has passed and no driver is allocated",
-              occurredAt: now.toISOString(),
-            }]
+          ? [
+              {
+                id: "overdue-without-driver",
+                severity: "critical" as const,
+                title: `${overdueWithoutDriver} overdue bookings without driver`,
+                subtitle: "Pickup time has passed and no driver is allocated",
+                occurredAt: now.toISOString(),
+              },
+            ]
           : []),
 
         ...(dueSoonWithoutDriver > 0
-          ? [{
-              id: "due-soon-without-driver",
-              severity: "warning" as const,
-              title:
-                `${dueSoonWithoutDriver} bookings due soon without driver`,
-              subtitle:
-                "Pickup is due within the next 10 minutes",
-              occurredAt: now.toISOString(),
-            }]
+          ? [
+              {
+                id: "due-soon-without-driver",
+                severity: "warning" as const,
+                title: `${dueSoonWithoutDriver} bookings due soon without driver`,
+                subtitle: "Pickup is due within the next 10 minutes",
+                occurredAt: now.toISOString(),
+              },
+            ]
           : []),
 
         ...(acceptedOver15Minutes > 0
-          ? [{
-              id: "accepted-over-15",
-              severity: "warning" as const,
-              title: `${acceptedOver15Minutes} accepted over 15 minutes`,
-              occurredAt: now.toISOString(),
-            }]
+          ? [
+              {
+                id: "accepted-over-15",
+                severity: "warning" as const,
+                title: `${acceptedOver15Minutes} accepted over 15 minutes`,
+                occurredAt: now.toISOString(),
+              },
+            ]
           : []),
 
         ...(driversWithoutVehicle > 0
-          ? [{
-              id: "drivers-without-vehicle",
-              severity: "info" as const,
-              title: `${driversWithoutVehicle} drivers without vehicle`,
-              occurredAt: now.toISOString(),
-            }]
+          ? [
+              {
+                id: "drivers-without-vehicle",
+                severity: "info" as const,
+                title: `${driversWithoutVehicle} drivers without vehicle`,
+                occurredAt: now.toISOString(),
+              },
+            ]
           : []),
       ],
     },

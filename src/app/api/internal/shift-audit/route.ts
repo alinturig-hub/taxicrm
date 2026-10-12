@@ -1,3 +1,4 @@
+import { driverPresence, fleetPresence } from "@/lib/operations/live-presence";
 import { timingSafeEqual } from "node:crypto";
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
@@ -34,9 +35,35 @@ export async function GET(request: Request) {
       count(*) FILTER (WHERE "endedAt" IS NOT NULL)::int AS "rowsWithEndTimestamp",
       min("startedAt") AS "oldestStart"
     FROM "DriverShift" WHERE status = 'ACTIVE'`;
+  const [latest, vehicles] = await Promise.all([
+    prisma.$queryRaw<
+      Array<{
+        driverId: string;
+        vehicleId: string | null;
+        status: string;
+        startedAt: Date;
+        endedAt: Date | null;
+      }>
+    >`
+      SELECT DISTINCT ON ("driverId") "driverId", "vehicleId", status, "startedAt", "endedAt"
+      FROM "DriverShift" WHERE "startedAt" <= ${now}
+      ORDER BY "driverId", "startedAt" DESC, CASE WHEN status = 'ENDED' THEN 0 ELSE 1 END, id DESC`,
+    prisma.vehicle.findMany({
+      where: { lastSeenAt: { not: null } },
+      select: {
+        id: true,
+        currentDriverId: true,
+        currentStatus: true,
+        lastSeenAt: true,
+      },
+    }),
+  ]);
+  const presence = driverPresence(latest, vehicles, now);
+  const fleet = fleetPresence(vehicles, now);
   return NextResponse.json({
     checkedAt: now.toISOString(),
     ...counts[0],
+    currentEvidence: { drivers: presence, fleet },
     containsPersonalData: false,
     definition:
       "Distinct drivers with stored ACTIVE shifts; this is not live presence.",

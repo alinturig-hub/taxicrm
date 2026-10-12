@@ -209,7 +209,7 @@ try {
       fleetMapRequests++;
   });
   await page.goto(origin + "/dashboard/live");
-  await page.getByText("Recorded open shifts", { exact: true }).waitFor();
+  await page.getByText("Drivers seen working", { exact: true }).waitFor();
   assert.equal(
     await page.getByText("Live Fleet Map", { exact: true }).count(),
     0,

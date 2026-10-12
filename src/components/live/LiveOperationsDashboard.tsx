@@ -29,9 +29,12 @@ type LiveOperations = {
     clear: number;
     busy: number;
     notWorking: number;
+    unknown: number;
   };
   drivers: {
     onShift: number;
+    liveConfirmed: number;
+    unconfirmedOpen: number;
     withVehicle: number;
     withoutVehicle: number;
   };
@@ -583,15 +586,15 @@ export default function LiveOperationsDashboard() {
           />
 
           <StatCard
-            label="Recorded open shifts"
-            value={operations.drivers.onShift}
-            description="No shift end recorded; not confirmed live availability"
+            label="Drivers seen working"
+            value={operations.drivers.liveConfirmed}
+            description="Open shift and matching working vehicle signal within two minutes"
             icon="D"
             accent="emerald"
           />
 
           <StatCard
-            label="Live Vehicles"
+            label="Recent vehicle signals"
             value={operations.fleet.live}
             description="Vehicles seen during the last two minutes"
             icon="V"
@@ -638,6 +641,21 @@ export default function LiveOperationsDashboard() {
             </div>
 
             <div className="mt-4">
+              <MetricRow
+                label="Latest recorded open shifts"
+                value={operations.drivers.onShift}
+                tone="slate"
+              />
+              <MetricRow
+                label="Open shifts without live confirmation"
+                value={operations.drivers.unconfirmedOpen}
+                tone="amber"
+              />
+              <MetricRow
+                label="Unknown vehicle status"
+                value={operations.fleet.unknown}
+                tone="slate"
+              />
               <MetricRow
                 label="Tracked vehicles"
                 value={operations.fleet.totalTracked}
