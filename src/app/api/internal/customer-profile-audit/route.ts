@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const since = new Date(now.getTime() - 14 * 86_400_000);
   try {
-    const [bookings, customerCohorts, tags, locationCoverage, statusCounts] = await Promise.all([
+    const [bookings, customerCohorts, tags, locationCount, placeCount, categorizedSafePlaces, statusCounts] = await Promise.all([
       prisma.$queryRaw<Array<Record<string, number>> >`
         SELECT count(*)::int AS total,
           count(*) FILTER (WHERE "normalCustomerId" IS NOT NULL)::int AS linked,
@@ -46,18 +46,12 @@ export async function GET(request: NextRequest) {
       prisma.$queryRaw<Array<{ tagId: string; active: boolean; customers: number }>>`
         SELECT "tagId", active, count(*)::int AS customers FROM "CustomerBehaviourTag"
         GROUP BY "tagId", active ORDER BY "tagId", active`,
-      prisma.$queryRaw<Array<Record<string, number>> >`
-        SELECT count(*)::int AS total,
-          count(*) FILTER (WHERE "placeIntelligenceId" IS NOT NULL)::int AS enriched,
-          count(*) FILTER (WHERE p."poiCategoryStatus" = 'READY' AND p."isSensitive" = false)::int AS categorized_safe,
-          count(*) FILTER (WHERE b."normalCustomerId" IS NOT NULL AND b."status" = 'COMPLETED' AND coalesce(b."pickupDueTime", b."bookedAtTime") BETWEEN ${since} AND ${now})::int AS recent_linked_completed_locations,
-          count(*) FILTER (WHERE b."normalCustomerId" IS NOT NULL AND b."status" = 'COMPLETED' AND coalesce(b."pickupDueTime", b."bookedAtTime") BETWEEN ${since} AND ${now} AND p."poiCategoryStatus" = 'READY' AND p."isSensitive" = false)::int AS recent_linked_completed_categorized_safe
-        FROM "BookingLocation" l
-        JOIN "Booking" b ON b.id = l."bookingId"
-        LEFT JOIN "PlaceIntelligence" p ON p.id = l."placeIntelligenceId"`,
+      prisma.bookingLocation.count(),
+      prisma.placeIntelligence.count(),
+      prisma.placeIntelligence.count({ where: { poiCategoryStatus: "READY", isSensitive: false } }),
       prisma.booking.groupBy({ by: ["status"], _count: { id: true }, orderBy: { _count: { id: "desc" } }, take: 30 }),
     ]);
-    return NextResponse.json({ now: now.toISOString(), windowStart: since.toISOString(), bookings: bookings[0], customerCohorts: customerCohorts[0], tags, locationCoverage: locationCoverage[0], statusCounts: statusCounts.map((row) => ({ status: row.status, count: row._count.id })), containsPersonalData: false });
+    return NextResponse.json({ now: now.toISOString(), windowStart: since.toISOString(), bookings: bookings[0], customerCohorts: customerCohorts[0], tags, locationCoverage: { locations: locationCount, places: placeCount, categorizedSafePlaces }, statusCounts: statusCounts.map((row) => ({ status: row.status, count: row._count.id })), containsPersonalData: false });
   } catch (error) {
     console.error("Customer profile audit failed", error);
     return NextResponse.json({ error: "AUDIT_FAILED" }, { status: 500 });
