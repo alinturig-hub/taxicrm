@@ -45,7 +45,7 @@ function booking({
         address:
           pickup,
         zoneName:
-          null,
+          null as string | null,
       },
       {
       type:
@@ -53,7 +53,7 @@ function booking({
       address:
         destination,
       zoneName:
-        null,
+        null as string | null,
       placeIntelligence:
         destinationCategory
           ? {
@@ -309,6 +309,34 @@ assert.equal(
   true,
   "Three completed journeys on the same route should qualify.",
 );
+
+const differentAddressesInSameZones = [
+  ["10 Market Street", "1 Station Road"],
+  ["20 Market Street", "2 Station Road"],
+  ["30 Market Street", "3 Station Road"],
+].map(([pickup, destination], index) => {
+  const row = booking({
+    pickupAt: `2026-09-${15 - index}T10:00:00.000Z`,
+    pickup,
+    destination,
+  });
+  row.locations[0].zoneName = "City Centre";
+  row.locations[1].zoneName = "Station";
+  return row;
+});
+assert.equal(ids(differentAddressesInSameZones).has("REGULAR_ROUTE_USER"), false,
+  "Different addresses in the same zones are not one regular route.");
+
+const occasionalRoute = [
+  ...regularRouteBookings,
+  ...Array.from({ length: 7 }, (_, index) => booking({
+    pickupAt: `2026-09-${String(12 - index).padStart(2, "0")}T10:00:00.000Z`,
+    pickup: `${index} Oak Street`,
+    destination: `${index} High Street`,
+  })),
+];
+assert.equal(ids(occasionalRoute).has("REGULAR_ROUTE_USER"), false,
+  "Three matching trips out of ten do not establish a regular route.");
 
 const oldBookings = [
   booking({

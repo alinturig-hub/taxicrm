@@ -258,13 +258,13 @@ function routeKey(
 
   const pickupKey =
     normalizePlace(
-      pickup.zoneName ||
-        pickup.address,
+      pickup.address ||
+        pickup.zoneName || "",
     );
   const destinationKey =
     normalizePlace(
-      destination.zoneName ||
-        destination.address,
+      destination.address ||
+        destination.zoneName || "",
     );
 
   if (
@@ -746,7 +746,7 @@ export function buildCustomerBehaviourTags(
         completedJourneys.length,
       );
 
-    tags.push({
+    if (share >= 40) tags.push({
       id:
         "REGULAR_ROUTE_USER",
       label:

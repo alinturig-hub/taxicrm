@@ -64,12 +64,13 @@ export async function POST(request: NextRequest) {
   if (!body || typeof body !== "object" || Array.isArray(body) ||
       (body.afterId !== undefined && (typeof body.afterId !== "string" || !body.afterId.trim())) ||
       (body.limit !== undefined && (!Number.isInteger(body.limit) || body.limit < 1 || body.limit > 200)) ||
+      (body.scope !== undefined && body.scope !== "all" && body.scope !== "recent") ||
       (body.dryRun !== undefined && typeof body.dryRun !== "boolean") ||
       (body.now !== undefined && (typeof body.now !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(body.now) || !Number.isFinite(Date.parse(body.now))))) {
     return NextResponse.json({ error: "INVALID_BATCH_OPTIONS" }, { status: 400 });
   }
   try {
-    const result = await syncCustomerBehaviourTags({ scope: "all", customerLimit: body.limit ?? 200, afterId: body.afterId, now: body.now ? new Date(body.now) : undefined, dryRun: body.dryRun !== false });
+    const result = await syncCustomerBehaviourTags({ scope: body.scope ?? "recent", customerLimit: body.limit ?? 200, afterId: body.afterId, now: body.now ? new Date(body.now) : undefined, dryRun: body.dryRun !== false });
     return NextResponse.json({ success: result.failedCustomers === 0, ...result });
   } catch (error) {
     console.error("Customer profile batch failed", error);

@@ -122,6 +122,16 @@ export async function syncCustomerBehaviourTags(
               },
             },
             {
+              bookings: {
+                some: {
+                  pickupDueTime: {
+                    gte: windowStartAt,
+                    lte: now,
+                  },
+                },
+              },
+            },
+            {
               behaviourTags: {
                 some: {
                   active: true,
@@ -342,7 +352,9 @@ export async function syncCustomerBehaviourTags(
   result.nextCursor = cursorId;
   result.hasMore = Boolean(cursorId && await prisma.normalCustomer.findFirst({
     where: { id: { gt: cursorId! }, ...(options.scope === "all" ? {} : { OR: [
-      { lastBookingAt: { gte: windowStartAt } }, { behaviourTags: { some: { active: true } } },
+      { lastBookingAt: { gte: windowStartAt } },
+      { bookings: { some: { pickupDueTime: { gte: windowStartAt, lte: now } } } },
+      { behaviourTags: { some: { active: true } } },
     ] }) }, select: { id: true },
   }));
   return result;
