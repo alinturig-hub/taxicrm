@@ -85,6 +85,52 @@ try {
   page.on("pageerror", (error) => pageErrors.push(error.message));
   await page.goto(origin + "/dashboard/workspace");
   await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+  const setup = page.getByRole("region", { name: "Today setup" });
+  await setup.waitFor();
+  await page.screenshot({
+    path: "/workspace/taxicrm-local/today-wizard.png",
+    fullPage: true,
+  });
+  await page.setViewportSize({ width: 390, height: 844 });
+  assert.ok(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  );
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await setup.getByRole("button", { name: "Daily operations" }).click();
+  await setup.getByRole("button", { name: "Continue" }).click();
+  await setup.getByRole("checkbox", { name: "Pickups scheduled" }).check();
+  await setup.getByRole("button", { name: "Continue" }).click();
+  await setup.getByRole("button", { name: "Save my Today view" }).click();
+  await page.reload();
+  await page.getByRole("heading", { name: "Today", exact: true }).waitFor();
+  await page
+    .getByRole("region", { name: "Today's business figures" })
+    .waitFor();
+  assert.equal(
+    await setup.count(),
+    0,
+    "Saved wizard should not reopen on reload",
+  );
+  assert.ok(
+    await page
+      .getByRole("region", { name: "Today's business figures" })
+      .getByText("Pickups scheduled", { exact: true })
+      .count(),
+  );
+  await page.getByRole("button", { name: "Customize Today" }).click();
+  await setup.getByRole("button", { name: "Business overview" }).click();
+  await setup.getByRole("button", { name: "Continue" }).click();
+  await setup.getByRole("button", { name: "Continue" }).click();
+  await setup.getByRole("button", { name: "Save my Today view" }).click();
+  const figures = page.getByRole("region", {
+    name: "Today's business figures",
+  });
+  await figures.getByText("Company profit", { exact: true }).waitFor();
+  await figures.getByText("Cost data required", { exact: true }).waitFor();
+  assert.equal(await figures.locator('[data-comparison="revenue"]').count(), 1);
+  assert.ok((await figures.getByText(/Yesterday:/).count()) >= 3);
   const workspace = page.locator("[data-workspace]");
   assert.equal(await workspace.getAttribute("data-theme"), "light");
   assert.equal(
