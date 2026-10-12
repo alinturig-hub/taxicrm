@@ -49,7 +49,9 @@ export default async function WorkspacePage() {
       label: "Failed webhook events",
       value: failed,
       note: "Recorded failures · review event history",
-      href: "/dashboard/integrations/autocab/webhooks",
+      href: can("configuration.view")
+        ? "/dashboard/configuration/webhooks/events"
+        : "/dashboard/integrations/autocab/webhooks",
     },
   ].filter((card) => card.value !== null);
   const workspaces = groups.filter(
