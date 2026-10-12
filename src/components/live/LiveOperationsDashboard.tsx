@@ -1,5 +1,4 @@
 "use client";
-import dynamic from "next/dynamic";
 
 import OperationalAlertCard from "@/components/live/OperationalAlertCard";
 import RecentActivityCard from "@/components/live/RecentActivityCard";
@@ -7,18 +6,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import BookingTimelineDrawer, {
   type BookingDrawerData,
 } from "@/components/live/BookingTimelineDrawer";
-
-const LiveFleetMap = dynamic(
-  () => import("@/components/fleet/LiveFleetMap"),
-  {
-    ssr: false,
-    loading: () => (
-      <div className="flex min-h-[420px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900 text-sm text-slate-400">
-        Loading live map...
-      </div>
-    ),
-  },
-);
 
 type LiveOperations = {
   generatedAt: string;
@@ -58,11 +45,7 @@ type LiveOperations = {
     driversWithoutVehicle: number;
     items: Array<{
       id: string;
-      severity:
-        | "critical"
-        | "warning"
-        | "info"
-        | "success";
+      severity: "critical" | "warning" | "info" | "success";
       title: string;
       subtitle?: string;
       bookingId?: string;
@@ -107,11 +90,7 @@ function formatTime(value: string | null) {
   }).format(new Date(value));
 }
 
-type StatAccent =
-  | "blue"
-  | "emerald"
-  | "violet"
-  | "red";
+type StatAccent = "blue" | "emerald" | "violet" | "red";
 
 const statAccentClasses: Record<
   StatAccent,
@@ -123,26 +102,22 @@ const statAccentClasses: Record<
 > = {
   blue: {
     bar: "bg-blue-500",
-    icon:
-      "border-blue-500/30 bg-blue-500/10 text-blue-300",
+    icon: "border-blue-500/30 bg-blue-500/10 text-blue-300",
     glow: "hover:shadow-blue-950/40",
   },
   emerald: {
     bar: "bg-emerald-500",
-    icon:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
+    icon: "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
     glow: "hover:shadow-emerald-950/40",
   },
   violet: {
     bar: "bg-violet-500",
-    icon:
-      "border-violet-500/30 bg-violet-500/10 text-violet-300",
+    icon: "border-violet-500/30 bg-violet-500/10 text-violet-300",
     glow: "hover:shadow-violet-950/40",
   },
   red: {
     bar: "bg-red-500",
-    icon:
-      "border-red-500/30 bg-red-500/10 text-red-300",
+    icon: "border-red-500/30 bg-red-500/10 text-red-300",
     glow: "hover:shadow-red-950/40",
   },
 };
@@ -175,10 +150,7 @@ function StatCard({
       ].join(" ")}
     >
       <div
-        className={[
-          "absolute inset-x-0 top-0 h-1",
-          classes.bar,
-        ].join(" ")}
+        className={["absolute inset-x-0 top-0 h-1", classes.bar].join(" ")}
       />
 
       <div className="flex items-start justify-between gap-3">
@@ -211,13 +183,7 @@ function StatCard({
   );
 }
 
-type MetricTone =
-  | "slate"
-  | "blue"
-  | "emerald"
-  | "amber"
-  | "red"
-  | "violet";
+type MetricTone = "slate" | "blue" | "emerald" | "amber" | "red" | "violet";
 
 const metricToneClasses: Record<
   MetricTone,
@@ -236,13 +202,11 @@ const metricToneClasses: Record<
   },
   emerald: {
     dot: "bg-emerald-400",
-    badge:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
   },
   amber: {
     dot: "bg-amber-400",
-    badge:
-      "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    badge: "border-amber-500/30 bg-amber-500/10 text-amber-200",
   },
   red: {
     dot: "bg-red-400",
@@ -250,8 +214,7 @@ const metricToneClasses: Record<
   },
   violet: {
     dot: "bg-violet-400",
-    badge:
-      "border-violet-500/30 bg-violet-500/10 text-violet-200",
+    badge: "border-violet-500/30 bg-violet-500/10 text-violet-200",
   },
 };
 
@@ -270,15 +233,12 @@ function MetricRow({
     <div className="flex items-center justify-between gap-4 border-b border-slate-800/80 py-3 last:border-b-0">
       <div className="flex min-w-0 items-center gap-3">
         <span
-          className={[
-            "h-2.5 w-2.5 shrink-0 rounded-full",
-            classes.dot,
-          ].join(" ")}
+          className={["h-2.5 w-2.5 shrink-0 rounded-full", classes.dot].join(
+            " ",
+          )}
         />
 
-        <span className="truncate text-sm text-slate-300">
-          {label}
-        </span>
+        <span className="truncate text-sm text-slate-300">{label}</span>
       </div>
 
       <span
@@ -294,13 +254,7 @@ function MetricRow({
   );
 }
 
-type PipelineTone =
-  | "slate"
-  | "blue"
-  | "cyan"
-  | "emerald"
-  | "violet"
-  | "amber";
+type PipelineTone = "slate" | "blue" | "cyan" | "emerald" | "violet" | "amber";
 
 const pipelineToneClasses: Record<
   PipelineTone,
@@ -311,33 +265,27 @@ const pipelineToneClasses: Record<
 > = {
   slate: {
     bar: "bg-slate-500",
-    badge:
-      "border-slate-700 bg-slate-800/70 text-slate-200",
+    badge: "border-slate-700 bg-slate-800/70 text-slate-200",
   },
   blue: {
     bar: "bg-blue-500",
-    badge:
-      "border-blue-500/30 bg-blue-500/10 text-blue-200",
+    badge: "border-blue-500/30 bg-blue-500/10 text-blue-200",
   },
   cyan: {
     bar: "bg-cyan-400",
-    badge:
-      "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
+    badge: "border-cyan-500/30 bg-cyan-500/10 text-cyan-200",
   },
   emerald: {
     bar: "bg-emerald-500",
-    badge:
-      "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    badge: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
   },
   violet: {
     bar: "bg-violet-500",
-    badge:
-      "border-violet-500/30 bg-violet-500/10 text-violet-200",
+    badge: "border-violet-500/30 bg-violet-500/10 text-violet-200",
   },
   amber: {
     bar: "bg-amber-500",
-    badge:
-      "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    badge: "border-amber-500/30 bg-amber-500/10 text-amber-200",
   },
 };
 
@@ -354,10 +302,7 @@ function PipelineStage({
 }) {
   const percentage =
     maximum > 0
-      ? Math.max(
-          value > 0 ? 4 : 0,
-          Math.min(100, (value / maximum) * 100),
-        )
+      ? Math.max(value > 0 ? 4 : 0, Math.min(100, (value / maximum) * 100))
       : 0;
 
   const classes = pipelineToneClasses[tone];
@@ -365,9 +310,7 @@ function PipelineStage({
   return (
     <div className="py-3">
       <div className="flex items-center justify-between gap-4">
-        <span className="text-sm font-medium text-slate-300">
-          {label}
-        </span>
+        <span className="text-sm font-medium text-slate-300">{label}</span>
 
         <span
           className={[
@@ -396,65 +339,46 @@ function PipelineStage({
 }
 
 export default function LiveOperationsDashboard() {
-  const [operations, setOperations] =
-    useState<LiveOperations | null>(null);
+  const [operations, setOperations] = useState<LiveOperations | null>(null);
   const [loading, setLoading] = useState(true);
-  const [socketState, setSocketState] =
-    useState<SocketState>("CONNECTING");
+  const [socketState, setSocketState] = useState<SocketState>("CONNECTING");
   const [error, setError] = useState<string | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
 
-  const [loadingBooking, setLoadingBooking] =
-    useState(false);
+  const [loadingBooking, setLoadingBooking] = useState(false);
 
   const [selectedBooking, setSelectedBooking] =
     useState<BookingDrawerData | null>(null);
-  const [mapVisible, setMapVisible] = useState(true);
-  const [mapFullscreen, setMapFullscreen] = useState(false);
 
-  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(
-    null,
-  );
+  const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const openBooking = useCallback(async (bookingId: string) => {
+    try {
+      setLoadingBooking(true);
 
-  const openBooking = useCallback(
-    async (bookingId: string) => {
-      try {
-        setLoadingBooking(true);
+      const response = await fetch(`/api/bookings/${bookingId}/timeline`, {
+        cache: "no-store",
+      });
 
-        const response = await fetch(
-          `/api/bookings/${bookingId}/timeline`,
-          {
-            cache: "no-store",
-          },
-        );
-
-        if (!response.ok) {
-          throw new Error(
-            `Booking request failed: ${response.status}`,
-          );
-        }
-
-        const payload = await response.json();
-
-        if (!payload.success) {
-          throw new Error(
-            "Booking could not be loaded.",
-          );
-        }
-
-        setSelectedBooking(payload.booking);
-        setDrawerOpen(true);
-      } catch (error) {
-        console.error(error);
-      } finally {
-        setLoadingBooking(false);
+      if (!response.ok) {
+        throw new Error(`Booking request failed: ${response.status}`);
       }
-    },
-    [],
-  );
 
+      const payload = await response.json();
+
+      if (!payload.success) {
+        throw new Error("Booking could not be loaded.");
+      }
+
+      setSelectedBooking(payload.booking);
+      setDrawerOpen(true);
+    } catch (error) {
+      console.error(error);
+    } finally {
+      setLoadingBooking(false);
+    }
+  }, []);
 
   const closeBookingDrawer = useCallback(() => {
     setDrawerOpen(false);
@@ -466,17 +390,12 @@ export default function LiveOperationsDashboard() {
 
   const loadOperations = useCallback(async () => {
     try {
-      const response = await fetch(
-        "/api/dashboard/live-operations",
-        {
-          cache: "no-store",
-        },
-      );
+      const response = await fetch("/api/dashboard/live-operations", {
+        cache: "no-store",
+      });
 
       if (!response.ok) {
-        throw new Error(
-          `Live operations request failed: ${response.status}`,
-        );
+        throw new Error(`Live operations request failed: ${response.status}`);
       }
 
       const payload = (await response.json()) as ApiResponse;
@@ -521,12 +440,9 @@ export default function LiveOperationsDashboard() {
 
       setSocketState("CONNECTING");
 
-      const protocol =
-        window.location.protocol === "https:" ? "wss:" : "ws:";
+      const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
 
-      socket = new WebSocket(
-        `${protocol}//${window.location.host}/ws/fleet`,
-      );
+      socket = new WebSocket(`${protocol}//${window.location.host}/ws/fleet`);
 
       socket.addEventListener("open", () => {
         setSocketState("LIVE");
@@ -588,9 +504,7 @@ export default function LiveOperationsDashboard() {
   if (loading && !operations) {
     return (
       <main className="min-h-screen bg-slate-950 p-6 text-white">
-        <p className="text-sm text-slate-400">
-          Loading live operations…
-        </p>
+        <p className="text-sm text-slate-400">Loading live operations…</p>
       </main>
     );
   }
@@ -622,18 +536,14 @@ export default function LiveOperationsDashboard() {
             </h1>
 
             <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400 sm:text-sm">
-              <span>
-                Updated {formatTime(operations.generatedAt)}
-              </span>
+              <span>Updated {formatTime(operations.generatedAt)}</span>
 
               <span className="hidden h-1 w-1 rounded-full bg-slate-600 sm:block" />
 
               <span>
                 Monitoring{" "}
                 <strong className="font-semibold text-slate-200">
-                  {operations.bookings.active.toLocaleString(
-                    "en-GB",
-                  )}
+                  {operations.bookings.active.toLocaleString("en-GB")}
                 </strong>{" "}
                 active bookings
               </span>
@@ -673,9 +583,9 @@ export default function LiveOperationsDashboard() {
           />
 
           <StatCard
-            label="Drivers On Shift"
+            label="Recorded open shifts"
             value={operations.drivers.onShift}
-            description="Drivers with an active recorded shift"
+            description="No shift end recorded; not confirmed live availability"
             icon="D"
             accent="emerald"
           />
@@ -695,45 +605,6 @@ export default function LiveOperationsDashboard() {
             icon="!"
             accent="red"
           />
-        </section>
-
-        <section
-          id="live-map"
-          className={
-            mapFullscreen
-              ? "fixed inset-0 z-[100] overflow-y-auto bg-slate-950 p-4 sm:p-6"
-              : "mt-4 scroll-mt-6"
-          }
-        >
-          <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-900/80 px-4 py-3">
-            <p className="text-sm font-semibold text-white">
-              Live Fleet Map
-            </p>
-
-            <div className="flex gap-2">
-              {!mapFullscreen && (
-                <button
-                  type="button"
-                  onClick={() => setMapVisible((v) => !v)}
-                  className="rounded-xl border border-slate-700 px-3 py-2 text-xs font-semibold text-slate-200"
-                >
-                  {mapVisible ? "Hide Map" : "Show Map"}
-                </button>
-              )}
-
-              {mapVisible && (
-                <button
-                  type="button"
-                  onClick={() => setMapFullscreen((v) => !v)}
-                  className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 py-2 text-xs font-semibold text-blue-300"
-                >
-                  {mapFullscreen ? "Exit Full Screen" : "Full Screen"}
-                </button>
-              )}
-            </div>
-          </div>
-
-          {mapVisible && <LiveFleetMap />}
         </section>
 
         <section className="mt-4 grid gap-4 xl:grid-cols-2">
@@ -820,9 +691,7 @@ export default function LiveOperationsDashboard() {
                 </p>
 
                 <p className="mt-1 text-lg font-bold text-white">
-                  {operations.bookings.active.toLocaleString(
-                    "en-GB",
-                  )}
+                  {operations.bookings.active.toLocaleString("en-GB")}
                 </p>
               </div>
             </div>
@@ -852,8 +721,7 @@ export default function LiveOperationsDashboard() {
                   },
                   {
                     label: "Passenger on board",
-                    value:
-                      operations.bookings.passengerOnBoard,
+                    value: operations.bookings.passengerOnBoard,
                     tone: "violet" as const,
                   },
                 ];
@@ -916,10 +784,7 @@ export default function LiveOperationsDashboard() {
                     timestamp={formatTime(alert.occurredAt)}
                     onClick={() => {
                       if (alert.bookingId) {
-                        console.log(
-                          "Open booking",
-                          alert.bookingId,
-                        );
+                        console.log("Open booking", alert.bookingId);
                       }
                     }}
                   />
@@ -959,9 +824,7 @@ export default function LiveOperationsDashboard() {
                   <RecentActivityCard
                     key={activity.id}
                     bookingId={activity.bookingId}
-                    externalBookingId={
-                      activity.externalBookingId
-                    }
+                    externalBookingId={activity.externalBookingId}
                     status={activity.status}
                     eventType={activity.eventType}
                     title={activity.title}
@@ -969,9 +832,7 @@ export default function LiveOperationsDashboard() {
                     customerName={activity.customerName}
                     driverName={activity.driverName}
                     pickupAddress={activity.pickupAddress}
-                    destinationAddress={
-                      activity.destinationAddress
-                    }
+                    destinationAddress={activity.destinationAddress}
                     fare={activity.fare}
                     occurredAt={activity.occurredAt}
                     onClick={() => openBooking(activity.bookingId)}

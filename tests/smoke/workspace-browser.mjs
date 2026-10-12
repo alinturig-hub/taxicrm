@@ -203,6 +203,23 @@ try {
       .count(),
     0,
   );
+  let fleetMapRequests = 0;
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/fleet/live")
+      fleetMapRequests++;
+  });
+  await page.goto(origin + "/dashboard/live");
+  await page.getByText("Recorded open shifts", { exact: true }).waitFor();
+  assert.equal(
+    await page.getByText("Live Fleet Map", { exact: true }).count(),
+    0,
+  );
+  assert.equal(await page.locator("#live-map").count(), 0);
+  assert.equal(
+    fleetMapRequests,
+    0,
+    "Live operations must not mount the fleet map or poll its API",
+  );
   await page.goto(origin + "/dashboard/operations");
   await page
     .getByRole("heading", { name: "Operations", exact: true })
