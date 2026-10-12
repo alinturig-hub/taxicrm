@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { buildCustomerBehaviourTags } from "@/lib/customers/customer-behaviour-tags";
+import { isSharedBookingPoint } from "@/lib/customers/customer-identity";
 
 const WINDOW_DAYS = 14;
 const DAY_MS = 86_400_000;
@@ -185,13 +186,34 @@ export async function syncCustomerBehaviourTags(
         customers.length - 1
       ].id;
 
-    for (const customer of customers) {
+    const calculated = customers.map((customer) => ({
+      customer,
+      tags: buildCustomerBehaviourTags(customer.bookings, now),
+    }));
+    const candidateIds = calculated.filter(({ tags }) => tags.length > 0).map(({ customer }) => customer.id);
+    const histories = candidateIds.length > 0
+      ? await prisma.booking.findMany({
+          where: { normalCustomerId: { in: candidateIds } },
+          select: {
+            normalCustomerId: true,
+            locations: { select: { type: true, address: true, zoneName: true } },
+          },
+        })
+      : [];
+    const historyByCustomer = new Map<string, typeof histories>();
+    for (const booking of histories) {
+      const id = booking.normalCustomerId;
+      if (!id) continue;
+      const list = historyByCustomer.get(id) ?? [];
+      list.push(booking);
+      historyByCustomer.set(id, list);
+    }
+
+    for (const { customer, tags: calculatedTags } of calculated) {
       try {
-        const tags =
-          buildCustomerBehaviourTags(
-            customer.bookings,
-            now,
-          );
+        const tags = isSharedBookingPoint(historyByCustomer.get(customer.id) ?? [])
+          ? []
+          : calculatedTags;
         const activeTagIds =
           tags.map(
             (tag) => tag.id,
@@ -279,6 +301,7 @@ export async function syncCustomerBehaviourTags(
                       )
                     : null,
                 active: true,
+                modelVersion: "CUSTOMER_TAGS_V2",
                 explanation:
                   tag.explanation,
               },
@@ -305,6 +328,7 @@ export async function syncCustomerBehaviourTags(
                       )
                     : null,
                 active: true,
+                modelVersion: "CUSTOMER_TAGS_V2",
                 explanation:
                   tag.explanation,
               },

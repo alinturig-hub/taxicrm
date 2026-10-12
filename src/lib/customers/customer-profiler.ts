@@ -1,6 +1,7 @@
 import {
   buildCustomerBehaviourTags,
 } from "./customer-behaviour-tags";
+import { isSharedBookingPoint } from "./customer-identity";
 
 type ProfileLocation = {
   type: "PICKUP" | "DESTINATION";
@@ -254,10 +255,7 @@ export function buildCustomerProfile(
   const topPickupShare =
     topPickups[0]?.percentage ?? 0;
 
-  const sharedBookingPoint =
-    totalBookings >= 20 &&
-    topPickupShare >= 60 &&
-    uniqueDestinations >= 10;
+  const sharedBookingPoint = isSharedBookingPoint(orderedBookings);
 
   const identityType = sharedBookingPoint
     ? "SHARED_BOOKING_POINT"
