@@ -147,8 +147,8 @@ export default function NewAutocabWebhookPage() {
           </h1>
 
           <p className="mt-3 max-w-3xl text-slate-400">
-            Creează un endpoint public pentru colectarea și arhivarea completă a
-            evenimentelor primite de la Autocab.
+            Create a public endpoint to collect and archive
+            events received from Autocab.
           </p>
         </div>
 
@@ -174,8 +174,8 @@ export default function NewAutocabWebhookPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-400">
-              Definește identitatea webhook-ului și URL-ul care va fi introdus
-              în portalul Autocab.
+              Define the webhook identity and the URL to enter
+              in the Autocab portal.
             </p>
           </div>
 
@@ -273,8 +273,8 @@ export default function NewAutocabWebhookPage() {
                 <p className="font-medium text-white">Enable Webhook</p>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Când este activ, endpoint-ul poate primi și salva evenimente
-                  Autocab.
+                  When enabled, the endpoint can receive and store
+                  Autocab events.
                 </p>
               </div>
 
@@ -294,7 +294,7 @@ export default function NewAutocabWebhookPage() {
               <h2 className="font-semibold text-white">Webhook URL</h2>
 
               <p className="mt-1 text-sm text-slate-400">
-                Copiază acest URL în portalul Autocab.
+                Copy this URL into the Autocab portal.
               </p>
             </div>
 
@@ -352,9 +352,9 @@ export default function NewAutocabWebhookPage() {
           </section>
 
           <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-5 text-sm leading-6 text-blue-200">
-            Toate payload-urile primite prin acest endpoint vor fi păstrate
-            integral. Filtrarea și clasificarea vor fi aplicate ulterior în
-            stratul de analytics.
+            Payloads received through this endpoint are retained in full.
+            Filtering and classification are handled by the
+            analytics layer.
           </div>
         </aside>
       </div>

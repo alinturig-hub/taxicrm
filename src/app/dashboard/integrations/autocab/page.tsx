@@ -19,8 +19,8 @@ export default async function AutocabIntegrationPage() {
         </h1>
 
         <p className="mt-3 max-w-3xl text-slate-400">
-          Configurează conexiunea REST Autocab și gestionează sincronizarea
-          datelor master pentru șoferi, vehicule și alte entități.
+          Configure the Autocab REST connection and manage master data
+          synchronisation for drivers, vehicles and other entities.
         </p>
       </div>
 

@@ -27,7 +27,7 @@ export default function LoginPage() {
     setIsSubmitting(false);
 
     if (!result || result.error) {
-      setError("Email sau parolă incorectă.");
+      setError("Incorrect email or password.");
       return;
     }
 
@@ -48,7 +48,7 @@ export default function LoginPage() {
           </h1>
 
           <p className="mt-2 text-sm text-slate-400">
-            Autentifică-te pentru a accesa CRM-ul.
+            Sign in to access TaxiCRM.
           </p>
         </div>
 
@@ -81,7 +81,7 @@ export default function LoginPage() {
               htmlFor="password"
               className="mb-2 block text-sm font-medium text-slate-200"
             >
-              Parolă
+              Password
             </label>
 
             <input
@@ -92,7 +92,7 @@ export default function LoginPage() {
               value={password}
               onChange={(event) => setPassword(event.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition focus:border-blue-500"
-              placeholder="Introdu parola"
+              placeholder="Enter your password"
             />
           </div>
 
@@ -107,7 +107,7 @@ export default function LoginPage() {
             disabled={isSubmitting}
             className="w-full rounded-lg bg-blue-600 px-4 py-3 font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
           >
-            {isSubmitting ? "Se autentifică..." : "Autentificare"}
+            {isSubmitting ? "Signing in..." : "Sign in"}
           </button>
         </form>
       </div>

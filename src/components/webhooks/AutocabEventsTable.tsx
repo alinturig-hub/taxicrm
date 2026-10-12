@@ -63,8 +63,8 @@ export default function AutocabEventsTable({
               </h2>
 
               <p className="mt-1 text-sm text-slate-400">
-                Click pe un eveniment pentru
-                detalii complete.
+                Select an event to view
+                its full details.
               </p>
             </div>
           </div>
@@ -109,7 +109,7 @@ export default function AutocabEventsTable({
                     colSpan={6}
                     className="px-6 py-12 text-center text-sm text-slate-500"
                   >
-                    Nu există webhook-uri.
+                    No webhook events found.
                   </td>
                 </tr>
               ) : (

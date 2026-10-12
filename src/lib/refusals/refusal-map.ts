@@ -50,7 +50,7 @@ function haversineKm(lat1: number, lon1: number, lat2: number, lon2: number): nu
   return 2 * R * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-/** Gaseste cel mai apropiat snapshot GPS de un moment dat, pentru un driver intern id. */
+/** Find the closest GPS snapshot to a given time for an internal driver ID. */
 async function nearestVehiclePosition(
   driverId: string,
   at: Date,
@@ -89,8 +89,8 @@ async function nearestVehiclePosition(
 }
 
 /**
- * Coreleaza un booking refuzat: cine a refuzat (din lanțul de dispatch),
- * poziția șoferului la momentul refuzului, pickup-ul, distanța.
+ * Correlate a refused booking with the driver from the dispatch chain,
+ * the driver position at refusal time, the pickup and the distance.
  */
 export async function getRefusalDetail(
   bookingId: string,
@@ -216,7 +216,7 @@ export async function getRefusalDetail(
 }
 
 /**
- * Toate refuzurile unui șofer (pe callsign), corelate cu poziția la refuz + pickup.
+ * Driver refusals by callsign, correlated with refusal position and pickup.
  */
 
 async function getEffectiveRefusalDetail(

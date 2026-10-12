@@ -289,7 +289,7 @@ export default function WebhookEventsPage() {
         setSelectedEvent(detail);
       }
     } catch {
-      // Lista poate conține deja suficiente date pentru afișarea evenimentului.
+      // The list may already contain enough data to display the event.
     } finally {
       setDetailLoading(false);
     }

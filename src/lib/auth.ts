@@ -15,7 +15,7 @@ export const authOptions: NextAuthOptions = {
 
   providers: [
     CredentialsProvider({
-      name: "Email și parolă",
+      name: "Email and password",
 
       credentials: {
         email: {
@@ -23,7 +23,7 @@ export const authOptions: NextAuthOptions = {
           type: "email",
         },
         password: {
-          label: "Parolă",
+          label: "Password",
           type: "password",
         },
       },

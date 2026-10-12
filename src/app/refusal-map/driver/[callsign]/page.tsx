@@ -23,10 +23,10 @@ export default async function DriverRefusalsPage({
     <main className="mx-auto max-w-7xl px-4 py-8">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-white">
-          Refuzuri șofer #{callsign}
+          Driver refusals #{callsign}
         </h1>
         <p className="text-sm text-slate-400">
-          Refuzuri efective din ultimele 30 de zile · {refusals.length} refuzuri
+          Recorded refusals in the last 30 days · {refusals.length} refusals
         </p>
       </div>
 

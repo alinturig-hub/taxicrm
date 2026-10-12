@@ -25,10 +25,10 @@ function pickupIcon() {
 }
 
 function outcomeShort(d: RefusalDetail): string {
-  if (d.outcome.completedAt) return "✅ efectuat";
+  if (d.outcome.completedAt) return "✅ completed";
   if (d.outcome.noFareAt) return "no-fare";
-  if (d.outcome.cancelledAt) return "anulat";
-  return "pierdut";
+  if (d.outcome.cancelledAt) return "cancelled";
+  return "lost";
 }
 
 export default function DriverRefusalsMap({
@@ -56,11 +56,11 @@ export default function DriverRefusalsMap({
     <div className="space-y-4">
       <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:grid-cols-5">
         {[
-          ["Refuzuri", counts.total],
-          ["Efectuate de alții", counts.effected],
+          ["Refusals", counts.total],
+          ["Completed by others", counts.effected],
           ["No-fare", counts.noFare],
-          ["Anulate", counts.cancelled],
-          ["Pierdute", counts.lost],
+          ["Cancellede", counts.cancelled],
+          ["Lost", counts.lost],
         ].map(([label, value]) => (
           <div key={label as string} className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
@@ -110,10 +110,10 @@ export default function DriverRefusalsMap({
             <thead>
               <tr className="border-b border-slate-800 text-xs uppercase tracking-wider text-slate-500">
                 <th className="px-4 py-3">Booking</th>
-                <th className="px-4 py-3">Refuzat</th>
+                <th className="px-4 py-3">Refused</th>
                 <th className="px-4 py-3">Pickup</th>
-                <th className="px-4 py-3">Distanță</th>
-                <th className="px-4 py-3">Rezultat</th>
+                <th className="px-4 py-3">Distance</th>
+                <th className="px-4 py-3">Outcome</th>
               </tr>
             </thead>
             <tbody>
@@ -121,7 +121,7 @@ export default function DriverRefusalsMap({
                 <tr key={r.bookingId} className="border-b border-slate-800/60 hover:bg-slate-800/30">
                   <td className="px-4 py-3 font-semibold text-white">{r.externalId}</td>
                   <td className="px-4 py-3 text-slate-400">
-                    {r.refusedAt ? new Date(r.refusedAt).toLocaleString("ro-RO") : "—"}
+                    {r.refusedAt ? new Date(r.refusedAt).toLocaleString("en-GB", { timeZone: "Europe/London" }) : "—"}
                   </td>
                   <td className="px-4 py-3 text-slate-300">
                     {r.pickupZone || "—"}
@@ -136,7 +136,7 @@ export default function DriverRefusalsMap({
               {refusals.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="px-4 py-6 text-center text-slate-500">
-                    Niciun refuz corelabil pentru #{callsign}.
+                    No matching refusals for #{callsign}.
                   </td>
                 </tr>
               ) : null}

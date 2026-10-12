@@ -61,10 +61,10 @@ function pickupIcon() {
 }
 
 function outcomeLabel(d: RefusalDetail): string {
-  if (d.outcome.completedAt) return "Efectuat de alt șofer ✅";
-  if (d.outcome.noFareAt) return "No-fare (client absent)";
-  if (d.outcome.cancelledAt) return "Anulat";
-  return "Pierdut (fără rezultat)";
+  if (d.outcome.completedAt) return "Completed by another driver ✅";
+  if (d.outcome.noFareAt) return "No fare (customer absent)";
+  if (d.outcome.cancelledAt) return "Cancelled";
+  return "Lost (no outcome)";
 }
 
 function fmtDelta(sec: number | null): string {
@@ -88,10 +88,10 @@ export default function RefusalMap({
       <div className="grid gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 sm:grid-cols-2 xl:grid-cols-5">
         {[
           ["Booking", detail.externalId],
-          ["Șofer (a refuzat)", detail.driver ? `#${detail.driver.callsign}` : "—"],
-          ["Distanță șofer→pickup", detail.distanceKm != null ? `${detail.distanceKm.toFixed(2)} km` : "—"],
-          ["Aprox. (snapshot)", fmtDelta(detail.deltaSeconds)],
-          ["Rezultat", outcomeLabel(detail)],
+          ["Driver (refused)", detail.driver ? `#${detail.driver.callsign}` : "—"],
+          ["Driver-to-pickup distance", detail.distanceKm != null ? `${detail.distanceKm.toFixed(2)} km` : "—"],
+          ["Snapshot time offset", fmtDelta(detail.deltaSeconds)],
+          ["Outcome", outcomeLabel(detail)],
         ].map(([label, value]) => (
           <div key={label as string} className="rounded-xl border border-slate-800 bg-slate-950 px-4 py-3">
             <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500">{label}</p>
@@ -134,9 +134,9 @@ export default function RefusalMap({
               icon={driverIcon()}
             >
               <Popup>
-                <strong>Șofer {detail.driver ? `#${detail.driver.callsign}` : ""}</strong>
+                <strong>Driver {detail.driver ? `#${detail.driver.callsign}` : ""}</strong>
                 {detail.driver?.name ? <div>{detail.driver.name}</div> : null}
-                <div>unde era la momentul refuzului</div>
+                <div>Location at the time of refusal</div>
               </Popup>
             </Marker>
           ) : null}
@@ -144,7 +144,7 @@ export default function RefusalMap({
           {detail.pickup ? (
             <Marker position={[detail.pickup.lat, detail.pickup.lng]} icon={pickupIcon()}>
               <Popup>
-                <strong>Pickup oferit</strong>
+                <strong>Offered pickup</strong>
                 {detail.pickupAddress ? <div>{detail.pickupAddress}</div> : null}
                 {detail.pickupZone ? <div className="text-slate-500">{detail.pickupZone}</div> : null}
               </Popup>
@@ -155,8 +155,8 @@ export default function RefusalMap({
 
       {detail.driver?.name ? (
         <p className="text-sm text-slate-500">
-          Șofer: <strong className="text-white">{detail.driver.name}</strong>
-          {detail.customerName ? ` · Client: ${detail.customerName}` : ""}
+          Driver: <strong className="text-white">{detail.driver.name}</strong>
+          {detail.customerName ? ` · Customer: ${detail.customerName}` : ""}
           {detail.typeOfBooking ? ` · ${detail.typeOfBooking}` : ""}
         </p>
       ) : null}

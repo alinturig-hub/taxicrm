@@ -84,8 +84,8 @@ export default async function AutocabWebhooksPage() {
           </h1>
 
           <p className="mt-3 text-slate-400">
-            Configurează endpoint-uri Autocab, reguli de procesare și
-            condiții pentru fiecare eveniment.
+            Configure Autocab endpoints, processing rules and
+            conditions for each event.
           </p>
         </div>
 
@@ -142,8 +142,8 @@ export default async function AutocabWebhooksPage() {
           </h2>
 
           <p className="mt-1 text-sm text-slate-400">
-            Endpoint-urile publice sunt generate folosind slug-ul
-            configurației.
+            Public endpoint URLs are generated from each
+            configuration slug.
           </p>
         </div>
 
@@ -193,8 +193,8 @@ export default async function AutocabWebhooksPage() {
                     </p>
 
                     <p className="mt-2 text-sm text-slate-500">
-                      Creează primul endpoint pentru a începe
-                      procesarea evenimentelor Autocab.
+                      Create your first endpoint to start
+                      processing Autocab events.
                     </p>
 
                     <Link
