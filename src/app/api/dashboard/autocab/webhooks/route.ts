@@ -1,3 +1,4 @@
+import { webhookAccess } from "@/lib/autocab/webhook-access";
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 
@@ -104,6 +105,7 @@ function getPrismaErrorCode(error: unknown): string | null {
 }
 
 export async function GET() {
+  if (!(await webhookAccess(false))) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   try {
     const configurations =
       await prisma.autocabWebhookConfiguration.findMany({
@@ -159,6 +161,7 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  if (!(await webhookAccess(true))) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   try {
     const body = (await request.json()) as Partial<CreateWebhookInput>;
 
