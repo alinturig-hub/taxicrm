@@ -652,3 +652,35 @@ a {
   }
 }
 
+
+/* Dashboard surfaces share one theme; the public login keeps its own palette. */
+[data-workspace] {
+  color-scheme: dark;
+  --background: #020817;
+  --foreground: #e2e8f0;
+  --surface: #0f172a;
+  --surface-subtle: #111c30;
+  --surface-muted: #1e293b;
+  --surface-hover: #1e293b;
+  --border: #263449;
+  --border-strong: #475569;
+  --text-primary: #f1f5f9;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-faint: #64748b;
+  --primary: #60a5fa;
+  --primary-hover: #93c5fd;
+  --primary-soft: #142744;
+  --success: #86efac;
+  --success-soft: #143427;
+  --warning: #fcd34d;
+  --warning-soft: #392f17;
+  --danger: #fca5a5;
+  --danger-soft: #3c1e29;
+  --ai: #c4b5fd;
+  --ai-soft: #2a2146;
+}
+[data-workspace] .app-ai-card {
+  border-color: #443965;
+  background: linear-gradient(135deg, #211b3b, #0f172a);
+}

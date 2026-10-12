@@ -3,302 +3,65 @@
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 import { usePathname } from "next/navigation";
+import { type ReactNode, useEffect, useMemo, useState, useRef } from "react";
+
 import {
-  type ReactNode,
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
-type IconName =
-  | "dashboard"
-  | "live"
-  | "bookings"
-  | "drivers"
-  | "fleet"
-  | "customers"
-  | "executive"
-  | "performance"
-  | "revenue"
-  | "reports"
-  | "copilot"
-  | "insights"
-  | "predictions"
-  | "automation"
-  | "autocab"
-  | "webhooks"
-  | "sync"
-  | "keys"
-  | "users"
-  | "roles"
-  | "company"
-  | "system";
-
-type NavigationItem = {
-  label: string;
-  href: string;
-  icon: IconName;
-  available: boolean;
-};
-
-type NavigationGroup = {
-  id: string;
-  label: string;
-  items: NavigationItem[];
-};
-
-const navigationGroups: NavigationGroup[] = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    items: [
-      {
-        label: "Overview",
-        href: "/dashboard",
-        icon: "dashboard",
-        available: true,
-      },
-      {
-        label: "Live Operations",
-        href: "/dashboard/live",
-        icon: "live",
-        available: true,
-      },
-    ],
-  },
-  {
-    id: "operations",
-    label: "Operations",
-    items: [
-      {
-        label: "Bookings",
-        href: "/dashboard/bookings",
-        icon: "bookings",
-        available: true,
-      },
-      {
-        label: "Drivers",
-        href: "/dashboard/drivers",
-        icon: "drivers",
-        available: true,
-      },
-      {
-        label: "Fleet",
-        href: "/dashboard/fleet",
-        icon: "fleet",
-        available: true,
-      },
-      {
-        label: "Customers",
-        href: "/dashboard/customers",
-        icon: "customers",
-        available: true,
-      },
-      {
-        label: "Zones",
-        href: "/dashboard/zones",
-        icon: "fleet",
-        available: true,
-      },
-    ],
-  },
-  {
-    id: "intelligence",
-    label: "Intelligence",
-    items: [
-      {
-        label: "Executive",
-        href: "/dashboard/intelligence/executive",
-        icon: "executive",
-        available: true,
-      },
-      {
-        label: "Hackney Drivers",
-        href: "/dashboard/intelligence/hackney",
-        icon: "performance",
-        available: true,
-      },
-      {
-        label: "Performance",
-        href: "/dashboard/intelligence/performance",
-        icon: "performance",
-        available: false,
-      },
-      {
-        label: "Revenue",
-        href: "/dashboard/intelligence/revenue",
-        icon: "revenue",
-        available: false,
-      },
-      {
-        label: "Reports",
-        href: "/dashboard/intelligence/reports",
-        icon: "reports",
-        available: false,
-      },
-    ],
-  },
-  {
-    id: "ai-center",
-    label: "AI Center",
-    items: [
-      {
-        label: "Copilot",
-        href: "/dashboard/ai/copilot",
-        icon: "copilot",
-        available: true,
-      },
-      {
-        label: "Insights",
-        href: "/dashboard/ai/insights",
-        icon: "insights",
-        available: true,
-      },
-      {
-        label: "Predictions",
-        href: "/dashboard/ai/predictions",
-        icon: "predictions",
-        available: true,
-      },
-      {
-        label: "Automation",
-        href: "/dashboard/ai/automation",
-        icon: "automation",
-        available: true,
-      },
-    ],
-  },
-  {
-    id: "integrations",
-    label: "Integrations",
-    items: [
-      {
-        label: "Webhooks",
-        href: "/dashboard/integrations/autocab/webhooks",
-        icon: "webhooks",
-        available: true,
-      },
-      {
-        label: "Sync Jobs",
-        href: "/dashboard/integrations/sync-jobs",
-        icon: "sync",
-        available: false,
-      },
-      {
-        label: "API Keys",
-        href: "/dashboard/integrations/api-keys",
-        icon: "keys",
-        available: false,
-      },
-    ],
-  },
-  {
-    id: "administration",
-    label: "Administration",
-    items: [
-      {
-        label: "Configuration",
-        href: "/dashboard/configuration",
-        icon: "system",
-        available: true,
-      },
-      {
-        label: "Amenity Review",
-        href: "/dashboard/administration/place-review",
-        icon: "system",
-        available: true,
-      },
-      {
-        label: "Autocab",
-        href: "/dashboard/integrations/autocab",
-        icon: "autocab",
-        available: true,
-      },
-      {
-        label: "Users",
-        href: "/dashboard/administration/users",
-        icon: "users",
-        available: true,
-      },
-      {
-        label: "Roles",
-        href: "/dashboard/administration/roles",
-        icon: "roles",
-        available: true,
-      },
-      {
-        label: "Company",
-        href: "/dashboard/administration/company",
-        icon: "company",
-        available: false,
-      },
-      {
-        label: "System",
-        href: "/dashboard/administration/system",
-        icon: "system",
-        available: false,
-      },
-    ],
-  },
-];
-
-function isItemActive(
-  pathname: string,
-  item: NavigationItem,
-) {
-  if (item.href === "/dashboard") {
-    return pathname === "/dashboard";
-  }
-
-  if (
-    item.href ===
-    "/dashboard/integrations/autocab"
-  ) {
-    return (
-      pathname === item.href ||
-      (pathname.startsWith(`${item.href}/`) &&
-        !pathname.startsWith(
-          "/dashboard/integrations/autocab/webhooks",
-        ))
-    );
-  }
-
-  return (
-    pathname === item.href ||
-    pathname.startsWith(`${item.href}/`)
-  );
-}
-
-function getActiveGroup(pathname: string) {
-  return (
-    navigationGroups.find((group) =>
-      group.items.some(
-        (item) =>
-          item.available &&
-          isItemActive(pathname, item),
-      ),
-    )?.id ?? "dashboard"
-  );
+  activeNavigation,
+  visibleNavigation,
+  searchNavigation,
+  type IconName,
+  type NavigationItem,
+  type NavigationGroup,
+} from "@/lib/workspace/navigation";
+function isItemActive(pathname: string, item: NavigationItem) {
+  return activeNavigation(pathname)?.item.href === item.href;
 }
 
 export default function DashboardShell({
   children,
   userEmail,
+  permissions,
+  role,
 }: {
   children: ReactNode;
   userEmail?: string | null;
+  permissions: string[];
+  role: string;
 }) {
   const pathname = usePathname();
 
+  const navigationGroups = useMemo(
+    () => visibleNavigation(permissions, role),
+    [permissions, role],
+  );
+  const active = activeNavigation(pathname, navigationGroups);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const results = searchNavigation(query, navigationGroups);
+  const menuButton = useRef<HTMLButtonElement>(null);
+  const mobilePanel = useRef<HTMLElement>(null);
+  useEffect(() => {
+    const key = (event: KeyboardEvent) => {
+      if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setSearchOpen((open) => !open);
+      }
+      if (event.key === "Escape") setSearchOpen(false);
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, []);
+  useEffect(() => {
+    setSearchOpen(false);
+    setQuery("");
+  }, [pathname]);
   const activeGroup = useMemo(
-    () => getActiveGroup(pathname),
-    [pathname],
+    () => activeNavigation(pathname, navigationGroups)?.group.id ?? "overview",
+    [pathname, navigationGroups],
   );
 
-  const [openGroup, setOpenGroup] =
-    useState(activeGroup);
-  const [mobileOpen, setMobileOpen] =
-    useState(false);
+  const [openGroup, setOpenGroup] = useState(activeGroup);
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setOpenGroup(activeGroup);
@@ -306,18 +69,47 @@ export default function DashboardShell({
   }, [activeGroup, pathname]);
 
   useEffect(() => {
-    document.body.style.overflow = mobileOpen
-      ? "hidden"
-      : "";
+    const previous = document.body.style.overflow;
+    document.body.style.overflow = mobileOpen ? "hidden" : "";
 
     return () => {
-      document.body.style.overflow = "";
+      document.body.style.overflow = previous;
     };
   }, [mobileOpen]);
 
-  const displayName =
-    userEmail?.split("@")[0] ||
-    "Account";
+  useEffect(() => {
+    if (!mobileOpen) return;
+    const panel = mobilePanel.current;
+    const elements = () =>
+      Array.from(
+        panel?.querySelectorAll<HTMLElement>(
+          "a[href], button:not([disabled])",
+        ) ?? [],
+      );
+    elements()[0]?.focus();
+    const key = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        menuButton.current?.focus();
+      }
+      if (event.key === "Tab") {
+        const items = elements();
+        const first = items[0],
+          last = items[items.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last?.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first?.focus();
+        }
+      }
+    };
+    document.addEventListener("keydown", key);
+    return () => document.removeEventListener("keydown", key);
+  }, [mobileOpen]);
+
+  const displayName = userEmail?.split("@")[0] || "Account";
 
   const initials = displayName
     .split(/\s+/)
@@ -327,9 +119,19 @@ export default function DashboardShell({
     .toUpperCase();
 
   return (
-    <div className="min-h-screen bg-[#020817] text-slate-100">
+    <div
+      data-workspace="true"
+      className="min-h-screen bg-[#020817] text-slate-100"
+    >
+      <a
+        href="#workspace-content"
+        className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-[100] focus:rounded-lg focus:bg-blue-600 focus:p-3"
+      >
+        Skip to content
+      </a>
       <aside className="fixed inset-y-0 left-0 z-50 hidden w-64 border-r border-slate-800/90 bg-[#07101f] lg:flex lg:flex-col">
         <SidebarContent
+          groups={navigationGroups}
           pathname={pathname}
           openGroup={openGroup}
           setOpenGroup={setOpenGroup}
@@ -348,20 +150,23 @@ export default function DashboardShell({
             className="absolute inset-0 bg-black/70 backdrop-blur-sm"
           />
 
-          <aside className="absolute inset-y-0 left-0 flex w-[min(18rem,88vw)] flex-col border-r border-slate-800 bg-[#07101f] shadow-2xl">
+          <aside
+            ref={mobilePanel}
+            role="dialog"
+            aria-modal="true"
+            aria-label="Workspace navigation"
+            className="absolute inset-y-0 left-0 flex w-[min(18rem,88vw)] flex-col border-r border-slate-800 bg-[#07101f] shadow-2xl"
+          >
             <SidebarContent
+              groups={navigationGroups}
               pathname={pathname}
               openGroup={openGroup}
               setOpenGroup={setOpenGroup}
               displayName={displayName}
               email={userEmail ?? null}
               initials={initials}
-              onNavigate={() =>
-                setMobileOpen(false)
-              }
-              onClose={() =>
-                setMobileOpen(false)
-              }
+              onNavigate={() => setMobileOpen(false)}
+              onClose={() => setMobileOpen(false)}
             />
           </aside>
         </div>
@@ -371,7 +176,9 @@ export default function DashboardShell({
         <header className="sticky top-0 z-40 flex h-16 items-center border-b border-slate-800/90 bg-[#020817]/90 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button
             type="button"
+            ref={menuButton}
             aria-label="Open navigation"
+            aria-expanded={mobileOpen}
             onClick={() => setMobileOpen(true)}
             className="mr-3 inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:border-slate-700 hover:text-white lg:hidden"
           >
@@ -380,44 +187,93 @@ export default function DashboardShell({
 
           <div className="min-w-0">
             <p className="truncate text-sm font-semibold text-white">
-              Operations Control Center
+              {active?.group.label ?? "TaxiCRM workspace"}
             </p>
 
             <p className="hidden text-xs text-slate-500 sm:block">
-              Live operations, intelligence and
-              integrations
+              {active?.item.label ?? "Your customer relationship workspace"}
             </p>
           </div>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="hidden min-w-64 items-center gap-2 rounded-xl border border-slate-800 bg-slate-900/80 px-3 py-2.5 text-sm text-slate-500 xl:flex">
-              <SearchIcon />
-
-              <span>
-                Search bookings, drivers...
-              </span>
-
-              <span className="ml-auto rounded-md border border-slate-700 bg-slate-950 px-1.5 py-0.5 text-[10px] text-slate-600">
-                /
-              </span>
+            <div className="relative">
+              <button
+                type="button"
+                aria-label="Find a module"
+                aria-expanded={searchOpen}
+                onClick={() => setSearchOpen((open) => !open)}
+                className="flex h-10 items-center gap-2 rounded-xl border border-slate-800 bg-slate-900 px-3 text-sm text-slate-400 hover:text-white"
+              >
+                <SearchIcon />
+                <span className="hidden sm:inline">Find a module</span>
+                <kbd className="hidden rounded border border-slate-700 px-1 text-[10px] lg:inline">
+                  Ctrl K
+                </kbd>
+              </button>
+              {searchOpen && (
+                <div className="absolute right-0 top-12 z-50 w-[min(24rem,85vw)] rounded-xl border border-slate-700 bg-slate-950 p-3 shadow-2xl">
+                  <label htmlFor="workspace-search" className="sr-only">
+                    Search modules
+                  </label>
+                  <input
+                    id="workspace-search"
+                    autoFocus
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Bookings, segments, SMS…"
+                    className="w-full rounded-lg border border-slate-700 bg-slate-900 p-3 text-sm text-white"
+                  />
+                  <ul
+                    aria-label="Matching modules"
+                    className="mt-2 max-h-80 overflow-auto"
+                  >
+                    {results.map((item) => (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={() => setSearchOpen(false)}
+                          className="block rounded-lg p-3 hover:bg-slate-800"
+                        >
+                          <span className="block text-sm font-semibold text-slate-200">
+                            {item.label}
+                          </span>
+                          <span className="text-xs text-slate-500">
+                            {item.module}
+                          </span>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                  {!results.length && (
+                    <p role="status" className="p-3 text-sm text-slate-400">
+                      No matching modules.
+                    </p>
+                  )}
+                </div>
+              )}
             </div>
-
-            <button
-              type="button"
-              className="inline-flex h-10 min-w-10 items-center justify-center rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 text-sm font-semibold text-blue-300 transition hover:bg-blue-500/20"
-            >
-              AI
-            </button>
-
-            <button
-              type="button"
-              aria-label="Notifications"
-              className="relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 transition hover:border-slate-700 hover:text-white"
-            >
-              <BellIcon />
-
-              <span className="absolute right-2 top-2 h-1.5 w-1.5 rounded-full bg-red-500" />
-            </button>
+            {navigationGroups.some((g) =>
+              g.items.some((i) => i.href === "/dashboard/ai/copilot"),
+            ) && (
+              <Link
+                href="/dashboard/ai/copilot"
+                aria-label="Open AI copilot"
+                className="inline-flex h-10 items-center rounded-xl border border-blue-500/30 bg-blue-500/10 px-3 text-sm font-semibold text-blue-300"
+              >
+                AI
+              </Link>
+            )}
+            {navigationGroups.some((g) =>
+              g.items.some((i) => i.href === "/dashboard/configuration/sms"),
+            ) && (
+              <Link
+                href="/dashboard/configuration/sms"
+                aria-label="Open notification configuration and history"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:text-white"
+              >
+                <BellIcon />
+              </Link>
+            )}
 
             <div className="inline-flex h-10 w-10 items-center justify-center rounded-full border border-slate-800 bg-slate-900 text-sm font-bold text-white lg:hidden">
               {initials || "A"}
@@ -425,7 +281,10 @@ export default function DashboardShell({
           </div>
         </header>
 
-        <main className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8">
+        <main
+          id="workspace-content"
+          className="min-h-[calc(100vh-4rem)] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"
+        >
           {children}
         </main>
       </div>
@@ -434,6 +293,7 @@ export default function DashboardShell({
 }
 
 function SidebarContent({
+  groups,
   pathname,
   openGroup,
   setOpenGroup,
@@ -443,6 +303,7 @@ function SidebarContent({
   onNavigate,
   onClose,
 }: {
+  groups: NavigationGroup[];
   pathname: string;
   openGroup: string;
   setOpenGroup: (groupId: string) => void;
@@ -456,7 +317,7 @@ function SidebarContent({
     <>
       <div className="flex h-16 items-center border-b border-slate-800/90 px-5">
         <Link
-          href="/dashboard"
+          href="/dashboard/workspace"
           onClick={onNavigate}
           className="flex min-w-0 items-center gap-3"
         >
@@ -470,7 +331,7 @@ function SidebarContent({
             </p>
 
             <p className="truncate text-[10px] font-medium uppercase tracking-[0.16em] text-slate-500">
-              Operations Platform
+              Customer & Operations CRM
             </p>
           </div>
         </Link>
@@ -489,26 +350,18 @@ function SidebarContent({
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <div className="space-y-2">
-          {navigationGroups.map((group) => {
-            const isOpen =
-              openGroup === group.id;
+          {groups.map((group) => {
+            const isOpen = openGroup === group.id;
 
-            const groupIsActive =
-              group.items.some(
-                (item) =>
-                  item.available &&
-                  isItemActive(pathname, item),
-              );
+            const groupIsActive = group.items.some(
+              (item) => item.available && isItemActive(pathname, item),
+            );
 
             return (
               <section key={group.id}>
                 <button
                   type="button"
-                  onClick={() =>
-                    setOpenGroup(
-                      isOpen ? "" : group.id,
-                    )
-                  }
+                  onClick={() => setOpenGroup(isOpen ? "" : group.id)}
                   aria-expanded={isOpen}
                   className={[
                     "flex w-full items-center rounded-xl px-3 py-2.5 text-left transition",
@@ -524,9 +377,7 @@ function SidebarContent({
                   <span
                     className={[
                       "ml-auto transition-transform duration-200",
-                      isOpen
-                        ? "rotate-180"
-                        : "rotate-0",
+                      isOpen ? "rotate-180" : "rotate-0",
                     ].join(" ")}
                   >
                     <ChevronIcon />
@@ -534,6 +385,7 @@ function SidebarContent({
                 </button>
 
                 <div
+                  style={isOpen ? undefined : { display: "none" }}
                   className={[
                     "grid overflow-hidden transition-all duration-300",
                     isOpen
@@ -548,11 +400,7 @@ function SidebarContent({
                           key={item.href}
                           item={item}
                           active={
-                            item.available &&
-                            isItemActive(
-                              pathname,
-                              item,
-                            )
+                            item.available && isItemActive(pathname, item)
                           }
                           onNavigate={onNavigate}
                         />
@@ -624,9 +472,7 @@ function SidebarItem({
         <NavigationIcon name={item.icon} />
       </span>
 
-      <span className="min-w-0 flex-1 truncate">
-        {item.label}
-      </span>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
 
       {!item.available ? (
         <span className="rounded-md border border-slate-800 bg-slate-950 px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-slate-600">
@@ -651,10 +497,7 @@ function SidebarItem({
 
   if (!item.available) {
     return (
-      <div
-        aria-disabled="true"
-        className={className}
-      >
+      <div aria-disabled="true" className={className}>
         {content}
       </div>
     );
@@ -663,6 +506,7 @@ function SidebarItem({
   return (
     <Link
       href={item.href}
+      aria-current={active ? "page" : undefined}
       onClick={onNavigate}
       className={className}
     >
@@ -671,11 +515,7 @@ function SidebarItem({
   );
 }
 
-function NavigationIcon({
-  name,
-}: {
-  name: IconName;
-}) {
+function NavigationIcon({ name }: { name: IconName }) {
   const paths: Record<IconName, ReactNode> = {
     dashboard: (
       <>

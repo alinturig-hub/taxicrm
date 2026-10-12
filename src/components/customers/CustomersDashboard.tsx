@@ -85,18 +85,27 @@ function formatDate(value: string | null) {
   return new Intl.DateTimeFormat("en-GB", {
     dateStyle: "medium",
     timeStyle: "short",
+    timeZone: "Europe/London",
   }).format(new Date(value));
 }
 
-export default function CustomersDashboard() {
+export default function CustomersDashboard({
+  initialTab = "ACCOUNT",
+  initialTag = "ALL",
+  audienceMode = false,
+}: {
+  initialTab?: Tab;
+  initialTag?: string;
+  audienceMode?: boolean;
+} = {}) {
   const [tab, setTab] =
-    useState<Tab>("ACCOUNT");
+    useState<Tab>(initialTab);
   const [search, setSearch] =
     useState("");
   const [debouncedSearch, setDebouncedSearch] =
     useState("");
   const [selectedTag, setSelectedTag] =
-    useState("ALL");
+    useState(initialTag);
   const [page, setPage] =
     useState(1);
   const [totalPages, setTotalPages] =
@@ -272,11 +281,11 @@ export default function CustomersDashboard() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm uppercase tracking-[0.25em] text-blue-400">
-            Operations
+            {audienceMode ? "Marketing / Audiences" : "Customer CRM"}
           </p>
 
           <h1 className="mt-2 text-4xl font-bold text-white">
-            Customers
+            {audienceMode ? "Audience segments" : "Customers"}
           </h1>
 
           <p className="mt-3 max-w-3xl text-slate-400">
