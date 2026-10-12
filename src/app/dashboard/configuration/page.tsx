@@ -1,6 +1,19 @@
 import ModuleHub from "@/components/workspace/ModuleHub";
-import { workspaceGroup } from "@/lib/workspace/access";
+import DisableIntegrations from "@/components/configuration/DisableIntegrations";
+import { workspaceAccess, workspaceGroup } from "@/lib/workspace/access";
 export const dynamic = "force-dynamic";
 export default async function ConfigurationPage() {
-  return <ModuleHub group={await workspaceGroup("configuration")} />;
+  const group = await workspaceGroup("configuration");
+  const { access } = await workspaceAccess();
+  return (
+    <div className="space-y-6">
+      <DisableIntegrations
+        canManage={
+          access.isSuperAdmin ||
+          access.permissions.includes("configuration.manage")
+        }
+      />
+      <ModuleHub group={group} />
+    </div>
+  );
 }

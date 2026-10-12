@@ -328,6 +328,66 @@ try {
     ).status(),
     409,
   );
+  assert.equal(
+    (
+      await context.request.post(
+        origin + "/api/dashboard/configuration/integrations-disable",
+        { data: { confirmation: "invalid" } },
+      )
+    ).status(),
+    400,
+  );
+  let disableRequests = 0;
+  await context.route(
+    origin + "/api/dashboard/configuration/integrations-disable",
+    async (route) => {
+      if (route.request().method() !== "POST") return route.continue();
+      disableRequests++;
+      assert.deepEqual(route.request().postDataJSON(), {
+        confirmation: "DISABLE_EXISTING_CONFIGURATIONS",
+      });
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          disabled: {
+            webhookSources: 1,
+            webhookEvents: 2,
+            apiEndpoints: 3,
+            autocab: 1,
+            geoapify: 1,
+            sms: 1,
+          },
+        }),
+      });
+    },
+  );
+  await page.goto(origin + "/dashboard/configuration");
+  const disableButton = page.getByRole("button", {
+    name: "Disable all webhooks & configured APIs",
+    exact: true,
+  });
+  page.once("dialog", (dialog) => dialog.dismiss());
+  await disableButton.click();
+  assert.equal(disableRequests, 0);
+  page.once("dialog", (dialog) => dialog.accept());
+  await disableButton.click();
+  await page
+    .getByRole("status")
+    .filter({ hasText: "9 configurations disabled." })
+    .waitFor();
+  assert.equal(disableRequests, 1);
+  const publicContext = await browser.newContext();
+  assert.equal(
+    (
+      await publicContext.request.post(
+        origin + "/api/dashboard/configuration/integrations-disable",
+        { data: { confirmation: "DISABLE_EXISTING_CONFIGURATIONS" } },
+      )
+    ).status(),
+    403,
+  );
+  await publicContext.close();
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.evaluate(
