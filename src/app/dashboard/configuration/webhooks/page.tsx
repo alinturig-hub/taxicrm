@@ -1,3 +1,4 @@
+import { publicProvider } from "@/lib/autocab/webhook-providers";
 import { prisma } from "@/lib/prisma";
 import WebhookWorkspace from "@/components/webhooks/WebhookWorkspace";
 import { workspaceAccess, workspaceGroup } from "@/lib/workspace/access";
@@ -41,19 +42,28 @@ export default async function WebhooksPage() {
     },
   });
 
+  const providers = await prisma.webhookProvider.findMany({
+    orderBy: { createdAt: "asc" },
+  });
   return (
     <WebhookWorkspace
       canManage={
         access.isSuperAdmin ||
         access.permissions.includes("configuration.manage")
       }
-      baseUrl="https://taxicrm.plymhub.ai/api/webhooks/autocab"
-      keyHeader={
-        process.env.AUTOCAB_WEBHOOK_API_KEY_HEADER?.trim() ||
-        "x-autocab-api-key"
-      }
+      providers={providers.map((provider) =>
+        publicProvider({
+          ...provider,
+          apiKeyHeader:
+            provider.id === "autocab" && !provider.apiKeyEncrypted
+              ? process.env.AUTOCAB_WEBHOOK_API_KEY_HEADER?.trim() ||
+                provider.apiKeyHeader
+              : provider.apiKeyHeader,
+        }),
+      )}
       events={configurations.map((configuration) => ({
         id: configuration.id,
+        providerId: configuration.providerId,
         displayName: configuration.displayName,
         eventType: configuration.eventType,
         endpointSlug: configuration.endpointSlug,

@@ -429,7 +429,23 @@ model BookingVia {
   @@unique([bookingId, position])
 }
 
+model WebhookProvider {
+  id String @id @default(cuid())
+  name String
+  description String?
+  baseUrl String
+  apiKeyHeader String @default("x-autocab-api-key")
+  apiKeyEncrypted String?
+  isEnabled Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  configurations AutocabWebhookConfiguration[]
+}
+
 model AutocabWebhookConfiguration {
+  providerId String @default("autocab")
+  webhookProvider WebhookProvider @relation(fields: [providerId], references: [id], onDelete: Restrict)
+
   id             String                @id @default(cuid())
   displayName    String
   eventType      String                @unique

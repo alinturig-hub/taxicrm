@@ -4,15 +4,9 @@ import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 
-const PROCESSING_MODES = [
-  "ALWAYS",
-  "WHEN_CONDITIONS_MATCH",
-] as const;
+const PROCESSING_MODES = ["ALWAYS", "WHEN_CONDITIONS_MATCH"] as const;
 
-const CONDITION_MODES = [
-  "ALL",
-  "ANY",
-] as const;
+const CONDITION_MODES = ["ALL", "ANY"] as const;
 
 const CONDITION_OPERATORS = [
   "EQUALS",
@@ -42,6 +36,7 @@ type ConditionInput = {
 };
 
 type CreateWebhookInput = {
+  providerId?: string;
   displayName: string;
   eventType: string;
   endpointSlug: string;
@@ -105,19 +100,19 @@ function getPrismaErrorCode(error: unknown): string | null {
 }
 
 export async function GET() {
-  if (!(await webhookAccess(false))) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if (!(await webhookAccess(false)))
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   try {
-    const configurations =
-      await prisma.autocabWebhookConfiguration.findMany({
-        orderBy: [
-          {
-            isEnabled: "desc",
-          },
-          {
-            displayName: "asc",
-          },
-        ],
-      });
+    const configurations = await prisma.autocabWebhookConfiguration.findMany({
+      orderBy: [
+        {
+          isEnabled: "desc",
+        },
+        {
+          displayName: "asc",
+        },
+      ],
+    });
 
     const conditionCounts = await prisma.webhookCondition.groupBy({
       by: ["configurationId"],
@@ -127,31 +122,23 @@ export async function GET() {
     });
 
     const countsByConfigurationId = new Map(
-      conditionCounts.map((item) => [
-        item.configurationId,
-        item._count._all,
-      ]),
+      conditionCounts.map((item) => [item.configurationId, item._count._all]),
     );
 
     const response = configurations.map((configuration) => ({
       ...configuration,
-      conditionCount:
-        countsByConfigurationId.get(configuration.id) ?? 0,
+      conditionCount: countsByConfigurationId.get(configuration.id) ?? 0,
       endpointUrl: `/api/webhooks/autocab/${configuration.endpointSlug}`,
     }));
 
     return NextResponse.json(response);
   } catch (error) {
-    console.error(
-      "Failed to load Autocab webhook configurations:",
-      error,
-    );
+    console.error("Failed to load Autocab webhook configurations:", error);
 
     return NextResponse.json(
       {
         error: "WEBHOOK_CONFIGURATIONS_LOAD_FAILED",
-        message:
-          "Autocab webhook configurations could not be loaded.",
+        message: "Autocab webhook configurations could not be loaded.",
       },
       {
         status: 500,
@@ -161,14 +148,19 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
-  if (!(await webhookAccess(true))) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
+  if (!(await webhookAccess(true)))
+    return NextResponse.json({ error: "FORBIDDEN" }, { status: 403 });
   try {
     const body = (await request.json()) as Partial<CreateWebhookInput>;
 
+    const providerId =
+      typeof body.providerId === "string" ? body.providerId : "autocab";
+    if (
+      !(await prisma.webhookProvider.findUnique({ where: { id: providerId } }))
+    )
+      return NextResponse.json({ error: "INVALID_PROVIDER" }, { status: 400 });
     const displayName =
-      typeof body.displayName === "string"
-        ? body.displayName.trim()
-        : "";
+      typeof body.displayName === "string" ? body.displayName.trim() : "";
 
     const eventType =
       typeof body.eventType === "string"
@@ -216,9 +208,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const processingMode = isProcessingMode(
-      body.processingMode,
-    )
+    const processingMode = isProcessingMode(body.processingMode)
       ? body.processingMode
       : "ALWAYS";
 
@@ -226,9 +216,7 @@ export async function POST(request: NextRequest) {
       ? body.conditionMode
       : "ALL";
 
-    const conditions = Array.isArray(body.conditions)
-      ? body.conditions
-      : [];
+    const conditions = Array.isArray(body.conditions) ? body.conditions : [];
 
     for (const condition of conditions) {
       if (
@@ -239,8 +227,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "INVALID_CONDITION_FIELD",
-            message:
-              "Every condition must contain a field path.",
+            message: "Every condition must contain a field path.",
           },
           {
             status: 400,
@@ -252,8 +239,7 @@ export async function POST(request: NextRequest) {
         return NextResponse.json(
           {
             error: "INVALID_CONDITION_OPERATOR",
-            message:
-              "One or more webhook condition operators are invalid.",
+            message: "One or more webhook condition operators are invalid.",
           },
           {
             status: 400,
@@ -262,10 +248,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (
-      processingMode === "WHEN_CONDITIONS_MATCH" &&
-      conditions.length === 0
-    ) {
+    if (processingMode === "WHEN_CONDITIONS_MATCH" && conditions.length === 0) {
       return NextResponse.json(
         {
           error: "CONDITIONS_REQUIRED",
@@ -278,54 +261,49 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const configuration = await prisma.$transaction(
-      async (transaction) => {
-        const created =
-          await transaction.autocabWebhookConfiguration.create({
-            data: {
-              displayName,
-              eventType,
-              endpointSlug,
-              description:
-                typeof body.description === "string" &&
-                body.description.trim()
-                  ? body.description.trim()
-                  : null,
-              isEnabled:
-                typeof body.isEnabled === "boolean"
-                  ? body.isEnabled
-                  : true,
-              processingMode,
-              conditionMode,
-            },
-          });
+    const configuration = await prisma.$transaction(async (transaction) => {
+      const created = await transaction.autocabWebhookConfiguration.create({
+        data: {
+          providerId,
+          displayName,
+          eventType,
+          endpointSlug,
+          description:
+            typeof body.description === "string" && body.description.trim()
+              ? body.description.trim()
+              : null,
+          isEnabled:
+            typeof body.isEnabled === "boolean" ? body.isEnabled : true,
+          processingMode,
+          conditionMode,
+        },
+      });
 
-        if (conditions.length > 0) {
-          await transaction.webhookCondition.createMany({
-            data: conditions.map((condition, index) => ({
-              configurationId: created.id,
-              fieldPath: condition.fieldPath.trim(),
-              operator: condition.operator,
-              ...(condition.expectedValue !== undefined
-                ? {
-                    expectedValue: condition.expectedValue,
-                  }
-                : {}),
-              position:
-                typeof condition.position === "number"
-                  ? condition.position
-                  : index,
-              isEnabled:
-                typeof condition.isEnabled === "boolean"
-                  ? condition.isEnabled
-                  : true,
-            })),
-          });
-        }
+      if (conditions.length > 0) {
+        await transaction.webhookCondition.createMany({
+          data: conditions.map((condition, index) => ({
+            configurationId: created.id,
+            fieldPath: condition.fieldPath.trim(),
+            operator: condition.operator,
+            ...(condition.expectedValue !== undefined
+              ? {
+                  expectedValue: condition.expectedValue,
+                }
+              : {}),
+            position:
+              typeof condition.position === "number"
+                ? condition.position
+                : index,
+            isEnabled:
+              typeof condition.isEnabled === "boolean"
+                ? condition.isEnabled
+                : true,
+          })),
+        });
+      }
 
-        return created;
-      },
-    );
+      return created;
+    });
 
     return NextResponse.json(
       {
@@ -338,10 +316,7 @@ export async function POST(request: NextRequest) {
       },
     );
   } catch (error) {
-    console.error(
-      "Failed to create Autocab webhook configuration:",
-      error,
-    );
+    console.error("Failed to create Autocab webhook configuration:", error);
 
     if (getPrismaErrorCode(error) === "P2002") {
       return NextResponse.json(
@@ -359,8 +334,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(
       {
         error: "WEBHOOK_CONFIGURATION_CREATE_FAILED",
-        message:
-          "The Autocab webhook configuration could not be created.",
+        message: "The Autocab webhook configuration could not be created.",
       },
       {
         status: 500,

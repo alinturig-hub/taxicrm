@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import ProviderSettings, { Provider } from "./ProviderSettings";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 type EventUrl = {
   id: string;
+  providerId: string;
   displayName: string;
   eventType: string;
   endpointSlug: string;
@@ -20,13 +22,11 @@ type EventUrl = {
 /** Adapted from Need A Cab Plus's provider workspace; TaxiCRM retains its own receiver and data model. */
 export default function WebhookWorkspace({
   events,
-  baseUrl,
-  keyHeader,
+  providers,
   canManage,
 }: {
   events: EventUrl[];
-  baseUrl: string;
-  keyHeader: string;
+  providers: Provider[];
   canManage: boolean;
 }) {
   const router = useRouter();
@@ -75,8 +75,33 @@ export default function WebhookWorkspace({
       setBusy(false);
     }
   }
-  const enabled = events.filter((event) => event.isEnabled).length;
-  const visible = events.filter((event) =>
+  const [selectedId, setSelectedId] = useState("autocab");
+  const [sourceForm, setSourceForm] = useState<Provider | null | undefined>(
+    undefined,
+  );
+  const selected =
+    providers.find((provider) => provider.id === selectedId) || providers[0];
+  const baseUrl = selected?.baseUrl || "";
+  const keyHeader = selected?.apiKeyHeader || "";
+  const sourceEvents = events.filter(
+    (event) => event.providerId === selected?.id,
+  );
+  async function deleteSource() {
+    if (!selected || !window.confirm(`Delete source ${selected.name}?`)) return;
+    const response = await fetch(
+      `/api/dashboard/autocab/providers/${selected.id}`,
+      { method: "DELETE" },
+    );
+    const result = await response.json();
+    if (!response.ok) {
+      setNotice(result.message || "Default source cannot be removed.");
+      return;
+    }
+    setSelectedId("autocab");
+    router.refresh();
+  }
+  const enabled = sourceEvents.filter((event) => event.isEnabled).length;
+  const visible = sourceEvents.filter((event) =>
     `${event.displayName} ${event.eventType} ${event.endpointSlug}`
       .toLowerCase()
       .includes(search.toLowerCase()),
@@ -106,13 +131,18 @@ export default function WebhookWorkspace({
           </p>
         </div>
         <span className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300">
-          1 provider
+          {providers.length} providers
         </span>
       </header>
       <div className="flex flex-wrap gap-3">
+        {canManage && (
+          <button className={button} onClick={() => setSourceForm(null)}>
+            + Add provider
+          </button>
+        )}
         <Link
           className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
-          href="/dashboard/configuration/webhooks/add"
+          href={`/dashboard/integrations/autocab/webhooks/new?providerId=${selected?.id || "autocab"}`}
         >
           + Add event URL
         </Link>
@@ -133,6 +163,13 @@ export default function WebhookWorkspace({
       <p role="status" className="text-sm text-slate-300">
         {notice}
       </p>
+      {sourceForm !== undefined && (
+        <ProviderSettings
+          key={sourceForm?.id || "new"}
+          provider={sourceForm}
+          onClose={() => setSourceForm(undefined)}
+        />
+      )}
       {editing && (
         <form
           className="space-y-3 rounded-xl border border-slate-700 bg-slate-900 p-5"
@@ -199,34 +236,66 @@ export default function WebhookWorkspace({
           className="border-b border-slate-800 bg-slate-950/60 p-4 lg:border-b-0 lg:border-r"
           aria-label="Webhook sources"
         >
-          <div
-            aria-current="true"
-            className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-4"
-          >
-            <h2 className="font-semibold text-white">Autocab</h2>
-            <p className="mt-2 text-xs text-slate-400">
-              {enabled}/{events.length} event URLs enabled
-            </p>
-          </div>
-          <p className="mt-4 text-xs leading-5 text-slate-500">
-            Autocab is the currently supported provider.
-          </p>
+          {providers.map((provider) => (
+            <button
+              key={provider.id}
+              type="button"
+              aria-current={selected?.id === provider.id ? "true" : undefined}
+              onClick={() => {
+                setSelectedId(provider.id);
+                setEditing(null);
+                setSearch("");
+              }}
+              className={`mb-2 w-full rounded-xl border p-4 text-left ${selected?.id === provider.id ? "border-blue-500/30 bg-blue-500/10" : "border-slate-800"}`}
+            >
+              <h2 className="font-semibold text-white">{provider.name}</h2>
+              <p className="mt-2 text-xs text-slate-400">
+                {provider.isEnabled ? "Enabled" : "Disabled"} ·{" "}
+                {
+                  events.filter((event) => event.providerId === provider.id)
+                    .length
+                }{" "}
+                event URLs
+              </p>
+            </button>
+          ))}
         </aside>
         <div className="min-w-0 space-y-6 p-4 sm:p-6">
           <header>
             <p className="text-xs uppercase tracking-widest text-blue-400">
               Webhook source
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-white">Autocab</h2>
+            <h2 className="mt-2 text-2xl font-semibold text-white">
+              {selected?.name}
+            </h2>
             <p className="mt-2 text-sm text-slate-400">
-              Booking, driver and vehicle events.
+              {selected?.description || "Autocab-format operational events."}
             </p>
           </header>
+          {canManage && (
+            <div className="flex gap-3">
+              <button
+                className={button}
+                onClick={() => setSourceForm(selected)}
+              >
+                Edit source
+              </button>
+              {selected?.id !== "autocab" && (
+                <button className={button} onClick={() => void deleteSource()}>
+                  Delete source
+                </button>
+              )}
+            </div>
+          )}
           <div className="grid overflow-hidden rounded-xl border border-slate-700 md:grid-cols-[140px_minmax(0,1fr)_180px]">
             <div className="p-4">
               <p className="text-xs uppercase text-slate-500">Configuration</p>
               <p className="mt-2 text-sm text-slate-200">
-                {enabled ? "URLs enabled" : "No enabled URLs"}
+                {!selected?.isEnabled
+                  ? "Source disabled"
+                  : enabled
+                    ? "URLs enabled"
+                    : "No enabled URLs"}
               </p>
             </div>
             <div className="border-t border-slate-700 p-4 md:border-l md:border-t-0">
@@ -252,9 +321,9 @@ export default function WebhookWorkspace({
                 Event URLs
               </p>
               <h3 className="mt-2 text-xl text-white">
-                Autocab events{" "}
+                Source events{" "}
                 <span className="text-sm text-slate-400">
-                  ({events.length})
+                  ({sourceEvents.length})
                 </span>
               </h3>
             </div>

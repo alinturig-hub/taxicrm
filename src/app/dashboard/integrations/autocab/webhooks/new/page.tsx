@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ApiErrorResponse = {
@@ -30,6 +30,28 @@ function normalizeEventCode(value: string): string {
 export default function NewAutocabWebhookPage() {
   const router = useRouter();
 
+  const [providerBase, setProviderBase] = useState(
+    "https://taxicrm.plymhub.ai/api/webhooks/autocab",
+  );
+  useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("providerId");
+    if (!id) return;
+    let active = true;
+    void fetch("/api/dashboard/autocab/providers")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const providers = (await response.json()) as {
+          id: string;
+          baseUrl: string;
+        }[];
+        const selected = providers.find((provider) => provider.id === id);
+        if (active && selected) setProviderBase(selected.baseUrl);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
   const [displayName, setDisplayName] = useState("");
   const [eventType, setEventType] = useState("");
   const [endpointSlug, setEndpointSlug] = useState("");
@@ -49,9 +71,7 @@ export default function NewAutocabWebhookPage() {
     [eventType],
   );
 
-  const webhookUrl = `https://taxicrm.plymhub.ai/api/webhooks/autocab/${
-    endpointPreview || "newbooking"
-  }`;
+  const webhookUrl = `${providerBase}/${endpointPreview || "newbooking"}`;
 
   async function copyWebhookUrl() {
     try {
@@ -73,39 +93,35 @@ export default function NewAutocabWebhookPage() {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch(
-        "/api/dashboard/autocab/webhooks",
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            displayName,
-            eventType,
-            endpointSlug,
-            description,
-            isEnabled,
-            processingMode: "ALWAYS",
-            conditionMode: "ALL",
-            conditions: [],
-          }),
+      const response = await fetch("/api/dashboard/autocab/webhooks", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
         },
-      );
+        body: JSON.stringify({
+          providerId:
+            new URLSearchParams(window.location.search).get("providerId") ||
+            "autocab",
+          displayName,
+          eventType,
+          endpointSlug,
+          description,
+          isEnabled,
+          processingMode: "ALWAYS",
+          conditionMode: "ALL",
+          conditions: [],
+        }),
+      });
 
       if (!response.ok) {
-        const error =
-          (await response.json()) as ApiErrorResponse;
+        const error = (await response.json()) as ApiErrorResponse;
 
         throw new Error(
-          error.message ??
-            "Webhook configuration could not be created.",
+          error.message ?? "Webhook configuration could not be created.",
         );
       }
 
-      router.push(
-        "/dashboard/integrations/autocab/webhooks",
-      );
+      router.push("/dashboard/configuration/webhooks");
       router.refresh();
     } catch (error) {
       setErrorMessage(
@@ -131,9 +147,8 @@ export default function NewAutocabWebhookPage() {
           </h1>
 
           <p className="mt-3 max-w-3xl text-slate-400">
-            Creează un endpoint public pentru colectarea și
-            arhivarea completă a evenimentelor primite de la
-            Autocab.
+            Creează un endpoint public pentru colectarea și arhivarea completă a
+            evenimentelor primite de la Autocab.
           </p>
         </div>
 
@@ -159,8 +174,8 @@ export default function NewAutocabWebhookPage() {
             </h2>
 
             <p className="mt-1 text-sm text-slate-400">
-              Definește identitatea webhook-ului și URL-ul care va
-              fi introdus în portalul Autocab.
+              Definește identitatea webhook-ului și URL-ul care va fi introdus
+              în portalul Autocab.
             </p>
           </div>
 
@@ -178,9 +193,7 @@ export default function NewAutocabWebhookPage() {
                 type="text"
                 required
                 value={displayName}
-                onChange={(event) =>
-                  setDisplayName(event.target.value)
-                }
+                onChange={(event) => setDisplayName(event.target.value)}
                 placeholder="New Booking"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500"
               />
@@ -199,9 +212,7 @@ export default function NewAutocabWebhookPage() {
                 type="text"
                 required
                 value={eventType}
-                onChange={(event) =>
-                  setEventType(event.target.value)
-                }
+                onChange={(event) => setEventType(event.target.value)}
                 placeholder="AUTOCAB_NEW_BOOKING"
                 className="w-full rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 font-mono text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500"
               />
@@ -209,8 +220,7 @@ export default function NewAutocabWebhookPage() {
               <p className="mt-2 text-xs text-slate-500">
                 Saved as:{" "}
                 <span className="font-mono text-blue-400">
-                  {eventCodePreview ||
-                    "AUTOCAB_NEW_BOOKING"}
+                  {eventCodePreview || "AUTOCAB_NEW_BOOKING"}
                 </span>
               </p>
             </div>
@@ -233,9 +243,7 @@ export default function NewAutocabWebhookPage() {
                   type="text"
                   required
                   value={endpointSlug}
-                  onChange={(event) =>
-                    setEndpointSlug(event.target.value)
-                  }
+                  onChange={(event) => setEndpointSlug(event.target.value)}
                   placeholder="newbooking"
                   className="min-w-0 flex-1 bg-transparent px-4 py-3 font-mono text-white outline-none placeholder:text-slate-600"
                 />
@@ -254,9 +262,7 @@ export default function NewAutocabWebhookPage() {
                 id="description"
                 rows={4}
                 value={description}
-                onChange={(event) =>
-                  setDescription(event.target.value)
-                }
+                onChange={(event) => setDescription(event.target.value)}
                 placeholder="Receives and stores all new booking events from Autocab."
                 className="w-full resize-y rounded-lg border border-slate-700 bg-slate-950 px-4 py-3 text-white outline-none transition placeholder:text-slate-600 focus:border-blue-500"
               />
@@ -264,22 +270,18 @@ export default function NewAutocabWebhookPage() {
 
             <label className="flex cursor-pointer items-center justify-between rounded-xl border border-slate-700 bg-slate-950 p-4 lg:col-span-2">
               <div>
-                <p className="font-medium text-white">
-                  Enable Webhook
-                </p>
+                <p className="font-medium text-white">Enable Webhook</p>
 
                 <p className="mt-1 text-sm text-slate-500">
-                  Când este activ, endpoint-ul poate primi și salva
-                  evenimente Autocab.
+                  Când este activ, endpoint-ul poate primi și salva evenimente
+                  Autocab.
                 </p>
               </div>
 
               <input
                 type="checkbox"
                 checked={isEnabled}
-                onChange={(event) =>
-                  setIsEnabled(event.target.checked)
-                }
+                onChange={(event) => setIsEnabled(event.target.checked)}
                 className="h-5 w-5 rounded border-slate-600 bg-slate-900 text-blue-600"
               />
             </label>
@@ -289,9 +291,7 @@ export default function NewAutocabWebhookPage() {
         <aside className="space-y-6">
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="border-b border-slate-800 px-5 py-4">
-              <h2 className="font-semibold text-white">
-                Webhook URL
-              </h2>
+              <h2 className="font-semibold text-white">Webhook URL</h2>
 
               <p className="mt-1 text-sm text-slate-400">
                 Copiază acest URL în portalul Autocab.
@@ -315,9 +315,7 @@ export default function NewAutocabWebhookPage() {
 
           <section className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900">
             <div className="border-b border-slate-800 px-5 py-4">
-              <h2 className="font-semibold text-white">
-                Data Collection
-              </h2>
+              <h2 className="font-semibold text-white">Data Collection</h2>
             </div>
 
             <div className="space-y-4 p-5 text-sm">
@@ -335,9 +333,7 @@ export default function NewAutocabWebhookPage() {
               </div>
 
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-400">
-                  Collection mode
-                </span>
+                <span className="text-slate-400">Collection mode</span>
                 <span className="font-semibold text-white">
                   Store all events
                 </span>
@@ -345,26 +341,20 @@ export default function NewAutocabWebhookPage() {
 
               <div className="flex items-center justify-between gap-4">
                 <span className="text-slate-400">Filters</span>
-                <span className="font-semibold text-white">
-                  None
-                </span>
+                <span className="font-semibold text-white">None</span>
               </div>
 
               <div className="flex items-center justify-between gap-4">
-                <span className="text-slate-400">
-                  Payload storage
-                </span>
-                <span className="font-semibold text-white">
-                  Raw JSON
-                </span>
+                <span className="text-slate-400">Payload storage</span>
+                <span className="font-semibold text-white">Raw JSON</span>
               </div>
             </div>
           </section>
 
           <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 p-5 text-sm leading-6 text-blue-200">
-            Toate payload-urile primite prin acest endpoint vor fi
-            păstrate integral. Filtrarea și clasificarea vor fi
-            aplicate ulterior în stratul de analytics.
+            Toate payload-urile primite prin acest endpoint vor fi păstrate
+            integral. Filtrarea și clasificarea vor fi aplicate ulterior în
+            stratul de analytics.
           </div>
         </aside>
       </div>
@@ -382,9 +372,7 @@ export default function NewAutocabWebhookPage() {
           disabled={isSubmitting}
           className="inline-flex items-center justify-center rounded-lg bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          {isSubmitting
-            ? "Creating Webhook..."
-            : "Create Webhook"}
+          {isSubmitting ? "Creating Webhook..." : "Create Webhook"}
         </button>
       </div>
     </form>

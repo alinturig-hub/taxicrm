@@ -147,6 +147,117 @@ try {
     ).webhookConfigurationId,
     null,
   );
+  await page
+    .getByRole("button", { name: "+ Add provider", exact: true })
+    .click();
+  await page.getByLabel("Provider name", { exact: true }).fill(prefix);
+  await page
+    .getByLabel("Source description", { exact: true })
+    .fill("Synthetic provider");
+  await page
+    .getByLabel("API key header", { exact: true })
+    .fill("x-synthetic-key");
+  await page
+    .locator("input[type=password]")
+    .fill("synthetic-provider-secret-123456");
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  const sourceButton = page
+    .getByRole("button")
+    .filter({ has: page.getByRole("heading", { name: prefix, exact: true }) });
+  await sourceButton.waitFor();
+  await sourceButton.click();
+  const provider = await prisma.webhookProvider.findFirstOrThrow({
+    where: { name: prefix },
+  });
+  assert.notEqual(provider.apiKeyEncrypted, "synthetic-provider-secret-123456");
+  const catalogue = await context.request.get(
+    origin + "/api/dashboard/autocab/providers",
+  );
+  const catalogueText = await catalogue.text();
+  assert.equal(catalogue.status(), 200);
+  assert.equal(catalogueText.includes(provider.apiKeyEncrypted), false);
+  assert.equal(
+    catalogueText.includes("synthetic-provider-secret-123456"),
+    false,
+  );
+  const created = await context.request.post(
+    origin + "/api/dashboard/autocab/webhooks",
+    {
+      data: {
+        providerId: provider.id,
+        displayName: name,
+        eventType: prefix,
+        endpointSlug: prefix,
+        isEnabled: true,
+      },
+    },
+  );
+  assert.equal(created.status(), 201);
+  const receiver = origin + `/api/webhooks/autocab/${prefix}`;
+  assert.equal(
+    (
+      await context.request.post(receiver, {
+        data: { EventType: "SyntheticUnknown", synthetic: true },
+      })
+    ).status(),
+    503,
+  );
+  await page.getByRole("button", { name: "Edit source", exact: true }).click();
+  await page.getByLabel("Enable source", { exact: true }).check();
+  await page.getByRole("button", { name: "Save source", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Edit source", exact: true })
+    .waitFor();
+  assert.equal(
+    (
+      await context.request.post(receiver, {
+        data: { EventType: "SyntheticUnknown", synthetic: true },
+      })
+    ).status(),
+    401,
+  );
+  const received = await context.request.post(receiver, {
+    headers: { "x-synthetic-key": "synthetic-provider-secret-123456" },
+    data: { EventType: "SyntheticUnknown", synthetic: true },
+  });
+  assert.equal(received.status(), 202);
+  const eventId = (await received.json()).webhook.id;
+  const raw = await prisma.webhookEvent.findUniqueOrThrow({
+    where: { id: eventId },
+  });
+  assert.equal(raw.headers["x-synthetic-key"], undefined);
+  const preserved = await prisma.webhookProvider.findUniqueOrThrow({
+    where: { id: provider.id },
+  });
+  assert.equal(preserved.apiKeyEncrypted, provider.apiKeyEncrypted);
+  assert.equal(
+    (
+      await context.request.delete(
+        origin + `/api/dashboard/autocab/providers/${provider.id}`,
+      )
+    ).status(),
+    409,
+  );
+  await prisma.webhookEvent.delete({ where: { id: eventId } });
+  await prisma.autocabWebhookConfiguration.deleteMany({
+    where: { providerId: provider.id },
+  });
+  assert.equal(
+    (
+      await context.request.delete(
+        origin + `/api/dashboard/autocab/providers/${provider.id}`,
+      )
+    ).status(),
+    200,
+  );
+  assert.equal(
+    (
+      await context.request.delete(
+        origin + "/api/dashboard/autocab/providers/autocab",
+      )
+    ).status(),
+    409,
+  );
   await page.setViewportSize({ width: 390, height: 844 });
   assert.equal(
     await page.evaluate(
@@ -155,7 +266,7 @@ try {
     true,
   );
   console.log(
-    "Webhook browser passed: search, disabled state, URL copy, refresh and mobile overflow.",
+    "Webhook browser passed: search, copy, refresh, event edit/delete preservation, provider create/edit/delete, encrypted keys, authentication, source disablement, header redaction and mobile overflow.",
   );
 } finally {
   await browser?.close();
@@ -163,6 +274,7 @@ try {
   await prisma.autocabWebhookConfiguration.deleteMany({
     where: { endpointSlug: prefix },
   });
+  await prisma.webhookProvider.deleteMany({ where: { name: prefix } });
   await prisma.user.delete({ where: { id: user.id } });
   await prisma.$disconnect();
 }

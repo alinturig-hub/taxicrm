@@ -1,3 +1,4 @@
+import { decryptSecret } from "@/lib/security/encryption";
 import { createHash, timingSafeEqual } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
@@ -86,7 +87,10 @@ function validateApiKey(request: NextRequest): boolean {
   return secureCompare(providedApiKey, expectedApiKey);
 }
 
-function headersToJson(request: NextRequest): Prisma.InputJsonObject {
+function headersToJson(
+  request: NextRequest,
+  sourceHeader = getApiKeyHeaderName(),
+): Prisma.InputJsonObject {
   const headers: Record<string, string> = {};
   const apiKeyHeaderName = getApiKeyHeaderName();
 
@@ -96,7 +100,8 @@ function headersToJson(request: NextRequest): Prisma.InputJsonObject {
     if (
       normalisedKey === "authorization" ||
       normalisedKey === "cookie" ||
-      normalisedKey === apiKeyHeaderName
+      normalisedKey === apiKeyHeaderName ||
+      normalisedKey === sourceHeader
     ) {
       return;
     }
@@ -136,7 +141,28 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
   }
 
-  if (!validateApiKey(request)) {
+  const configuration = await prisma.autocabWebhookConfiguration.findUnique({
+    where: { endpointSlug: eventSlug },
+    include: { webhookProvider: true },
+  });
+  const source = configuration?.webhookProvider;
+  if (source && !source.isEnabled)
+    return NextResponse.json({ error: "SOURCE_DISABLED" }, { status: 503 });
+  let authenticated = false;
+  try {
+    authenticated = source?.apiKeyEncrypted
+      ? secureCompare(
+          request.headers.get(source.apiKeyHeader) || "",
+          decryptSecret(source.apiKeyEncrypted),
+        )
+      : (!source || source.id === "autocab") && validateApiKey(request);
+  } catch {
+    return NextResponse.json(
+      { error: "SOURCE_AUTH_UNAVAILABLE" },
+      { status: 503 },
+    );
+  }
+  if (!authenticated) {
     return NextResponse.json(
       {
         success: false,
@@ -251,7 +277,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         status: "RECEIVED",
         payload: payload as Prisma.InputJsonObject,
         rawBody,
-        headers: headersToJson(request),
+        headers: headersToJson(
+          request,
+          source?.apiKeyEncrypted ? source.apiKeyHeader : getApiKeyHeaderName(),
+        ),
         webhookConfigurationId: webhookConfiguration?.id,
       },
       select: {
