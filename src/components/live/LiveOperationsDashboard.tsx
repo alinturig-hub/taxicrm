@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import OperationalAlertCard from "@/components/live/OperationalAlertCard";
 import RecentActivityCard from "@/components/live/RecentActivityCard";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +9,10 @@ import BookingTimelineDrawer, {
 } from "@/components/live/BookingTimelineDrawer";
 
 const OPERATIONS_REFRESH_MS = 5_000;
+const LiveFleetMap = dynamic(() => import("@/components/fleet/LiveFleetMap"), {
+  ssr: false,
+  loading: () => <p className="p-4 text-sm text-slate-400">Loading live fleet map…</p>,
+});
 
 type LiveOperations = {
   generatedAt: string;
@@ -589,6 +594,11 @@ export default function LiveOperationsDashboard() {
             {error}
           </div>
         ) : null}
+
+        <section id="live-map" className="mb-6" aria-labelledby="live-map-heading">
+          <h2 id="live-map-heading" className="mb-3 text-lg font-semibold">Live Fleet Map</h2>
+          <LiveFleetMap />
+        </section>
 
         <section className="grid grid-cols-2 gap-3 xl:grid-cols-4 xl:gap-4">
           <StatCard

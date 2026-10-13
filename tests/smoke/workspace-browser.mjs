@@ -213,7 +213,7 @@ try {
     window.WebSocket = class extends NativeWebSocket {
       constructor(url, protocols) {
         super(url, protocols);
-        if (new URL(url).pathname === "/ws/fleet")
+        if (new URL(url).pathname === "/ws/fleet" && !window.__syntheticFleetSocket)
           window.__syntheticFleetSocket = this;
       }
     };
@@ -259,14 +259,11 @@ try {
 
   assert.equal(
     await page.getByText("Live Fleet Map", { exact: true }).count(),
-    0,
+    1,
   );
-  assert.equal(await page.locator("#live-map").count(), 0);
-  assert.equal(
-    fleetMapRequests,
-    0,
-    "Live operations must not mount the fleet map or poll its API",
-  );
+  await page.locator("#live-map .leaflet-container").waitFor();
+  assert.equal(await page.locator("#live-map").count(), 1);
+  assert.ok(fleetMapRequests > 0, "Live operations must load fleet positions for the map");
   await page.goto(origin + "/dashboard/operations");
   await page
     .getByRole("heading", { name: "Operations", exact: true })
