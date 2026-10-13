@@ -203,14 +203,60 @@ try {
       .count(),
     0,
   );
+  const operationsRequestTimes = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname === "/api/dashboard/live-operations")
+      operationsRequestTimes.push(Date.now());
+  });
+  await page.addInitScript(() => {
+    const NativeWebSocket = window.WebSocket;
+    window.WebSocket = class extends NativeWebSocket {
+      constructor(url, protocols) {
+        super(url, protocols);
+        if (new URL(url).pathname === "/ws/fleet")
+          window.__syntheticFleetSocket = this;
+      }
+    };
+  });
   let fleetMapRequests = 0;
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/fleet/live")
       fleetMapRequests++;
   });
+  const firstOperationsResponse = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/api/dashboard/live-operations" &&
+      response.status() === 200,
+  );
   await page.goto(origin + "/dashboard/live");
   await page.getByText("Drivers on shift", { exact: true }).waitFor();
   await page.getByText("Drivers off shift", { exact: true }).waitFor();
+  assert.equal(
+    (await (await firstOperationsResponse).json()).refreshAfterSeconds,
+    5,
+  );
+  await page.evaluate(() => {
+    for (let i = 0; i < 100; i++)
+      window.__syntheticFleetSocket.dispatchEvent(
+        new MessageEvent("message", {
+          data: JSON.stringify({ type: "fleet.vehicle.updated" }),
+        }),
+      );
+  });
+  await page.waitForTimeout(6000);
+  assert.ok(
+    operationsRequestTimes.length >= 2,
+    "The dashboard must keep refreshing",
+  );
+  assert.ok(
+    operationsRequestTimes.length <= 2,
+    "GPS bursts must not create extra requests within the five-second window",
+  );
+  for (let i = 1; i < operationsRequestTimes.length; i++)
+    assert.ok(
+      operationsRequestTimes[i] - operationsRequestTimes[i - 1] >= 4800,
+    );
+
   assert.equal(
     await page.getByText("Live Fleet Map", { exact: true }).count(),
     0,

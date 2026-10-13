@@ -1,8 +1,5 @@
 import { getServerSession } from "next-auth";
-import {
-  NextRequest,
-  NextResponse,
-} from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
@@ -11,10 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-function parseMinutes(
-  value: string | null,
-  fallback: number,
-): number {
+function parseMinutes(value: string | null, fallback: number): number {
   if (value === null || value.trim() === "") {
     return fallback;
   }
@@ -25,10 +19,7 @@ function parseMinutes(
     return fallback;
   }
 
-  return Math.min(
-    1440,
-    Math.max(0, Math.round(parsed)),
-  );
+  return Math.min(1440, Math.max(0, Math.round(parsed)));
 }
 
 export async function GET(request: NextRequest) {
@@ -65,7 +56,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(
       {
         success: true,
-        refreshAfterSeconds: 3,
+        refreshAfterSeconds: 5,
         operations,
       },
       {
@@ -82,8 +73,7 @@ export async function GET(request: NextRequest) {
       {
         success: false,
         error: "LIVE_OPERATIONS_LOAD_FAILED",
-        message:
-          "Live operational data could not be loaded.",
+        message: "Live operational data could not be loaded.",
       },
       {
         status: 500,

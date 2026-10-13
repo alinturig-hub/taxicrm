@@ -7,6 +7,8 @@ import BookingTimelineDrawer, {
   type BookingDrawerData,
 } from "@/components/live/BookingTimelineDrawer";
 
+const OPERATIONS_REFRESH_MS = 5_000;
+
 type LiveOperations = {
   generatedAt: string;
   bookings: {
@@ -356,6 +358,8 @@ export default function LiveOperationsDashboard() {
     useState<BookingDrawerData | null>(null);
 
   const reconnectTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const operationsRequestInFlight = useRef(false);
+  const lastOperationsRequestAt = useRef(-Infinity);
 
   const openBooking = useCallback(async (bookingId: string) => {
     try {
@@ -393,6 +397,14 @@ export default function LiveOperationsDashboard() {
   }, []);
 
   const loadOperations = useCallback(async () => {
+    const now = performance.now();
+    if (
+      operationsRequestInFlight.current ||
+      now - lastOperationsRequestAt.current < OPERATIONS_REFRESH_MS
+    )
+      return;
+    operationsRequestInFlight.current = true;
+    lastOperationsRequestAt.current = now;
     try {
       const response = await fetch("/api/dashboard/live-operations", {
         cache: "no-store",
@@ -417,6 +429,7 @@ export default function LiveOperationsDashboard() {
           : "Unable to load live operations.",
       );
     } finally {
+      operationsRequestInFlight.current = false;
       setLoading(false);
     }
   }, []);
@@ -426,7 +439,7 @@ export default function LiveOperationsDashboard() {
 
     const pollingInterval = window.setInterval(() => {
       void loadOperations();
-    }, 3_000);
+    }, OPERATIONS_REFRESH_MS);
 
     return () => {
       window.clearInterval(pollingInterval);
