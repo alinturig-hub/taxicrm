@@ -19,6 +19,15 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED === "true") {
+    return NextResponse.json({
+      success: true,
+      paused: true,
+      processed: 0,
+      failed: 0,
+    });
+  }
+
   const events = await prisma.webhookEvent.findMany({
     where: retryableWebhooks(),
     orderBy: {

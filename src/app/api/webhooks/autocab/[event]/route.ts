@@ -251,9 +251,11 @@ export async function POST(request: NextRequest, context: RouteContext) {
       where: { idempotencyKey: legacyKey },
     });
     if (legacyEvent) {
-      void processWebhookEvent(legacyEvent.id).catch((error) =>
-        console.error(`Webhook retry failed for ${legacyEvent.id}:`, error),
-      );
+      if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true") {
+        void processWebhookEvent(legacyEvent.id).catch((error) =>
+          console.error(`Webhook retry failed for ${legacyEvent.id}:`, error),
+        );
+      }
       return NextResponse.json({
         success: true,
         duplicate: true,
@@ -293,12 +295,14 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    void processWebhookEvent(webhookEvent.id).catch((error) => {
-      console.error(
-        `Background processing failed for webhook ${webhookEvent.id}:`,
-        error,
-      );
-    });
+    if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true") {
+      void processWebhookEvent(webhookEvent.id).catch((error) => {
+        console.error(
+          `Background processing failed for webhook ${webhookEvent.id}:`,
+          error,
+        );
+      });
+    }
 
     return NextResponse.json(
       {
@@ -331,7 +335,10 @@ export async function POST(request: NextRequest, context: RouteContext) {
         },
       });
 
-      if (existingWebhook) {
+      if (
+        existingWebhook &&
+        process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true"
+      ) {
         void processWebhookEvent(existingWebhook.id).catch((error) =>
           console.error(
             `Webhook retry failed for ${existingWebhook.id}:`,
