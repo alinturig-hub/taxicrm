@@ -38,6 +38,7 @@ COPY --from=builder /app/next.config.mjs ./
 COPY --from=builder /app/server.mjs ./server.mjs
 COPY --from=builder /app/scripts/sms-schema-bootstrap.mjs ./scripts/sms-schema-bootstrap.mjs
 COPY --from=builder /app/scripts/webhook-provider-bootstrap.mjs ./scripts/webhook-provider-bootstrap.mjs
+COPY --from=builder /app/scripts/booking-recovery-deduplicate.mjs ./scripts/booking-recovery-deduplicate.mjs
 COPY --from=builder /app/src/lib/scheduler-result.mjs ./src/lib/scheduler-result.mjs
 COPY --from=builder /app/src/generated ./src/generated
 COPY --from=builder /app/prisma ./prisma
