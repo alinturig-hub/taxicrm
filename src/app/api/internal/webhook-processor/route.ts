@@ -29,8 +29,10 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  const events = await prisma.webhookEvent.findMany({
-    where: retryableWebhooks(),
+  const bookingEvents = await prisma.webhookEvent.findMany({
+    where: {
+      AND: [retryableWebhooks(), { eventType: { startsWith: "Booking" } }],
+    },
     orderBy: {
       receivedAt: "asc",
     },
@@ -39,6 +41,17 @@ export async function POST(request: NextRequest) {
       id: true,
     },
   });
+  const otherEvents = bookingEvents.length < 25
+    ? await prisma.webhookEvent.findMany({
+      where: {
+        AND: [retryableWebhooks(), { eventType: { not: { startsWith: "Booking" } } }],
+      },
+      orderBy: { receivedAt: "asc" },
+      take: 25 - bookingEvents.length,
+      select: { id: true },
+    })
+    : [];
+  const events = [...bookingEvents, ...otherEvents];
 
   let processed = 0;
   let failed = 0;
