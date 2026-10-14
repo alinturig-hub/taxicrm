@@ -25,6 +25,7 @@ export async function POST(request: NextRequest) {
       paused: true,
       processed: 0,
       failed: 0,
+      hasMore: false,
     });
   }
 
@@ -61,5 +62,6 @@ export async function POST(request: NextRequest) {
     processed,
     failed,
     remaining,
+    hasMore: remaining > 0,
   });
 }

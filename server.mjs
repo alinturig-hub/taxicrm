@@ -576,6 +576,16 @@ server.listen(port, hostname, () => {
   });
 
   scheduleJob({
+    name: "Autocab webhook backlog",
+    path: "/api/internal/webhook-processor",
+    body: {},
+    state: {running: false},
+    startDelayMs: 10000,
+    intervalMs: 60000,
+    drain: true,
+  });
+
+  scheduleJob({
     name: "Customer profile snapshots",
     path: "/api/internal/customer-profile-snapshots",
     body: { limit: 50 },
