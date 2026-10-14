@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { processWebhookEvent } from "@/lib/autocab/process-webhook-event";
+import { shouldProcessWebhookLocally } from "@/lib/autocab/booking-writer-ownership";
 import {
   webhookIdempotencyKey,
   bookingExternalId,
@@ -251,7 +252,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       where: { idempotencyKey: legacyKey },
     });
     if (legacyEvent) {
-      if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true") {
+      if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true" && shouldProcessWebhookLocally(legacyEvent.eventType)) {
         void processWebhookEvent(legacyEvent.id).catch((error) =>
           console.error(`Webhook retry failed for ${legacyEvent.id}:`, error),
         );
@@ -295,7 +296,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       },
     });
 
-    if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true") {
+    if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true" && shouldProcessWebhookLocally(webhookEvent.eventType)) {
       void processWebhookEvent(webhookEvent.id).catch((error) => {
         console.error(
           `Background processing failed for webhook ${webhookEvent.id}:`,
@@ -337,7 +338,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
 
       if (
         existingWebhook &&
-        process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true"
+        process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== "true" &&
+        shouldProcessWebhookLocally(existingWebhook.eventType)
       ) {
         void processWebhookEvent(existingWebhook.id).catch((error) =>
           console.error(

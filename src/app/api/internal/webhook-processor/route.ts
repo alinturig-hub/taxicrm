@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { processWebhookEvent } from "@/lib/autocab/process-webhook-event";
 import { retryableWebhooks } from "@/lib/autocab/webhook-processing";
+import { bookingEventsOwnedByNeedACabPlus } from "@/lib/autocab/booking-writer-ownership";
 
 const waitingForBooking = "Booking context event is waiting for its booking.";
 
@@ -33,7 +34,8 @@ export async function POST(request: NextRequest) {
 
   // Context events can exhaust their retry count before BookingCreated arrives.
   // Requeue only those whose canonical parent is now present.
-  const waiting = await prisma.webhookEvent.findMany({
+  const nacOwnsBookings = bookingEventsOwnedByNeedACabPlus();
+  const waiting = nacOwnsBookings ? [] : await prisma.webhookEvent.findMany({
     where: {
       status: "FAILED",
       processingError: waitingForBooking,
@@ -60,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const bookingEvents = await prisma.webhookEvent.findMany({
+  const bookingEvents = nacOwnsBookings ? [] : await prisma.webhookEvent.findMany({
     where: {
       AND: [retryableWebhooks(), { eventType: { startsWith: "Booking" } }],
     },
@@ -98,7 +100,9 @@ export async function POST(request: NextRequest) {
   }
 
   const remaining = await prisma.webhookEvent.count({
-    where: retryableWebhooks(),
+    where: nacOwnsBookings
+      ? { AND: [retryableWebhooks(), { eventType: { not: { startsWith: "Booking" } } }] }
+      : retryableWebhooks(),
   });
 
   return NextResponse.json({
