@@ -130,6 +130,9 @@ export async function saveAutocabConfiguration(
 }
 
 export async function getStoredAutocabApiCredentials() {
+  if (process.env.AUTOCAB_REST_INGEST_DISABLED === 'true') {
+    throw new Error('Autocab REST access has moved to Need A Cab Plus.');
+  }
   const configuration =
     await prisma.autocabApiConfiguration.findUnique({
       where: {
@@ -156,6 +159,9 @@ export async function getStoredAutocabApiCredentials() {
 }
 
 export async function getAutocabApiCredentials() {
+  if (process.env.AUTOCAB_REST_INGEST_DISABLED === 'true') {
+    throw new Error('Autocab REST access has moved to Need A Cab Plus.');
+  }
   const configuration =
     await prisma.autocabApiConfiguration.findUnique({
       where: {

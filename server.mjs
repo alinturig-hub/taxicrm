@@ -302,6 +302,10 @@ async function checkDriverRegistrySync() {
 }
 
 function startDriverRegistryScheduler() {
+  if (process.env.AUTOCAB_REST_INGEST_DISABLED === 'true') {
+    console.log('Autocab registry scheduler disabled; Need A Cab Plus owns the source.');
+    return;
+  }
   driverSyncStartTimer =
     setTimeout(() => {
       void checkDriverRegistrySync();
@@ -575,15 +579,17 @@ server.listen(port, hostname, () => {
     drain: false,
   });
 
-  scheduleJob({
-    name: "Autocab webhook backlog",
-    path: "/api/internal/webhook-processor",
-    body: {},
-    state: {running: false},
-    startDelayMs: 10000,
-    intervalMs: 60000,
-    drain: true,
-  });
+  if (process.env.AUTOCAB_WEBHOOK_PROCESSING_PAUSED !== 'true') {
+    scheduleJob({
+      name: "Autocab webhook backlog",
+      path: "/api/internal/webhook-processor",
+      body: {},
+      state: {running: false},
+      startDelayMs: 10000,
+      intervalMs: 60000,
+      drain: true,
+    });
+  }
 
   scheduleJob({
     name: "Customer profile snapshots",
