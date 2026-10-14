@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { processWebhookEvent } from "@/lib/autocab/process-webhook-event";
 import { retryableWebhooks } from "@/lib/autocab/webhook-processing";
 
+const waitingForBooking = "Booking context event is waiting for its booking.";
+
 export async function POST(request: NextRequest) {
   const secret = request.headers.get("x-cron-secret");
 
@@ -27,6 +29,35 @@ export async function POST(request: NextRequest) {
       failed: 0,
       hasMore: false,
     });
+  }
+
+  // Context events can exhaust their retry count before BookingCreated arrives.
+  // Requeue only those whose canonical parent is now present.
+  const waiting = await prisma.webhookEvent.findMany({
+    where: {
+      status: "FAILED",
+      processingError: waitingForBooking,
+      attemptCount: { gte: 5 },
+      externalBookingId: { not: null },
+    },
+    select: { id: true, externalBookingId: true },
+    take: 100,
+    orderBy: { receivedAt: "desc" },
+  });
+  const externalIds = Array.from(new Set(waiting.map(event => event.externalBookingId).filter((id): id is string => Boolean(id))));
+  if (externalIds.length) {
+    const parents = await prisma.booking.findMany({
+      where: { provider: "AUTOCAB", externalId: { in: externalIds } },
+      select: { externalId: true },
+    });
+    const found = new Set(parents.map(booking => booking.externalId));
+    const ready = waiting.filter(event => event.externalBookingId && found.has(event.externalBookingId)).map(event => event.id);
+    if (ready.length) {
+      await prisma.webhookEvent.updateMany({
+        where: { id: { in: ready }, status: "FAILED", processingError: waitingForBooking },
+        data: { status: "RECEIVED", attemptCount: 0, processingError: null },
+      });
+    }
   }
 
   const bookingEvents = await prisma.webhookEvent.findMany({
