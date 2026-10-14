@@ -493,6 +493,22 @@ async function connectLocation(
   bookingLocationId: string,
   placeIntelligenceId: string,
 ) {
+  if (process.env.BOOKING_WEBHOOK_WRITER === "NAC") {
+    const endpoint = process.env.NAC_BOOKING_LOCATION_LINK_URL;
+    const secret = process.env.BOOKING_EFFECTS_SHARED_SECRET;
+    if (!endpoint || !secret || new URL(endpoint).protocol !== "https:") {
+      throw new Error("Need A Cab Plus booking location link is not configured with HTTPS.");
+    }
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-booking-effects-secret": secret },
+      body: JSON.stringify({ bookingLocationId, placeIntelligenceId }),
+      cache: "no-store",
+      signal: AbortSignal.timeout(30_000),
+    });
+    if (!response.ok) throw new Error(`Need A Cab Plus booking location link returned ${response.status}.`);
+    return;
+  }
   await prisma.bookingLocation.update({
     where: {
       id: bookingLocationId,
