@@ -54,6 +54,9 @@ function normaliseBaseUrl(value: string) {
 }
 
 export async function POST(request: Request) {
+  if (process.env.AUTOCAB_REST_INGEST_DISABLED === 'true') {
+    return NextResponse.json({ success: false, error: 'AUTOCAB_OWNED_BY_NEEDACABPLUS' }, { status: 409 });
+  }
   const session = await getServerSession(authOptions);
 
   if (!session?.user) {
