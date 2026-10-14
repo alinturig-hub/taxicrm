@@ -4,9 +4,10 @@ import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/schedul
 import { applySmsSchema } from "./scripts/sms-schema-bootstrap.mjs";
 
 import { applyWebhookProviderSchema } from "./scripts/webhook-provider-bootstrap.mjs";
-if (process.env.ENABLE_WEBHOOK_PROVIDER_MIGRATION === "true") await applyWebhookProviderSchema();
+const externallyManagedSchema = process.env.DATABASE_SCHEMA_MANAGED_EXTERNALLY === "true";
+if (!externallyManagedSchema && process.env.ENABLE_WEBHOOK_PROVIDER_MIGRATION === "true") await applyWebhookProviderSchema();
 
-if (process.env.ENABLE_SMS_SCHEMA_MIGRATION === "true") await applySmsSchema();
+if (!externallyManagedSchema && process.env.ENABLE_SMS_SCHEMA_MIGRATION === "true") await applySmsSchema();
 import { WebSocket, WebSocketServer } from "ws";
 
 const dev = process.env.NODE_ENV !== "production";
