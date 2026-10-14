@@ -3,6 +3,7 @@ import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
 import { persistBookingEvent } from "@/lib/autocab/booking-event-persistence";
 import type { WebhookAfterCommit } from "@/lib/autocab/webhook-processing";
 import { type BookingOperationalStatus } from "@/lib/autocab/booking-state";
+import { normaliseEventType, webhookOccurredAt } from "@/lib/autocab/webhook-processing";
 import { buildCompanyDailyMetrics } from "@/lib/analytics/build-company-daily-metrics";
 import { refreshCustomerBookingPrediction } from "@/lib/customers/customer-booking-predictions";
 import { prisma } from "@/lib/prisma";
@@ -124,36 +125,62 @@ type ProcessBookingWebhookOptions = {
   status: BookingOperationalStatus;
 };
 
+/** CRM-owned effects that run after the canonical booking transaction commits. */
+export async function runBookingPostCommitEffects(
+  webhookEventId: string,
+): Promise<void> {
+  const event = await prisma.webhookEvent.findUnique({
+    where: { id: webhookEventId },
+    select: {
+      status: true,
+      eventType: true,
+      bookingId: true,
+      payload: true,
+      receivedAt: true,
+    },
+  });
+  if (!event || event.status !== "PROCESSED" || !event.bookingId) {
+    throw new Error("Processed booking event is unavailable for CRM effects.");
+  }
+  if (!new Set([
+    "bookingcreated", "bookingdispatched", "bookingdispatchaccepted",
+    "bookingarrived", "bookingpob", "bookingcomplete", "bookingnofare",
+    "bookingcancelled", "bookingrejected", "bookingrecovered",
+  ]).has(normaliseEventType(event.eventType))) {
+    throw new Error("Booking event has no CRM post-commit effects.");
+  }
+
+  await reconcileUnknownAutocabAccount(
+    event.payload as Record<string, unknown>,
+  );
+  await refreshCustomerPredictionBestEffort(event.bookingId);
+  await enrichBookingLocationsBestEffort(event.bookingId);
+  const metric = await buildCompanyDailyMetrics(webhookOccurredAt(event));
+  broadcastDashboardMetricUpdate({
+    date: metric.date.toISOString(),
+    revenue: Number(metric.revenue),
+    cashRevenue: Number(metric.cashRevenue),
+    accountRevenue: Number(metric.accountRevenue),
+    cardRevenue: Number(metric.cardRevenue),
+    bookings: metric.bookings,
+    completed: metric.completed,
+    cancelled: metric.cancelled,
+    noFare: metric.noFare,
+    rejected: metric.rejected,
+    completionRate: Number(metric.completionRate),
+    updatedAt: metric.updatedAt.toISOString(),
+  });
+}
+
 export async function processBookingWebhook(
   webhookEventId: string,
   options: ProcessBookingWebhookOptions,
   tx: Prisma.TransactionClient,
 ): Promise<WebhookAfterCommit> {
-  const { bookingId, event, occurredAt } = await persistBookingEvent(
+  await persistBookingEvent(
     tx,
     webhookEventId,
     options,
   );
-  return async () => {
-    await reconcileUnknownAutocabAccount(
-      event.payload as Record<string, unknown>,
-    );
-    await refreshCustomerPredictionBestEffort(bookingId);
-    await enrichBookingLocationsBestEffort(bookingId);
-    const metric = await buildCompanyDailyMetrics(occurredAt);
-    broadcastDashboardMetricUpdate({
-      date: metric.date.toISOString(),
-      revenue: Number(metric.revenue),
-      cashRevenue: Number(metric.cashRevenue),
-      accountRevenue: Number(metric.accountRevenue),
-      cardRevenue: Number(metric.cardRevenue),
-      bookings: metric.bookings,
-      completed: metric.completed,
-      cancelled: metric.cancelled,
-      noFare: metric.noFare,
-      rejected: metric.rejected,
-      completionRate: Number(metric.completionRate),
-      updatedAt: metric.updatedAt.toISOString(),
-    });
-  };
+  return () => runBookingPostCommitEffects(webhookEventId);
 }

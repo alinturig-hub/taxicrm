@@ -36,6 +36,9 @@ export async function POST(request: Request) {
       { status: 400 },
     );
   }
+  if (process.env.BOOKING_WEBHOOK_WRITER === "NAC" && body.dryRun === false) {
+    return NextResponse.json({ error: "CANONICAL_WRITER_MOVED_TO_NAC" }, { status: 409 });
+  }
   try {
     return NextResponse.json({
       success: true,

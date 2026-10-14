@@ -2,6 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { AUTOCAB_EVENT_REGISTRY } from "@/lib/autocab/event-registry";
 import { normaliseEventType } from "@/lib/autocab/webhook-processing";
 import { prisma } from "@/lib/prisma";
+import { shouldProcessWebhookLocally } from "@/lib/autocab/booking-writer-ownership";
 
 async function lockEvent(tx: Prisma.TransactionClient, id: string) {
   await tx.$queryRaw`SELECT "id" FROM "WebhookEvent" WHERE "id" = ${id} FOR UPDATE`;
@@ -22,6 +23,9 @@ export async function processWebhookEvent(
         });
         if (!event)
           throw new Error(`WebhookEvent not found: ${webhookEventId}`);
+        // Leave raw Booking events untouched for the exclusive NAC worker.
+        // This guard also covers direct callers outside the periodic processor.
+        if (!shouldProcessWebhookLocally(event.eventType)) return;
         if (event.status === "PROCESSED" || event.status === "IGNORED") return;
         const definition = Array.from(AUTOCAB_EVENT_REGISTRY.values()).find(
           (item) =>

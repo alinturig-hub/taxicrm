@@ -788,3 +788,26 @@ test("new recovery can return a live booking to dispatch and clear its assignmen
   assert.equal(booking.status, "ACCEPTED");
   assert.equal(booking.driverBadgeNumber, "NEW");
 });
+
+test("a delayed cancellation cannot undo a newer dispatch", async () => {
+  const created = await event("BookingCreated", {
+    ...bookingPayload("delayed-cancellation", "09"),
+    EventTimestamp: `${date}T09:00:00Z`,
+  });
+  const dispatched = await event("BookingDispatched", {
+    ...bookingPayload("delayed-cancellation", "11"),
+    EventTimestamp: `${date}T11:00:00Z`,
+  });
+  const cancelled = await event("BookingCancelled", {
+    ...bookingPayload("delayed-cancellation", "10"),
+    EventTimestamp: `${date}T10:00:00Z`,
+  });
+  await processWebhookEvent(created.id);
+  await processWebhookEvent(dispatched.id);
+  await processWebhookEvent(cancelled.id);
+  const booking = await prisma.booking.findUniqueOrThrow({
+    where: {provider_externalId: {provider: "AUTOCAB", externalId: `${prefix}-delayed-cancellation`}},
+  });
+  assert.equal(booking.status, "DISPATCHED");
+  assert.equal(booking.cancelledAt, null);
+});
