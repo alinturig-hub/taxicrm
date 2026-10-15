@@ -22,18 +22,8 @@ export default async function LocalIntegrationPage() {
   const canManage =
     access.isSuperAdmin || access.permissions.includes("integrations.manage");
   return (
-    <div className="space-y-6">
-      <header>
-        <p className="text-xs uppercase tracking-widest text-blue-400">
-          Integrations / Local
-        </p>
-        <h1 className="mt-3 text-3xl font-semibold text-white">
-          Local integration
-        </h1>
-        <p className="mt-3 text-sm text-slate-400">
-          Import data into TaxiCRM and prepare connections to local systems.
-        </p>
-      </header>
+    <div className="integration-console">
+      <header className="integration-page-head"><div><Link className="integration-back" href="/dashboard/integrations/overview">← All integrations</Link><p className="integration-eyebrow">Local data</p><h1>Local integration</h1><p>Preview imports, inspect saved datasets and plan local system connections.</p></div><span className="integration-badge">JSON imports</span></header>
       {canManage && <LocalDatasetImport />}
       <section className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
         <h2 className="text-xl font-semibold text-white">

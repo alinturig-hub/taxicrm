@@ -223,6 +223,13 @@ export const navigationGroups: NavigationGroup[] = [
         "integrations.view",
       ),
       item(
+        "NeedACabPlus integration",
+        "/dashboard/integrations/needacabplus",
+        "sync",
+        "Dispatch source, booking ownership and connection planning.",
+        "integrations.view",
+      ),
+      item(
         "Autocab integration",
         "/dashboard/integrations/autocab",
         "autocab",

@@ -24,10 +24,14 @@ export default function WebhookWorkspace({
   events,
   providers,
   canManage,
+  scoped = false,
+  canInspect = true,
 }: {
   events: EventUrl[];
   providers: Provider[];
   canManage: boolean;
+  scoped?: boolean;
+  canInspect?: boolean;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -121,31 +125,31 @@ export default function WebhookWorkspace({
       <header className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-xs uppercase tracking-widest text-blue-400">
-            Configuration
+            {scoped ? "Autocab / Webhooks" : "Configuration"}
           </p>
           <h1 className="mt-2 text-3xl font-semibold text-white">
-            Webhook providers
+            {scoped ? "Webhooks" : "Webhook providers"}
           </h1>
           <p className="mt-2 text-sm text-slate-400">
             Configure event URLs for operational data received by TaxiCRM.
           </p>
         </div>
         <span className="rounded-full border border-slate-700 px-4 py-2 text-sm text-slate-300">
-          {providers.length} providers
+          {providers.length} {providers.length === 1 ? "provider" : "providers"}
         </span>
       </header>
       <div className="flex flex-wrap gap-3">
-        {canManage && (
+        {canManage && !scoped && (
           <button className={button} onClick={() => setSourceForm(null)}>
             + Add provider
           </button>
         )}
-        <Link
+        {canManage && <Link
           className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-blue-500"
           href={`/dashboard/integrations/autocab/webhooks/new?providerId=${selected?.id || "autocab"}`}
         >
           + Add event URL
-        </Link>
+        </Link>}
         <button
           className={button}
           disabled={pending}
@@ -153,12 +157,12 @@ export default function WebhookWorkspace({
         >
           {pending ? "Refreshing…" : "↻ Refresh"}
         </button>
-        <Link
+        {canInspect && <Link
           className={button}
-          href="/dashboard/configuration/webhooks/events"
+          href={scoped ? "/dashboard/integrations/autocab/activity" : "/dashboard/configuration/webhooks/events"}
         >
           View received events
-        </Link>
+        </Link>}
       </div>
       <p role="status" className="text-sm text-slate-300">
         {notice}
@@ -400,6 +404,7 @@ export default function WebhookWorkspace({
                     {event.description}
                   </p>
                 )}
+                {canInspect && <Link className="mt-3 inline-block text-xs text-blue-300" href={`/dashboard/integrations/autocab/webhooks/${event.id}`}>Processing rules →</Link>}
                 <p className="mt-3 text-xs text-slate-500">
                   {event.lastReceived
                     ? new Intl.DateTimeFormat("en-GB", {

@@ -1,56 +1,11 @@
 import Link from "next/link";
-import { workspaceGroup, workspaceAccess } from "@/lib/workspace/access";
-import AutocabApiConfigurationForm from "@/components/integrations/autocab/AutocabApiConfigurationForm";
-
+import { workspaceAccess } from "@/lib/workspace/access";
+import { connectionOwnership } from "@/lib/integrations/connection-plan";
 export const dynamic = "force-dynamic";
-
 export default async function AutocabIntegrationPage() {
-  await workspaceGroup("integrations");
-  const { access } = await workspaceAccess();
-  return (
-    <div className="space-y-8">
-      <div>
-        <p className="text-sm uppercase tracking-[0.25em] text-blue-400">
-          Integrations
-        </p>
-
-        <h1 className="mt-2 text-4xl font-bold text-white">
-          Autocab REST Integration
-        </h1>
-
-        <p className="mt-3 max-w-3xl text-slate-400">
-          Configure the Autocab REST connection and manage master data
-          synchronisation for drivers, vehicles and other entities.
-        </p>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Link
-          href="/dashboard/integrations/autocab/webhooks"
-          className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
-        >
-          Webhook manager →
-        </Link>
-        {(access.isSuperAdmin ||
-          access.permissions.includes("configuration.view")) && (
-          <Link
-            href="/dashboard/configuration/api-endpoints"
-            className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
-          >
-            Autocab API data sources →
-          </Link>
-        )}
-        {(access.isSuperAdmin ||
-          access.permissions.includes("configuration.view")) && (
-          <Link
-            href="/dashboard/configuration/webhooks"
-            className="rounded-xl border border-slate-700 bg-slate-900 p-5 text-slate-200"
-          >
-            Webhook provider configuration →
-          </Link>
-        )}
-      </div>
-      <AutocabApiConfigurationForm />
-    </div>
-  );
+  const { access } = await workspaceAccess(); const policy = connectionOwnership(process.env);
+  const canConfigure = access.isSuperAdmin || access.permissions.includes("configuration.view");
+  return <div className="space-y-6"><section className="integration-callout"><span aria-hidden="true">↳</span><div><h2>{policy.directIntakePaused ? "Direct intake is paused" : "Connection configuration"}</h2><p>{policy.directIntakePaused ? `Booking ownership is configured for ${policy.bookingWriter}. Existing Autocab settings are preserved; opening this workspace does not resume intake.` : "Review the connection and configure event URLs before enabling data intake. Configuration alone does not confirm delivery health."}</p></div></section>
+    <section className="integration-panel"><div className="integration-section-head"><div><h2>Manage Autocab</h2><p>A single place to configure and inspect your integration.</p></div></div><div className="integration-action-grid">{[["01", "Connection", "Credentials, REST endpoint and connection testing.", "/dashboard/integrations/autocab/connection"], ["02", "Webhooks", "Provider settings, event URLs and processing conditions.", "/dashboard/integrations/autocab/webhooks"], ...(canConfigure ? [["03", "API & Sync", "Preview API responses, synchronise and inspect saved data.", "/dashboard/integrations/autocab/api"], ["04", "Activity", "Inspect received events and their processing results.", "/dashboard/integrations/autocab/activity"]] : [])].map(([n,title,copy,href]) => <Link href={href} key={href}><span className="integration-label">{n}</span><h3>{title} <span aria-hidden="true">↗</span></h3><p>{copy}</p></Link>)}</div></section>
+  </div>;
 }
