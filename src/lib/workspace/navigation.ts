@@ -233,7 +233,7 @@ export const navigationGroups: NavigationGroup[] = [
         "Autocab integration",
         "/dashboard/integrations/autocab",
         "autocab",
-        "Autocab credentials, webhook events, API sources and entity synchronisation.",
+        "Autocab REST settings, saved API data and received event history.",
         "integrations.view",
       ),
       item(
@@ -302,10 +302,10 @@ export const navigationGroups: NavigationGroup[] = [
         "configuration.view",
       ),
       item(
-        "Webhook configuration",
-        "/dashboard/configuration/webhooks",
+        "Integration events",
+        "/dashboard/configuration/webhooks/events",
         "webhooks",
-        "Configure webhook rules and delivery endpoints separately from received events.",
+        "Inspect received events and processing results. Webhook administration is in NeedACabPlus.",
         "configuration.view",
       ),
       item(

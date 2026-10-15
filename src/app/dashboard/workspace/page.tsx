@@ -19,7 +19,7 @@ export default async function WorkspacePage() {
       failureHref={
         can("configuration.view")
           ? "/dashboard/configuration/webhooks/events"
-          : "/dashboard/integrations/autocab/webhooks"
+          : "/dashboard/integrations/needacabplus"
       }
     />
   );

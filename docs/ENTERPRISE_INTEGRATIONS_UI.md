@@ -5,8 +5,8 @@ The isolated UI release builds on codex/taxicrm commit e2ac65aa95913dfd961673bff
 ## Structure
 
 - Integration hub: searchable/filterable source directory for NeedACabPlus, Autocab and Local; deployment policy strip; explanatory data flow; permission-gated Add connection entry to the existing draft wizard.
-- Autocab: persistent Overview / Connection / API & Sync / Webhooks / Activity tabs. REST credentials move to /connection. The existing API manager is presented at /api; the existing received-events log is available at /activity. The activity log retains its existing provider filter and shared-log semantics.
-- /autocab/webhooks now uses the provider workspace scoped to the existing Autocab provider, replacing the duplicate legacy table. Provider settings, event URL management and processing-rule links share the same existing records. Configuration > Webhooks remains available for global provider administration and uses the same reusable server panel.
+- Autocab: persistent Overview / Connection / API & Sync / Activity tabs. REST credentials move to /connection. The existing API manager is presented at /api; the existing received-events log is available at /activity. The activity log retains its existing provider filter and shared-log semantics.
+- Webhook administration was subsequently retired from TaxiCRM at the user’s request. Former configuration/list/add/edit URLs redirect to the NeedACabPlus integration page, which links to its own webhook administration. Configuration exposes Integration events for read-only monitoring. Shared configuration records and history are preserved.
 - NeedACabPlus has an ownership/planning workspace; it does not pretend that a standalone connection adapter or production diagnostic has been implemented.
 - Local and setup pages share workspace headings and return navigation. No new connection is activated by navigation or draft creation.
 
@@ -27,3 +27,7 @@ Captures are in /workspace/taxicrm-local/integrations-enterprise-{light,dark,mob
 ## Approved UI deployment
 
 The user approved publication of the UI. Draft registry persistence is a separate explicit opt-in (`CONNECTION_REGISTRY_ENABLED=true`), absent in production at release preparation. With it off, the wizard provides download-only plans, makes no registry-list request, and hides the database-save button; authenticated GET returns an empty disabled capability and POST rejects writes with 409 before accessing the new tables. This permits the UI release without applying the isolated registry migration to the shared database. Schema management and the NeedACabPlus writer/TaxiCRM effects-worker configuration are preserved. Later enabling persistence requires a separately reviewed production migration.
+
+## Retired TaxiCRM webhook administration
+
+Autocab webhook list, add and edit pages and Configuration > Webhooks administration redirect to /dashboard/integrations/needacabplus. The Webhooks workspace tab and management card are removed. The event monitor keeps GET-only history access and links to NeedACabPlus instead of configuration. Existing administration API mutations reject requests when BOOKING_WEBHOOK_WRITER=NAC, including from stale browser tabs, through the common webhookAccess gate. Receiver URLs, NeedACabPlus processing, database schema and all shared webhook/provider records remain unchanged. No SQL DELETE, bulk disable or migration is performed.

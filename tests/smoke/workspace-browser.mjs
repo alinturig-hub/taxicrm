@@ -223,15 +223,28 @@ try {
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.setViewportSize({ width: 1440, height: 1000 });
   await page.getByRole("link", { name: "Open Autocab workspace", exact: true }).click();
-  await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "Webhooks", exact: true }).click();
-  await page.getByRole("heading", { name: "Webhooks", exact: true }).waitFor();
-  await page.waitForURL(origin + "/dashboard/integrations/autocab/webhooks");
-  await page.waitForFunction(() => document.querySelector('nav[aria-label="Autocab workspace"] [aria-current="page"]')?.textContent === "Webhooks");
-  assert.equal(await page.getByRole("navigation", { name: "Autocab workspace" }).locator('[aria-current="page"]').textContent(), "Webhooks");
-  await page.reload();
-  await page.getByText("Configure event URLs for operational data received by TaxiCRM.", { exact: true }).waitFor();
-  await page.getByText("Loading webhook configuration…", { exact: true }).waitFor({ state: "hidden" });
-  await page.screenshot({ path: "/workspace/taxicrm-local/integrations-enterprise-webhooks.png", fullPage: true });
+  assert.equal(await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "Webhooks", exact: true }).count(), 0);
+  for (const legacyPath of ["/dashboard/configuration/webhooks", "/dashboard/configuration/webhooks/add", "/dashboard/integrations/autocab/webhooks", "/dashboard/integrations/autocab/webhooks/new", "/dashboard/integrations/autocab/webhooks/synthetic-retired-id"]) {
+    await page.goto(origin + legacyPath);
+    await page.waitForURL(origin + "/dashboard/integrations/needacabplus");
+    await page.getByRole("heading", { name: "Webhook administration", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Edit source", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: "Open NeedACabPlus webhooks", exact: false }).getAttribute("href"), "https://admin.needacabplus.app/admin/configuration#webhooks");
+  }
+  await page.goto(origin + "/dashboard/integrations/autocab");
+  if (process.env.BOOKING_WEBHOOK_WRITER === "NAC") {
+    for (const [method, path] of [
+      ["POST", "/api/dashboard/autocab/webhooks"],
+      ["PATCH", "/api/dashboard/autocab/webhooks/synthetic-retired-id"],
+      ["DELETE", "/api/dashboard/autocab/webhooks/synthetic-retired-id"],
+      ["POST", "/api/dashboard/autocab/providers"],
+      ["PATCH", "/api/dashboard/autocab/providers/synthetic-retired-id"],
+      ["DELETE", "/api/dashboard/autocab/providers/synthetic-retired-id"],
+    ]) {
+      const response = await page.request.fetch(origin + path, { method, data: {} });
+      assert.equal(response.status(), 403, `Retired administration must reject ${method} ${path}`);
+    }
+  }
   await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "API & Sync", exact: true }).click();
   await page.waitForURL(origin + "/dashboard/integrations/autocab/api");
   await page.goto(origin + "/dashboard/integrations/overview");

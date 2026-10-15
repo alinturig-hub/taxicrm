@@ -414,10 +414,10 @@ export default function WebhookEventsPage() {
 
             <div className="flex flex-wrap items-center gap-3">
               <Link
-                href="/dashboard/configuration/webhooks"
+                href="/dashboard/integrations/needacabplus"
                 className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm font-semibold text-slate-300 transition hover:bg-slate-700"
               >
-                Configurations
+                NeedACabPlus integration
               </Link>
 
               <button

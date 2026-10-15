@@ -1,3 +1,4 @@
-import WebhookProvidersPanel from "@/components/webhooks/WebhookProvidersPanel";
-export const dynamic = "force-dynamic";
-export default function AutocabWebhooksPage() { return <WebhookProvidersPanel providerId="autocab" />; }
+import { redirect } from "next/navigation";
+export default function RetiredWebhookAdministrationPage() {
+  redirect("/dashboard/integrations/needacabplus");
+}
