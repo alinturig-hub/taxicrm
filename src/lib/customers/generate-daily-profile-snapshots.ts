@@ -14,7 +14,7 @@ import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relat
 import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-journey";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerServiceOutcomes } from "@/lib/customers/customer-service-outcomes";
-import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
+import { buildWeatherCoverageIndex, countWeatherMatchedBookings } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
@@ -138,18 +138,11 @@ export async function generateDailyProfileSnapshots({
       },
       select: {
         observedAt: true,
-        temperature: true,
-        apparentTemperature: true,
-        precipitation: true,
-        rain: true,
-        snowfall: true,
-        windSpeed: true,
-        windGusts: true,
-        cloudCover: true,
-        isDay: true,
-        weatherCode: true,
+
       },
     });
+
+  const weatherHours = buildWeatherCoverageIndex(weatherObservations);
 
   const customerSelect = {
         id: true,
@@ -253,18 +246,13 @@ export async function generateDailyProfileSnapshots({
           returnJourney,
         });
 
-      const weather =
-        buildCustomerWeatherIntelligence(
-          customer.bookings,
-          weatherObservations,
-        );
+      const weatherMatchedBookings = countWeatherMatchedBookings(customer.bookings, weatherHours);
 
       const profileDataQuality =
         buildCustomerProfileDataQuality(
           customer.bookings,
           {
-            weatherMatchedBookings:
-              weather.matchedBookings,
+            weatherMatchedBookings,
           },
         );
 

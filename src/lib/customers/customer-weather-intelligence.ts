@@ -42,6 +42,17 @@ function hourKey(date: Date) {
   return rounded.getTime();
 }
 
+export function buildWeatherCoverageIndex(observations: { observedAt: Date }[]) {
+  return new Set(observations.map(({ observedAt }) => hourKey(observedAt)));
+}
+
+export function countWeatherMatchedBookings(bookings: WeatherBooking[], hours: Set<number>) {
+  return bookings.reduce((count, booking) => {
+    const date = booking.pickupDueTime ?? booking.bookedAtTime;
+    return count + (date && hours.has(hourKey(date)) ? 1 : 0);
+  }, 0);
+}
+
 function round(value: number, decimals = 1) {
   const factor = 10 ** decimals;
 
