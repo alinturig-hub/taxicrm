@@ -859,6 +859,40 @@ model Zone {
   @@index([name])
 }
 
+// Connection registry only. Existing ingestion remains authoritative until a
+// separately reviewed adapter/cutover uses a validated connection.
+model IntegrationConnection {
+  id                   String   @id @default(cuid())
+  draftKey             String   @unique
+  providerCode         String
+  displayName          String
+  companyLabel         String
+  status               String   @default("DRAFT")
+  credentialCiphertext String?  @db.Text
+  capabilities         Json
+  ownershipPolicy      Json
+  plan                 Json
+  createdById          String
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+  externalReferences   ConnectionExternalReference[]
+
+  @@index([providerCode, status])
+}
+
+model ConnectionExternalReference {
+  id           String @id @default(cuid())
+  connectionId String
+  entityType   String
+  externalId   String
+  canonicalId  String
+  createdAt    DateTime @default(now())
+  connection   IntegrationConnection @relation(fields: [connectionId], references: [id], onDelete: Restrict)
+
+  @@unique([connectionId, entityType, externalId])
+  @@index([entityType, canonicalId])
+}
+
 model IntegrationSyncJob {
   id       String                @id @default(cuid())
   provider String                @default("AUTOCAB")

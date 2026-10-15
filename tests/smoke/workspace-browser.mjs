@@ -204,6 +204,33 @@ try {
     0,
   );
   const operationsRequestTimes = [];
+  await page.goto(origin + "/dashboard/integrations/overview");
+  await page.getByRole("link", { name: "Plan a new connection" }).click();
+  await page.getByRole("heading", { name: "Connection setup", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Enter a company name." }).waitFor();
+  await page.getByLabel("Company name").fill("Synthetic connection company");
+  await page.getByLabel("Data source").selectOption("AUTOCAB");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Storage plan").selectOption("DEDICATED_DATABASE");
+  await page.getByRole("button", { name: "Review plan", exact: true }).click();
+  await page.getByText("Confirm exclusive booking ownership", { exact: false }).waitFor();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download draft plan" }).click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const plan = JSON.parse(Buffer.concat(chunks).toString());
+  assert.equal(plan.status, "DRAFT");
+  assert.equal(plan.preserveExistingConnection, true);
+  assert.equal(plan.source, "AUTOCAB");
+  assert.equal(plan.storage, "DEDICATED_DATABASE");
+  await page.getByRole("button", { name: "Save draft in TaxiCRM", exact: true }).click();
+  await page.getByText("Draft saved in TaxiCRM. The existing connection is unchanged.", { exact: true }).waitFor();
+  assert.equal(await prisma.integrationConnection.count({ where: { createdById: user.id } }), 1);
+  await page.reload();
+  await page.getByRole("region", { name: "Saved connection drafts" }).getByText("Synthetic connection company", { exact: false }).waitFor();
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/dashboard/live-operations")
       operationsRequestTimes.push(Date.now());
@@ -307,6 +334,10 @@ try {
   );
   await page.goto(origin + "/dashboard/configuration");
   await page.waitForURL(origin + "/dashboard");
+  await page.goto(origin + "/dashboard/integrations/setup");
+  await page.waitForURL(origin + "/dashboard");
+  assert.equal((await page.request.get(origin + "/api/dashboard/integrations/connections")).status(), 403);
+  assert.equal((await page.request.post(origin + "/api/dashboard/integrations/connections", { data: {} })).status(), 403);
   await context.clearCookies();
   await page.goto(origin + "/dashboard/marketing");
   await page.waitForURL(/\/login/);
@@ -319,5 +350,6 @@ try {
   await prisma.booking.deleteMany({ where: { externalId: prefix } });
   await prisma.normalCustomer.delete({ where: { id: customer.id } });
   await prisma.user.delete({ where: { id: user.id } });
+  await prisma.integrationConnection.deleteMany({ where: { createdById: user.id } });
   await prisma.$disconnect();
 }
