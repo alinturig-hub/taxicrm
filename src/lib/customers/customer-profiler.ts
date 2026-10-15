@@ -52,10 +52,24 @@ const hourFormatter = new Intl.DateTimeFormat(
   },
 );
 
-function numberValue(value: unknown) {
-  const number = Number(value);
+function knownPrice(value: unknown): number | null {
+  if (value === null || value === undefined || typeof value === "boolean" || Array.isArray(value) || (typeof value === "string" && !value.trim())) return null;
+  try {
+    const number = Number(value);
+    return Number.isFinite(number) && number >= 0 ? number : null;
+  } catch { return null; }
+}
 
-  return Number.isFinite(number) ? number : 0;
+function profileDate(booking: ProfileBooking): Date | null {
+  const date = booking.pickupDueTime ?? booking.bookedAtTime;
+  return date && Number.isFinite(date.getTime()) ? date : null;
+}
+
+function historyState(booking: ProfileBooking, now: Date): "HISTORY" | "FUTURE" | "UNDATED" {
+  const date = profileDate(booking);
+  if (!date) return "UNDATED";
+  if (date > now || (booking.bookedAtTime && booking.bookedAtTime > now) || (booking.status.toUpperCase() === "COMPLETED" && booking.completedAt && booking.completedAt > now)) return "FUTURE";
+  return "HISTORY";
 }
 
 function percentage(value: number, total: number) {
@@ -135,19 +149,12 @@ export function buildCustomerProfile(
   bookings: ProfileBooking[],
   now = new Date(),
 ) {
-  const orderedBookings = [...bookings].sort(
-    (first, second) =>
-      (
-        second.pickupDueTime ??
-        second.bookedAtTime ??
-        new Date(0)
-      ).getTime() -
-      (
-        first.pickupDueTime ??
-        first.bookedAtTime ??
-        new Date(0)
-      ).getTime(),
+  const allOrderedBookings = [...bookings].sort((first, second) =>
+    (profileDate(second)?.getTime() ?? 0) - (profileDate(first)?.getTime() ?? 0),
   );
+  const orderedBookings = allOrderedBookings.filter(booking => historyState(booking, now) === "HISTORY");
+  const futureDatedBookings = allOrderedBookings.filter(booking => historyState(booking, now) === "FUTURE").length;
+  const undatedBookings = allOrderedBookings.filter(booking => historyState(booking, now) === "UNDATED").length;
 
   const totalBookings = orderedBookings.length;
   const completed = orderedBookings.filter(
@@ -167,11 +174,8 @@ export function buildCustomerProfile(
       booking.status.toUpperCase() === "REJECTED",
   );
 
-  const totalSpent = completed.reduce(
-    (sum, booking) =>
-      sum + Math.max(numberValue(booking.price), 0),
-    0,
-  );
+  const knownCompletedPrices = completed.map(booking => knownPrice(booking.price)).filter((price): price is number => price !== null);
+  const totalSpent = knownCompletedPrices.length ? knownCompletedPrices.reduce((sum, price) => sum + price, 0) : null;
 
   const datedBookings = orderedBookings
     .map(
@@ -255,7 +259,8 @@ export function buildCustomerProfile(
   const topPickupShare =
     topPickups[0]?.percentage ?? 0;
 
-  const sharedBookingPoint = isSharedBookingPoint(orderedBookings);
+  // Keep the existing conservative shared-point protection, including known upcoming records.
+  const sharedBookingPoint = isSharedBookingPoint(allOrderedBookings);
 
   const identityType = sharedBookingPoint
     ? "SHARED_BOOKING_POINT"
@@ -450,13 +455,14 @@ export function buildCustomerProfile(
         noFare.length,
         totalBookings,
       ),
-      totalSpent: Number(totalSpent.toFixed(2)),
-      averageCompletedValue:
-        completed.length > 0
-          ? Number(
-              (totalSpent / completed.length).toFixed(2),
-            )
-          : 0,
+      recordedBookings: allOrderedBookings.length,
+      futureDatedBookings,
+      undatedBookings,
+      pricedCompletedBookings: knownCompletedPrices.length,
+      missingCompletedPrices: completed.length - knownCompletedPrices.length,
+      spendCoverage: percentage(knownCompletedPrices.length, completed.length),
+      totalSpent: totalSpent === null ? null : Number(totalSpent.toFixed(2)),
+      averageCompletedValue: totalSpent === null ? null : Number((totalSpent / knownCompletedPrices.length).toFixed(2)),
       firstBookingAt,
       lastBookingAt,
       daysSinceLastBooking:
@@ -486,6 +492,6 @@ export function buildCustomerProfile(
     },
     insights,
     opportunities,
-    latestBookings: orderedBookings.slice(0, 10),
+    latestBookings: allOrderedBookings.slice(0, 10),
   };
 }

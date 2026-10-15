@@ -127,8 +127,14 @@ type ProfileResponse = {
       completionRate: number;
       cancellationRate: number;
       noFareRate: number;
-      totalSpent: number;
-      averageCompletedValue: number;
+      recordedBookings: number;
+      futureDatedBookings: number;
+      undatedBookings: number;
+      pricedCompletedBookings: number;
+      missingCompletedPrices: number;
+      spendCoverage: number;
+      totalSpent: number | null;
+      averageCompletedValue: number | null;
       firstBookingAt: string | null;
       lastBookingAt: string | null;
       daysSinceLastBooking: number | null;
@@ -668,12 +674,14 @@ type Tab =
   | "OPPORTUNITIES";
 
 function money(value: number | string | null) {
-  const number = Number(value ?? 0);
+  if (value === null || value === "") return "Not available";
+  const number = Number(value);
 
+  if (!Number.isFinite(number)) return "Not available";
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency: "GBP",
-  }).format(Number.isFinite(number) ? number : 0);
+  }).format(number);
 }
 
 function dateTime(value: string | null) {
@@ -1140,7 +1148,8 @@ function Overview({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
-          label="Total bookings"
+          label="Historical bookings"
+          detail={`${overview.recordedBookings} recorded · ${overview.futureDatedBookings} future-dated · ${overview.undatedBookings} undated`}
           value={overview.totalBookings.toLocaleString(
             "en-GB",
           )}
@@ -1153,9 +1162,9 @@ function Overview({
           detail={`${overview.completionRate}% completion rate`}
         />
         <Metric
-          label="Total spent"
+          label={overview.missingCompletedPrices > 0 ? "Known spend" : "Total spent"}
           value={money(overview.totalSpent)}
-          detail={`${money(overview.averageCompletedValue)} average`}
+          detail={overview.averageCompletedValue === null ? "No completed booking prices available" : `${money(overview.averageCompletedValue)} average · ${overview.pricedCompletedBookings}/${overview.completed} completed prices known`}
         />
         <Metric
           label="Last booking"
