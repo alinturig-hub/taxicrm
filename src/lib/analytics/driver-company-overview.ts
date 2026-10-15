@@ -1,3 +1,4 @@
+import { bookingValue } from "@/lib/revenue/booking-value";
 import { prisma } from "@/lib/prisma";
 import { calculateNoFareFinancials } from "@/lib/revenue/no-fare-financials";
 import {
@@ -151,9 +152,7 @@ export async function getDriverCompanyOverviewForRange(
     const driverValue = positiveNumber(
       booking.cost,
     );
-    const companyValue = positiveNumber(
-      booking.price,
-    );
+    const companyValue = positiveNumber(bookingValue(booking));
 
     driverEarnings += driverValue;
     companyRevenue += companyValue;

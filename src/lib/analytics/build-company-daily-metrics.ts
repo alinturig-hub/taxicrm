@@ -1,3 +1,4 @@
+import { bookingValue } from "@/lib/revenue/booking-value";
 import { prisma } from "@/lib/prisma";
 import {
   calculateNoFareFinancials,
@@ -8,15 +9,6 @@ import {
   londonDateKey,
   startOfLondonDay,
 } from "@/lib/time/london-calendar";
-
-function toNumber(value: unknown): number {
-  if (value === null || value === undefined) {
-    return 0;
-  }
-
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : 0;
-}
 
 function round(value: number, decimals = 2): number {
   return Number(value.toFixed(decimals));
@@ -65,6 +57,7 @@ export async function buildCompanyDailyMetrics(
       },
       select: {
         price: true,
+        cost: true,
         paymentType: true,
       },
     }),
@@ -118,7 +111,7 @@ export async function buildCompanyDailyMetrics(
 
   const revenueBreakdown = completedBookings.reduce(
     (totals, booking) => {
-      const bookingRevenue = toNumber(booking.price);
+      const bookingRevenue = bookingValue(booking) ?? 0;
       const paymentType =
         booking.paymentType?.trim().toUpperCase() ?? "";
 

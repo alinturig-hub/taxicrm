@@ -1,3 +1,4 @@
+import { bookingValue } from "./booking-value";
 import { prisma } from "@/lib/prisma";
 
 export type RevenueBooking = {
@@ -36,10 +37,7 @@ export function roundMoney(value: number): number {
 export function baseBookingRevenue(
   booking: Pick<RevenueBooking, "price" | "cost">,
 ): number {
-  const price = toNumber(booking.price);
-  const cost = toNumber(booking.cost);
-
-  return price > 0 ? price : cost;
+  return bookingValue(booking) ?? 0;
 }
 
 export function isCompletedRevenueBooking(

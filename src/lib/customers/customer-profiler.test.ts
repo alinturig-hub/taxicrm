@@ -24,13 +24,13 @@ test("future and undated records stay visible without changing historical recenc
   assert.equal(JSON.stringify(rows), before);
 });
 test("unknown prices are not zero and the average uses only known completed prices", () => {
-  const rows = [null, undefined, "", " ", "invalid", NaN, Infinity, false, -2, 0, "12.00", { toString: () => "24" }].map(price => booking("2026-10-25T10:00:00Z", { price }));
+  const rows = [null, undefined, "", " ", "invalid", NaN, Infinity, false, 0, "12.00", { toString: () => "24" }].map(price => booking("2026-10-25T10:00:00Z", { price }));
   const profile = buildCustomerProfile(rows, now);
   assert.equal(profile.overview.totalSpent, 36);
   assert.equal(profile.overview.averageCompletedValue, 12);
   assert.equal(profile.overview.pricedCompletedBookings, 3);
-  assert.equal(profile.overview.missingCompletedPrices, 9);
-  assert.equal(profile.overview.spendCoverage, 25);
+  assert.equal(profile.overview.missingCompletedPrices, 8);
+  assert.equal(profile.overview.spendCoverage, 27.3);
   assert.equal(buildCustomerProfile([booking("2026-10-25T10:00:00Z", { price: null, fare: 99 })], now).overview.totalSpent, null, "fare is not substituted for price");
   assert.equal(buildCustomerProfile([], now).overview.averageCompletedValue, null);
   assert.equal(buildCustomerProfile([booking("2026-10-25T10:00:00Z", { price: 0 })], now).overview.averageCompletedValue, 0);

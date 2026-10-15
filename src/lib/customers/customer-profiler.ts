@@ -1,6 +1,7 @@
 import {
   buildCustomerBehaviourTags,
 } from "./customer-behaviour-tags";
+import { bookingValue } from "@/lib/revenue/booking-value";
 import { isSharedBookingPoint } from "./customer-identity";
 
 type ProfileLocation = {
@@ -22,6 +23,7 @@ export type ProfileBooking = {
   pickupDueTime: Date | null;
   completedAt: Date | null;
   price: unknown;
+  cost?: unknown;
   fare?: unknown;
   distance: unknown;
   paymentType: string | null;
@@ -51,14 +53,6 @@ const hourFormatter = new Intl.DateTimeFormat(
     hour12: false,
   },
 );
-
-function knownPrice(value: unknown): number | null {
-  if (value === null || value === undefined || typeof value === "boolean" || Array.isArray(value) || (typeof value === "string" && !value.trim())) return null;
-  try {
-    const number = Number(value);
-    return Number.isFinite(number) && number >= 0 ? number : null;
-  } catch { return null; }
-}
 
 function profileDate(booking: ProfileBooking): Date | null {
   const date = booking.pickupDueTime ?? booking.bookedAtTime;
@@ -174,7 +168,7 @@ export function buildCustomerProfile(
       booking.status.toUpperCase() === "REJECTED",
   );
 
-  const knownCompletedPrices = completed.map(booking => knownPrice(booking.price)).filter((price): price is number => price !== null);
+  const knownCompletedPrices = completed.map(booking => bookingValue(booking)).filter((price): price is number => price !== null);
   const totalSpent = knownCompletedPrices.length ? knownCompletedPrices.reduce((sum, price) => sum + price, 0) : null;
 
   const datedBookings = orderedBookings
@@ -455,6 +449,7 @@ export function buildCustomerProfile(
         noFare.length,
         totalBookings,
       ),
+      valueBasis: "MAX_COST_PRICE" as const,
       recordedBookings: allOrderedBookings.length,
       futureDatedBookings,
       undatedBookings,

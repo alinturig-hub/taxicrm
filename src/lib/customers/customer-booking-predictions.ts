@@ -361,6 +361,7 @@ export async function refreshCustomerBookingPrediction(
               pickupDueTime: true,
               completedAt: true,
               price: true,
+              cost: true,
               distance: true,
               paymentType: true,
               bookingSource: true,

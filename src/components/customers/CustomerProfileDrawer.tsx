@@ -1162,9 +1162,9 @@ function Overview({
           detail={`${overview.completionRate}% completion rate`}
         />
         <Metric
-          label={overview.missingCompletedPrices > 0 ? "Known spend" : "Total spent"}
+          label={overview.missingCompletedPrices > 0 ? "Known CRM value" : "CRM booking value"}
           value={money(overview.totalSpent)}
-          detail={overview.averageCompletedValue === null ? "No completed booking prices available" : `${money(overview.averageCompletedValue)} average · ${overview.pricedCompletedBookings}/${overview.completed} completed prices known`}
+          detail={overview.averageCompletedValue === null ? "No completed Cost/Price values available" : `${money(overview.averageCompletedValue)} average · ${overview.pricedCompletedBookings}/${overview.completed} completed values known · Max(Cost, Price)`}
         />
         <Metric
           label="Last booking"
