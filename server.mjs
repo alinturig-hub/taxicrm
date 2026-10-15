@@ -1,4 +1,5 @@
 import { createServer } from "node:http";
+import { spawn } from "node:child_process";
 import next from "next";
 import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
 import { applySmsSchema } from "./scripts/sms-schema-bootstrap.mjs";
@@ -562,6 +563,26 @@ function scheduleJob({
   );
 }
 
+let crmEffectsProcess = null;
+let crmEffectsRestartTimer = null;
+let shuttingDown = false;
+
+function startCrmEffectsProcess() {
+  if (shuttingDown) return;
+  crmEffectsProcess = spawn(process.execPath, ["scripts/crm-effects-worker.mjs"], {
+    cwd: process.cwd(),
+    env: { ...process.env, CRM_WORKER_PORT: String(port) },
+    stdio: "inherit",
+  });
+  crmEffectsProcess.on("exit", (code, signal) => {
+    crmEffectsProcess = null;
+    if (shuttingDown) return;
+    console.error(`CRM booking effects process exited (${code ?? signal}); restarting.`);
+    crmEffectsRestartTimer = setTimeout(startCrmEffectsProcess, 5_000);
+  });
+  console.log(`CRM booking effects process started (pid ${crmEffectsProcess.pid}).`);
+}
+
 server.listen(port, hostname, () => {
   console.log(`TaxiCRM ready on http://${hostname}:${port}`);
   console.log(`Fleet WebSocket ready on ws://${hostname}:${port}/ws/fleet`);
@@ -589,6 +610,10 @@ server.listen(port, hostname, () => {
       intervalMs: 60000,
       drain: true,
     });
+  }
+
+  if (process.env.CRM_POST_COMMIT_WORKER_ENABLED === 'true') {
+    startCrmEffectsProcess();
   }
 
   scheduleJob({
@@ -641,6 +666,9 @@ server.listen(port, hostname, () => {
 });
 
 function shutdown(signal) {
+  shuttingDown = true;
+  if (crmEffectsRestartTimer) clearTimeout(crmEffectsRestartTimer);
+  if (crmEffectsProcess) crmEffectsProcess.kill("SIGTERM");
   console.log(`${signal} received. Shutting down TaxiCRM.`);
 
   broadcast({
