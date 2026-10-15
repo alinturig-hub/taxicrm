@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { workspaceAccess } from "@/lib/workspace/access";
-import { connectionOwnership } from "@/lib/integrations/connection-plan";
+import { connectionOwnership, connectionRegistryEnabled } from "@/lib/integrations/connection-plan";
 import ConnectionSetupWizard from "@/components/integrations/setup/ConnectionSetupWizard";
 import Link from "next/link";
 
@@ -18,6 +18,6 @@ export default async function ConnectionSetupPage() {
       <p>Schema management: {ownership.externallyManagedSchema ? "External" : "TaxiCRM startup policy"}</p>
       <p className="mt-3 text-slate-400">These settings describe this deployment, not a verified provider connection or delivery health.</p>
     </section>
-    <ConnectionSetupWizard />
+    <ConnectionSetupWizard canSaveDraft={connectionRegistryEnabled()} />
   </main>;
 }

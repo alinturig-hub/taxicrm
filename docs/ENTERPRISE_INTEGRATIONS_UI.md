@@ -23,3 +23,7 @@ Existing configuration API permissions remain authoritative. The Autocab layout 
 Validation: production build with lint/type checks passed; three existing navigation tests passed; synthetic browser smoke passed with search, empty results, category filters, Autocab tabs, provider workspace, draft persistence, permission restrictions, light/dark desktop captures and mobile overflow checks. Final incremental TypeScript validation covers the last permission-link and singular-label adjustments. Browser networking blocks external HTTP and no real SMS is sent.
 
 Captures are in /workspace/taxicrm-local/integrations-enterprise-{light,dark,mobile,webhooks}.png. No push, deployment or production migration was performed. Deployment of the earlier registry schema remains a separate coordinated step.
+
+## Approved UI deployment
+
+The user approved publication of the UI. Draft registry persistence is a separate explicit opt-in (`CONNECTION_REGISTRY_ENABLED=true`), absent in production at release preparation. With it off, the wizard provides download-only plans, makes no registry-list request, and hides the database-save button; authenticated GET returns an empty disabled capability and POST rejects writes with 409 before accessing the new tables. This permits the UI release without applying the isolated registry migration to the shared database. Schema management and the NeedACabPlus writer/TaxiCRM effects-worker configuration are preserved. Later enabling persistence requires a separately reviewed production migration.

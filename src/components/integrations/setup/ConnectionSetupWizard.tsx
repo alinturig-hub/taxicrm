@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { createConnectionPlan, type ConnectionPlan, type DataSource } from "@/lib/integrations/connection-plan";
 
-export default function ConnectionSetupWizard() {
+export default function ConnectionSetupWizard({ canSaveDraft = false }: { canSaveDraft?: boolean }) {
   const [step, setStep] = useState(0);
   const [companyName, setCompanyName] = useState("");
   const [source, setSource] = useState<DataSource>("NEEDACABPLUS");
@@ -15,6 +15,7 @@ export default function ConnectionSetupWizard() {
   const [savedId, setSavedId] = useState("");
   const [connections, setConnections] = useState<Array<{ id: string; displayName: string; status: string }>>([]);
   useEffect(() => {
+    if (!canSaveDraft) return;
     let active = true;
     fetch("/api/dashboard/integrations/connections", { cache: "no-store" })
       .then(async response => {
@@ -23,7 +24,7 @@ export default function ConnectionSetupWizard() {
         if (active) setConnections(data.connections);
       }).catch(e => { if (active) setError(e.message); });
     return () => { active = false; };
-  }, []);
+  }, [canSaveDraft]);
   const field = "mt-2 block w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-white";
   function review() {
     try {
@@ -39,7 +40,7 @@ export default function ConnectionSetupWizard() {
     link.click(); URL.revokeObjectURL(url);
   }
   async function save() {
-    if (!plan || saving) return;
+    if (!plan || saving || !canSaveDraft) return;
     setSaving(true); setError("");
     try {
       const response = await fetch("/api/dashboard/integrations/connections", {
@@ -55,7 +56,7 @@ export default function ConnectionSetupWizard() {
   }
   return <section className="space-y-5 rounded-2xl border border-slate-800 bg-slate-900 p-5">
     <h2 className="text-xl font-semibold text-white">Plan a connection</h2>
-    <p className="text-sm text-slate-400">Draft only. Save your plan in TaxiCRM or download it. Saving does not change credentials, connect a database, import data or activate webhooks.</p>
+    <p className="text-sm text-slate-400">Draft only. {canSaveDraft ? "Save your plan in TaxiCRM or download it." : "Download your plan to keep it. Draft storage in TaxiCRM is not enabled for this deployment."} Planning does not change credentials, connect a database, import data or activate webhooks.</p>
     <ol aria-label="Setup progress" className="flex flex-wrap gap-4 text-sm">
       {["Company & source", "Storage", "Review"].map((label, i) => <li key={label} aria-current={step === i ? "step" : undefined} className={step === i ? "font-semibold text-blue-300" : "text-slate-400"}>{i + 1}. {label}</li>)}
     </ol>
@@ -84,7 +85,7 @@ export default function ConnectionSetupWizard() {
       {step === 0 && <button type="button" className="rounded-xl bg-blue-600 px-4 py-2 text-white" onClick={() => { if (!companyName.trim()) { setError("Enter a company name."); return; } setError(""); setStep(1); }}>Continue</button>}
       {step === 1 && <button type="button" className="rounded-xl bg-blue-600 px-4 py-2 text-white" onClick={review}>Review plan</button>}
       {step === 2 && <button type="button" className="rounded-xl bg-blue-600 px-4 py-2 text-white" onClick={download}>Download draft plan</button>}
-      {step === 2 && <button type="button" disabled={saving || Boolean(savedId)} className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:opacity-50" onClick={save}>{saving ? "Saving…" : savedId ? "Draft saved" : "Save draft in TaxiCRM"}</button>}
+      {step === 2 && canSaveDraft && <button type="button" disabled={saving || Boolean(savedId)} className="rounded-xl bg-blue-600 px-4 py-2 text-white disabled:opacity-50" onClick={save}>{saving ? "Saving…" : savedId ? "Draft saved" : "Save draft in TaxiCRM"}</button>}
     </div>
     {connections.length > 0 && <section aria-label="Saved connection drafts" className="space-y-2 border-t border-slate-700 pt-4">
       <h3 className="font-semibold text-white">Connection registry</h3>

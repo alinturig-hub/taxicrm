@@ -1,3 +1,7 @@
+// Draft persistence is opt-in; deploying the UI never migrates the shared database.
+export function connectionRegistryEnabled(settings: Record<string, string | undefined> = process.env) {
+  return settings.CONNECTION_REGISTRY_ENABLED === "true";
+}
 export type DataSource = "NEEDACABPLUS" | "AUTOCAB" | "LOCAL";
 export type ConnectionPlan = {
   version: 1;

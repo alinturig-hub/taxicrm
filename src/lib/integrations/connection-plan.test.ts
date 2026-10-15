@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { createConnectionPlan, connectionOwnership } from "./connection-plan";
+import { createConnectionPlan, connectionOwnership, connectionRegistryEnabled } from "./connection-plan";
 
 test("all source plans preserve the existing connection and require review", () => {
   for (const source of ["NEEDACABPLUS", "AUTOCAB", "LOCAL"]) {
@@ -33,4 +33,11 @@ test("runtime policy reflects exact cutover flags without inventing connection h
   assert.deepEqual(connectionOwnership({}), {
     bookingWriter: "TaxiCRM", directIntakePaused: false, externallyManagedSchema: false,
   });
+});
+
+test("draft storage remains off unless explicitly enabled", () => {
+  assert.equal(connectionRegistryEnabled({}), false);
+  assert.equal(connectionRegistryEnabled({ CONNECTION_REGISTRY_ENABLED: "false" }), false);
+  assert.equal(connectionRegistryEnabled({ CONNECTION_REGISTRY_ENABLED: "TRUE" }), false);
+  assert.equal(connectionRegistryEnabled({ CONNECTION_REGISTRY_ENABLED: "true" }), true);
 });

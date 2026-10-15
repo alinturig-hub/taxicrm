@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { getAdministrationAccess } from "@/lib/administration-access";
 import { prisma } from "@/lib/prisma";
+import { connectionRegistryEnabled } from "@/lib/integrations/connection-plan";
 import { parseDraftRequest, publicConnectionSelect, saveConnectionDraft } from "@/lib/integrations/connection-registry";
 
 export const runtime = "nodejs";
@@ -15,6 +16,7 @@ async function permitted() {
 const headers = { "Cache-Control": "private, no-store" };
 export async function GET() {
   if (!await permitted()) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers });
+  if (!connectionRegistryEnabled()) return NextResponse.json({ connections: [], draftStorageEnabled: false }, { headers });
   try {
     const connections = await prisma.integrationConnection.findMany({ select: publicConnectionSelect, orderBy: { createdAt: "desc" }, take: 50 });
     return NextResponse.json({ connections }, { headers });
@@ -23,6 +25,7 @@ export async function GET() {
 export async function POST(request: Request) {
   const access = await permitted();
   if (!access) return NextResponse.json({ error: "FORBIDDEN" }, { status: 403, headers });
+  if (!connectionRegistryEnabled()) return NextResponse.json({ error: "DRAFT_STORAGE_DISABLED" }, { status: 409, headers });
   const text = await request.text();
   if (text.length > 8192) return NextResponse.json({ error: "DRAFT_TOO_LARGE" }, { status: 413, headers });
   let input: unknown;

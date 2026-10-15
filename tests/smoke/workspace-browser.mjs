@@ -225,6 +225,8 @@ try {
   await page.getByRole("link", { name: "Open Autocab workspace", exact: true }).click();
   await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "Webhooks", exact: true }).click();
   await page.getByRole("heading", { name: "Webhooks", exact: true }).waitFor();
+  await page.waitForURL(origin + "/dashboard/integrations/autocab/webhooks");
+  await page.waitForFunction(() => document.querySelector('nav[aria-label="Autocab workspace"] [aria-current="page"]')?.textContent === "Webhooks");
   assert.equal(await page.getByRole("navigation", { name: "Autocab workspace" }).locator('[aria-current="page"]').textContent(), "Webhooks");
   await page.reload();
   await page.getByText("Configure event URLs for operational data received by TaxiCRM.", { exact: true }).waitFor();
@@ -254,11 +256,21 @@ try {
   assert.equal(plan.preserveExistingConnection, true);
   assert.equal(plan.source, "AUTOCAB");
   assert.equal(plan.storage, "DEDICATED_DATABASE");
+  const registryResponse = await page.request.get(origin + "/api/dashboard/integrations/connections");
+  assert.equal(registryResponse.status(), 200);
+  const registry = await registryResponse.json();
+  if (registry.draftStorageEnabled === false) {
+    assert.equal(await page.getByRole("button", { name: "Save draft in TaxiCRM", exact: true }).count(), 0);
+    const blocked = await page.request.post(origin + "/api/dashboard/integrations/connections", { data: { companyName: "Synthetic blocked", source: "AUTOCAB", storage: "CURRENT_DATABASE", requestId: prefix } });
+    assert.equal(blocked.status(), 409);
+    assert.equal(await prisma.integrationConnection.count({ where: { createdById: user.id } }), 0);
+  } else {
   await page.getByRole("button", { name: "Save draft in TaxiCRM", exact: true }).click();
   await page.getByText("Draft saved in TaxiCRM. The existing connection is unchanged.", { exact: true }).waitFor();
   assert.equal(await prisma.integrationConnection.count({ where: { createdById: user.id } }), 1);
   await page.reload();
   await page.getByRole("region", { name: "Saved connection drafts" }).getByText("Synthetic connection company", { exact: false }).waitFor();
+  }
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/dashboard/live-operations")
       operationsRequestTimes.push(Date.now());
