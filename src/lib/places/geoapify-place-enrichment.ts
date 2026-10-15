@@ -492,6 +492,7 @@ export async function getGeoapifyDailyUsage() {
 async function connectLocation(
   bookingLocationId: string,
   placeIntelligenceId: string,
+  expectedCoordinates: { latitude: string; longitude: string },
 ) {
   if (process.env.BOOKING_WEBHOOK_WRITER === "NAC") {
     const endpoint = process.env.NAC_BOOKING_LOCATION_LINK_URL;
@@ -502,7 +503,12 @@ async function connectLocation(
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { "Content-Type": "application/json", "x-booking-effects-secret": secret },
-      body: JSON.stringify({ bookingLocationId, placeIntelligenceId }),
+      body: JSON.stringify({
+        bookingLocationId,
+        placeIntelligenceId,
+        expectedLatitude: expectedCoordinates.latitude,
+        expectedLongitude: expectedCoordinates.longitude,
+      }),
       cache: "no-store",
       signal: AbortSignal.timeout(30_000),
     });
@@ -560,6 +566,10 @@ export async function enrichBookingLocation(
 
   const latitude = Number(location.latitude);
   const longitude = Number(location.longitude);
+  const expectedCoordinates = {
+    latitude: location.latitude.toString(),
+    longitude: location.longitude.toString(),
+  };
 
   if (
     !Number.isFinite(latitude) ||
@@ -578,10 +588,10 @@ export async function enrichBookingLocation(
   const active = activePlaceLookups.get(locationKey);
   if (active) {
     const place = await active;
-    await connectLocation(location.id, place.id);
+    await connectLocation(location.id, place.id, expectedCoordinates);
     return place;
   }
-  const lookup = lookupPlace(location, locationKey, latitude, longitude);
+  const lookup = lookupPlace(location, locationKey, latitude, longitude, expectedCoordinates);
   activePlaceLookups.set(locationKey, lookup);
   try { return await lookup; }
   finally { if (activePlaceLookups.get(locationKey) === lookup) activePlaceLookups.delete(locationKey); }
@@ -592,6 +602,7 @@ async function lookupPlace(
   locationKey: string,
   latitude: number,
   longitude: number,
+  expectedCoordinates: { latitude: string; longitude: string },
 ) {
   const cached =
     await prisma.placeIntelligence.findUnique({
@@ -604,6 +615,7 @@ async function lookupPlace(
     await connectLocation(
       location.id,
       cached.id,
+      expectedCoordinates,
     );
 
     return cached;
@@ -639,6 +651,7 @@ async function lookupPlace(
   await connectLocation(
     location.id,
     place.id,
+    expectedCoordinates,
   );
 
   const credentials =
