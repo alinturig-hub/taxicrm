@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {randomUUID} from 'node:crypto';
 import {prisma} from '@/lib/prisma';
 import {missingAmountAudit} from '@/lib/revenue/missing-amount-audit';
+import {missingAmountReconciliation} from '@/lib/revenue/missing-amount-reconciliation';
 assert.equal(process.env.DATABASE_URL,'postgresql://taxicrm@127.0.0.1:5432/taxicrm');
 assert.equal(process.env.TAXICRM_SYNTHETIC_TESTS,'1');
 test('missing amount audit separates original, alternate, fare and historical evidence without writes',async()=>{
@@ -23,6 +24,8 @@ test('missing amount audit separates original, alternate, fare and historical ev
   assert.equal(history.selected,1);assert.equal(history.hasMore,false);
   assert.equal(history.historyEvidence.amountEventsUnlinked,1);
   assert.equal(history.historyProcessing.RECEIVED,1);
+  const dry=await missingAmountReconciliation(null,provider);
+  assert.equal(dry.readOnly,true);assert.equal(dry.dryRun,true);assert.equal(dry.selected,1);assert.equal(dry.records[0].classification,'REVIEW_REQUIRED');
   assert.deepEqual(await prisma.booking.findMany({where:{provider},orderBy:{id:'asc'}}),before);
  }finally{await prisma.webhookEvent.deleteMany({where:{provider}});await prisma.booking.deleteMany({where:{provider}});await prisma.$disconnect()}
 });

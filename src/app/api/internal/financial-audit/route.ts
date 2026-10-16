@@ -4,6 +4,11 @@ import { financialAudit } from '@/lib/revenue/financial-audit';
 export const dynamic='force-dynamic';
 export async function GET(request:NextRequest){
  if(!auditAuthorized(request))return NextResponse.json({error:'UNAUTHORIZED'},{status:401});
+ if(request.nextUrl.searchParams.get('reconcile')==='1'){
+  const cursor=request.nextUrl.searchParams.get('afterId');
+  if(cursor!==null&&(cursor.length>128||!cursor.trim()))return NextResponse.json({error:'INVALID_CURSOR'},{status:400});
+  try{const {missingAmountReconciliation}=await import('@/lib/revenue/missing-amount-reconciliation');return NextResponse.json(await missingAmountReconciliation(cursor),{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'RECONCILIATION_FAILED'},{status:503})}
+ }
  if(request.nextUrl.searchParams.get('missing')==='1'){
   const cursor=request.nextUrl.searchParams.get('afterId');
   if(cursor!==null&&(cursor.length>128||!cursor.trim()))return NextResponse.json({error:'INVALID_CURSOR'},{status:400});
