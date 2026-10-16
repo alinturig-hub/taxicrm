@@ -8,7 +8,13 @@ export async function GET(request:NextRequest){
   const {externalBookingComparison,externalComparisonModes}=await import('@/lib/revenue/external-booking-comparison');
   const mode=request.nextUrl.searchParams.get('external'),cursor=request.nextUrl.searchParams.get('afterId'),through=request.nextUrl.searchParams.get('throughId');
   if(!externalComparisonModes.some(m=>m===mode)||[cursor,through].some(v=>v!==null&&(!v.trim()||v.length>128)))return NextResponse.json({error:'INVALID_EXTERNAL_COMPARISON'},{status:400});
-  try{return NextResponse.json(await externalBookingComparison(mode as typeof externalComparisonModes[number],cursor,through),{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'EXTERNAL_COMPARISON_FAILED'},{status:503})}
+  try{return NextResponse.json(await externalBookingComparison(mode as typeof externalComparisonModes[number],cursor,through),{headers:{'Cache-Control':'no-store'}})}catch(error){
+   const e=error as {code?:unknown;message?:unknown;meta?:{code?:unknown;driverAdapterError?:{cause?:{originalCode?:unknown}}}};
+   const rawCode=e.meta?.driverAdapterError?.cause?.originalCode??e.meta?.code;
+   const databaseCode=typeof rawCode==='string'&&/^[0-9A-Z]{5}$/.test(rawCode)?rawCode:null;
+   const diagnostic=typeof e.message==='string'&&['Expected the approved foreign source','Source schema unavailable','Unsupported source key type','Invalid typed source cursor'].includes(e.message)?e.message:null;
+   return NextResponse.json({error:'EXTERNAL_COMPARISON_FAILED',databaseCode,diagnostic},{status:503})
+  }
  }
  if(request.nextUrl.searchParams.has('compare')){
   const {bookingImportComparison,importComparisonModes}=await import('@/lib/revenue/booking-import-comparison');

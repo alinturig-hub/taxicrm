@@ -2,7 +2,7 @@ import { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { recordedAmount } from '@/lib/revenue/booking-value';
 
-export const externalComparisonModes=['probe','bounds','summary','duplicates','scan','local-duplicates'] as const;
+export const externalComparisonModes=['metadata','probe','bounds','summary','duplicates','scan','local-duplicates'] as const;
 export type ExternalComparisonMode=typeof externalComparisonModes[number];
 const cursorTypes:Record<string,string>={int2:'smallint',int4:'integer',int8:'bigint',numeric:'numeric',uuid:'uuid',text:'text',varchar:'character varying',bpchar:'character'};
 type SourceRow={sourceId:string;reference:string|null;originalReference:string|null;sourceStatus:string|null;price:string|null;cost:string|null;fare:string|null;pickupAt:string|null;completedAt:string|null;pickupMs:string|null};
@@ -25,6 +25,7 @@ export async function externalBookingComparison(mode:ExternalComparisonMode,afte
   }
   const table=test?.table??'needacab_bookings';const provider=test?.provider??'AUTOCAB';
   const columns=await tx.$queryRaw<Array<{column:string;type:string;kind:string}>>`SELECT a.attname::text AS column,t.typname::text AS type,c.relkind::text kind FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped JOIN pg_type t ON t.oid=a.atttypid WHERE n.nspname='public' AND c.relname=${table}`;
+  if(mode==='metadata')return {readOnly:true,columns};
   if(!test&&columns[0]?.kind!=='f')throw new Error('Expected the approved foreign source');
   if(!['id','autocab_booking_id','original_booking_id','status','price','cost','fare','pickup_due_time','completed_at'].every(k=>columns.some(c=>c.column===k)))throw new Error('Source schema unavailable');
   const idType=columns.find(c=>c.column==='id')!.type;const cast=cursorTypes[idType];if(!cast)throw new Error('Unsupported source key type');
