@@ -4,6 +4,12 @@ import { financialAudit } from '@/lib/revenue/financial-audit';
 export const dynamic='force-dynamic';
 export async function GET(request:NextRequest){
  if(!auditAuthorized(request))return NextResponse.json({error:'UNAUTHORIZED'},{status:401});
+ if(request.nextUrl.searchParams.has('external')){
+  const {externalBookingComparison,externalComparisonModes}=await import('@/lib/revenue/external-booking-comparison');
+  const mode=request.nextUrl.searchParams.get('external'),cursor=request.nextUrl.searchParams.get('afterId'),through=request.nextUrl.searchParams.get('throughId');
+  if(!externalComparisonModes.some(m=>m===mode)||[cursor,through].some(v=>v!==null&&(!v.trim()||v.length>128)))return NextResponse.json({error:'INVALID_EXTERNAL_COMPARISON'},{status:400});
+  try{return NextResponse.json(await externalBookingComparison(mode as typeof externalComparisonModes[number],cursor,through),{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'EXTERNAL_COMPARISON_FAILED'},{status:503})}
+ }
  if(request.nextUrl.searchParams.has('compare')){
   const {bookingImportComparison,importComparisonModes}=await import('@/lib/revenue/booking-import-comparison');
   const mode=request.nextUrl.searchParams.get('compare');
