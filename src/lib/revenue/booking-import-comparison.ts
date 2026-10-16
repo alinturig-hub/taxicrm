@@ -1,6 +1,6 @@
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma/client';
-export const importComparisonModes=['catalog','footprint','payloads','exact','minute','references','archive'] as const;
+export const importComparisonModes=['catalog','footprint','payloads','exact','minute','references','source-ids','archive'] as const;
 export type ImportComparisonMode=typeof importComparisonModes[number];
 export async function bookingImportComparison(mode:ImportComparisonMode,provider:string|null=null,table:string|null=null){
  return prisma.$transaction(async tx=>{
@@ -11,7 +11,7 @@ export async function bookingImportComparison(mode:ImportComparisonMode,provider
   const suspects=Prisma.sql`SELECT id,provider,"externalId","originalBookingId","normalCustomerId","pickupDueTime" FROM "Booking" WHERE status='COMPLETED' AND price IS NULL AND cost IS NULL ${provider?Prisma.sql`AND provider=${provider}`:Prisma.empty}`;
   if(mode==='catalog')return tx.$queryRaw`
    SELECT n.nspname AS schema,c.relname AS "table",c.relkind::text kind,c.reltuples::bigint::text estimated_rows,
-    coalesce(array_agg(a.attname::text ORDER BY a.attnum) FILTER(WHERE a.attname IN ('id','provider','externalId','originalBookingId','price','cost','rawPayload','external_booking_id','pricing_data','raw_payload','bookingId','snapshot','payload','data')),ARRAY[]::text[]) relevant_columns
+    coalesce(array_agg(a.attname::text ORDER BY a.attnum) FILTER(WHERE a.attname IN ('id','provider','externalId','originalBookingId','price','cost','rawPayload','external_booking_id','pricing_data','raw_payload','bookingId','snapshot','payload','data')),ARRAY[]::text[]) relevant_columns,coalesce(array_agg(a.attname::text ORDER BY a.attnum) FILTER(WHERE a.attname IS NOT NULL),ARRAY[]::text[]) declared_columns
    FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace LEFT JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped
    WHERE c.relkind IN ('r','p','v','m','f') AND n.nspname NOT IN ('pg_catalog','information_schema') AND n.nspname NOT LIKE 'pg_toast%'
     AND c.relname ~* '(booking|snapshot|import|apirecord|api_record)'
@@ -29,12 +29,12 @@ export async function bookingImportComparison(mode:ImportComparisonMode,provider
     min("pickupDueTime")::text first_pickup,max("pickupDueTime")::text last_pickup
    FROM base GROUP BY GROUPING SETS ((),(created_day),(status),(provider)) ORDER BY scope,bookings DESC`;
   if(mode==='payloads')return tx.$queryRaw(Prisma.sql`
-   WITH selected AS (SELECT b."rawPayload",b.id FROM "Booking" b JOIN (${suspects}) s ON s.id=b.id), patterns AS (
-    SELECT id,CASE WHEN jsonb_typeof("rawPayload")='object' THEN ARRAY(SELECT k FROM jsonb_object_keys("rawPayload") k ORDER BY k) ELSE ARRAY['NON_OBJECT']::text[] END root_keys,
-     CASE WHEN coalesce("rawPayload"->>'source',"rawPayload"->>'importSource','') ~* '^(autocab|taxicrm|legacy|import|history|customer.?booking|manual|migration)[A-Za-z0-9 _-]{0,100}$' THEN coalesce("rawPayload"->>'source',"rawPayload"->>'importSource') ELSE NULL END import_marker,
+   WITH selected AS (SELECT b."rawPayload",b.id,b."externalId" FROM "Booking" b JOIN (${suspects}) s ON s.id=b.id), patterns AS (
+    SELECT id,CASE WHEN "rawPayload"->>'bookingId'="externalId" THEN 'SAME_AS_EXTERNAL_ID' WHEN "rawPayload"->>'bookingId' ~ '^[0-9]+$' THEN 'OTHER_NUMERIC_ID' WHEN "rawPayload"->>'bookingId' ~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$' THEN 'UUID' WHEN "rawPayload"->>'bookingId' IS NULL THEN 'MISSING' ELSE 'OTHER' END source_id_kind,CASE WHEN jsonb_typeof("rawPayload")='object' THEN ARRAY(SELECT k FROM jsonb_object_keys("rawPayload") k ORDER BY k) ELSE ARRAY['NON_OBJECT']::text[] END root_keys,
+     CASE WHEN coalesce("rawPayload"->>'source',"rawPayload"->>'importSource','') ~* '^(need[ _-]?a[ _-]?cab|autocab|taxicrm|legacy|import|histor(y|ic|ical)|customer|manual|migration)[A-Za-z0-9 _-]{0,100}$' THEN coalesce("rawPayload"->>'source',"rawPayload"->>'importSource') ELSE NULL END import_marker,
      (jsonb_path_exists("rawPayload",'$.**.Price ? (@ != null)') OR jsonb_path_exists("rawPayload",'$.**.price ? (@ != null)') OR jsonb_path_exists("rawPayload",'$.**.Cost ? (@ != null)') OR jsonb_path_exists("rawPayload",'$.**.cost ? (@ != null)')) nested_amount_field
     FROM selected
-   ) SELECT root_keys,import_marker,count(*)::int bookings,count(*) FILTER(WHERE nested_amount_field)::int with_nested_amount_field FROM patterns GROUP BY root_keys,import_marker ORDER BY bookings DESC`);
+   ) SELECT root_keys,import_marker,source_id_kind,count(*)::int bookings,count(*) FILTER(WHERE nested_amount_field)::int with_nested_amount_field FROM patterns GROUP BY root_keys,import_marker,source_id_kind ORDER BY bookings DESC`);
   if(mode==='exact'||mode==='minute'){
    const timeMatch=mode==='exact'?Prisma.sql`b."pickupDueTime"=s."pickupDueTime"`:Prisma.sql`date_trunc('minute',b."pickupDueTime")=date_trunc('minute',s."pickupDueTime") AND b."pickupDueTime"<>s."pickupDueTime"`;
    return tx.$queryRaw(Prisma.sql`
@@ -59,8 +59,16 @@ export async function bookingImportComparison(mode:ImportComparisonMode,provider
     UNION ALL SELECT s.id,b.id,'OTHER_ORIGINAL_ID',b.price IS NOT NULL OR b.cost IS NOT NULL FROM suspects s JOIN "Booking" b ON b.provider=s.provider AND b."originalBookingId"=s."externalId" AND b.id<>s.id
     UNION ALL SELECT s.id,b.id,'OTHER_PROVIDER_SAME_REFERENCE',b.price IS NOT NULL OR b.cost IS NOT NULL FROM suspects s JOIN "Booking" b ON b.provider<>s.provider AND b."externalId"=s."externalId"
    ) SELECT reason,count(*)::int candidate_pairs,count(DISTINCT suspect_id)::int suspect_bookings_with_match,count(DISTINCT suspect_id) FILTER(WHERE priced)::int with_priced_match FROM matches GROUP BY reason ORDER BY reason`);
+  if(mode==='source-ids')return tx.$queryRaw(Prisma.sql`
+   WITH suspects AS MATERIALIZED (SELECT s.*,nullif(b."rawPayload"->>'bookingId','') source_id FROM (${suspects}) s JOIN "Booking" b ON b.id=s.id), duplicate_ids AS (
+    SELECT provider,source_id,count(*) n FROM suspects WHERE source_id IS NOT NULL GROUP BY provider,source_id HAVING count(*)>1
+   ), matches AS (
+    SELECT s.id suspect_id,b.id other_id,'SOURCE_KEY_MATCHES_ROW_ID' reason,b.price IS NOT NULL OR b.cost IS NOT NULL priced FROM suspects s JOIN "Booking" b ON b.id=s.source_id AND b.provider=s.provider AND b.id<>s.id
+    UNION ALL SELECT s.id,b.id,'SOURCE_KEY_MATCHES_EXTERNAL_ID',b.price IS NOT NULL OR b.cost IS NOT NULL FROM suspects s JOIN "Booking" b ON b."externalId"=s.source_id AND b.provider=s.provider AND b.id<>s.id
+   ) SELECT reason,count(*)::int candidate_pairs,count(DISTINCT suspect_id)::int suspect_bookings_with_match,count(DISTINCT suspect_id) FILTER(WHERE priced)::int with_priced_match FROM matches GROUP BY reason
+   UNION ALL SELECT 'REPEATED_SOURCE_KEYS',count(*)::int,coalesce(sum(n),0)::int,0 FROM duplicate_ids`);
   if(mode==='archive'){
-   if(!table||!/^Booking[A-Za-z0-9_]*$/.test(table)||table==='Booking')throw new Error('Unsupported archive table');
+   if(!table||!/^Booking[A-Za-z0-9_]*$/i.test(table)||table==='Booking')throw new Error('Unsupported archive table');
    const available=await tx.$queryRaw<Array<{column:string}>>`SELECT a.attname::text AS column FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace JOIN pg_attribute a ON a.attrelid=c.oid AND a.attnum>0 AND NOT a.attisdropped WHERE n.nspname='public' AND c.relname=${table} AND c.relkind IN ('r','p')`;
    if(!['id','provider','externalId','price','cost'].every(key=>available.some(c=>c.column===key)))throw new Error('Unsupported archive columns');
    const name=Prisma.raw('"'+table.replace(/"/g,'""')+'"');
