@@ -7,7 +7,7 @@ export async function GET(request:NextRequest){
  if(request.nextUrl.searchParams.get('missing')==='1'){
   const cursor=request.nextUrl.searchParams.get('afterId');
   if(cursor!==null&&(cursor.length>128||!cursor.trim()))return NextResponse.json({error:'INVALID_CURSOR'},{status:400});
-  try{const {missingAmountAudit}=await import('@/lib/revenue/missing-amount-audit');return NextResponse.json(await missingAmountAudit(cursor,request.nextUrl.searchParams.get('history')==='1'),{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'MISSING_AMOUNT_AUDIT_FAILED'},{status:503})}
+  try{const {missingAmountAudit}=await import('@/lib/revenue/missing-amount-audit');return NextResponse.json(await missingAmountAudit(cursor,request.nextUrl.searchParams.get('history')==='1',null,request.nextUrl.searchParams.get('historyOnly')==='1'),{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'MISSING_AMOUNT_AUDIT_FAILED'},{status:503})}
  }
  try{return NextResponse.json({checkedAt:new Date().toISOString(),businessTimezone:'Europe/London',basis:'MAX_COST_PRICE',containsPersonalData:false,rows:await financialAudit()},{headers:{'Cache-Control':'no-store'}})}
  catch{return NextResponse.json({error:'FINANCIAL_AUDIT_FAILED'},{status:503})}

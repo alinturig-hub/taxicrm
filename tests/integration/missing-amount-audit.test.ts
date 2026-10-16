@@ -19,6 +19,10 @@ test('missing amount audit separates original, alternate, fare and historical ev
   const c=r.groups.find(x=>x.status==='COMPLETED')!;assert.equal(c.originalAmount,1);assert.equal(c.alternateAmount,1);assert.equal(c.fareKnown,1);assert.equal(c.fareNonzero,0);
   assert.equal(r.historyEvidence.withHistoricalAmount,1);assert.equal(r.historyEvidence.withSnapshotAmount,1);
   assert.equal((await missingAmountAudit(r.nextCursor,false,provider)).selected,0);
+  const history=await missingAmountAudit(null,true,provider,true);
+  assert.equal(history.selected,1);assert.equal(history.hasMore,false);
+  assert.equal(history.historyEvidence.amountEventsUnlinked,1);
+  assert.equal(history.historyProcessing.RECEIVED,1);
   assert.deepEqual(await prisma.booking.findMany({where:{provider},orderBy:{id:'asc'}}),before);
  }finally{await prisma.webhookEvent.deleteMany({where:{provider}});await prisma.booking.deleteMany({where:{provider}});await prisma.$disconnect()}
 });

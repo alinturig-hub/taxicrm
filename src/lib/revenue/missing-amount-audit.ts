@@ -2,7 +2,7 @@ import { prisma } from '@/lib/prisma';
 import { Prisma } from '@/generated/prisma/client';
 
 // Aggregate evidence only. Never writes source bookings or returns customer payloads.
-export async function missingAmountAudit(afterId: string | null = null, history = false, provider: string | null = null) {
+export async function missingAmountAudit(afterId: string | null = null, history = false, provider: string | null = null, onlyHistory = false) {
  return prisma.$transaction(async tx => {
   await tx.$executeRaw`SET TRANSACTION READ ONLY`;
   await tx.$executeRaw`SET LOCAL statement_timeout='25s'`;
@@ -21,8 +21,9 @@ export async function missingAmountAudit(afterId: string | null = null, history 
    FROM "Booking" WHERE price IS NULL AND cost IS NULL
     ${afterId ? Prisma.sql`AND id>${afterId}` : Prisma.empty}
     ${provider ? Prisma.sql`AND provider=${provider}` : Prisma.empty}
-   ORDER BY id LIMIT 1001`);
-  const batch=rows.slice(0,1000);
+    ${onlyHistory ? Prisma.sql`AND (EXISTS(SELECT 1 FROM "WebhookEvent" e WHERE e.provider="Booking".provider AND e."externalBookingId"="Booking"."externalId") OR EXISTS(SELECT 1 FROM "BookingSnapshot" s WHERE s."bookingId"="Booking".id))` : Prisma.empty}
+   ORDER BY id LIMIT ${onlyHistory ? 101 : 1001}`);
+  const batch=rows.slice(0,onlyHistory ? 100 : 1000);
   const numeric=(v:string|null)=>v!==null&&v.trim()!==''&&/^[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?$/.test(v.trim())&&Number.isFinite(Number(v));
   const groups=new Map<string,{status:string;year:string|null;bookings:number;pricingObject:number;originalAmount:number;alternateAmount:number;fareKnown:number;fareNonzero:number;paymentAllocationKnown:number}>();
   for(const row of batch){
@@ -50,9 +51,10 @@ export async function missingAmountAudit(afterId: string | null = null, history 
     nacEvidence.withRecordedAmount=matches.filter(m=>[m.price,m.cost,m.rawPrice,m.rawCost].some(numeric)).length;
    }
   }
-  const historyEvidence={sampledBookings:0,withEvents:0,withHistoricalAmount:0,withSnapshots:0,withSnapshotAmount:0,eventLimitReached:0,snapshotLimitReached:0};
+  const historyEvidence={sampledBookings:0,withEvents:0,withHistoricalAmount:0,withSnapshots:0,withSnapshotAmount:0,eventLimitReached:0,snapshotLimitReached:0,eventsUnlinked:0,amountEventsUnlinked:0,eventsLinkedElsewhere:0};
+  const historyProcessing:Record<string,number>={};
   if(history)for(const row of batch.slice(0,100)){
-   const events=await tx.webhookEvent.findMany({where:{provider:row.provider,externalBookingId:row.externalId},orderBy:{receivedAt:'desc'},take:21,select:{payload:true}});
+   const events=await tx.webhookEvent.findMany({where:{provider:row.provider,externalBookingId:row.externalId},orderBy:{receivedAt:'desc'},take:21,select:{payload:true,status:true,bookingId:true}});
    const snapshots=await tx.bookingSnapshot.findMany({where:{bookingId:row.id},orderBy:{createdAt:'desc'},take:21,select:{snapshot:true}});
    const amount=(input:unknown)=>{
     if(!input||typeof input!=='object'||Array.isArray(input))return false;
@@ -61,11 +63,17 @@ export async function missingAmountAudit(afterId: string | null = null, history 
     const p=pricing&&typeof pricing==='object'&&!Array.isArray(pricing)?pricing as Record<string,unknown>:object;
     return ['Price','price','Cost','cost'].some(k=>(typeof p[k]==='number'||typeof p[k]==='string')&&numeric(String(p[k])));
    };
+   for(const event of events.slice(0,20)){
+    historyProcessing[event.status]=(historyProcessing[event.status]??0)+1;
+    historyEvidence.eventsUnlinked+=Number(event.bookingId===null);
+    historyEvidence.amountEventsUnlinked+=Number(event.bookingId===null&&amount(event.payload));
+    historyEvidence.eventsLinkedElsewhere+=Number(event.bookingId!==null&&event.bookingId!==row.id);
+   }
    historyEvidence.sampledBookings++;historyEvidence.withEvents+=Number(events.length>0);
    historyEvidence.withHistoricalAmount+=Number(events.slice(0,20).some(e=>amount(e.payload)));
    historyEvidence.withSnapshots+=Number(snapshots.length>0);historyEvidence.withSnapshotAmount+=Number(snapshots.slice(0,20).some(e=>amount(e.snapshot)));
    historyEvidence.eventLimitReached+=Number(events.length>20);historyEvidence.snapshotLimitReached+=Number(snapshots.length>20);
   }
-  return {selected:batch.length,nextCursor:batch.at(-1)?.id??afterId,hasMore:rows.length>1000,groups:Array.from(groups.values()),historyEvidence,nacEvidence,containsPersonalData:false,readOnly:true};
+  return {selected:batch.length,nextCursor:batch.at(-1)?.id??afterId,hasMore:rows.length>(onlyHistory ? 100 : 1000),groups:Array.from(groups.values()),historyEvidence,historyProcessing,nacEvidence,containsPersonalData:false,readOnly:true};
  },{timeout:30000,maxWait:5000,isolationLevel:'RepeatableRead'});
 }
