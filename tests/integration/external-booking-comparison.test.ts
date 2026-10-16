@@ -12,6 +12,7 @@ test('read-only external comparison distinguishes replicas, wrong primary-ID cop
   const base={provider,status:'COMPLETED',rawPayload:{synthetic:true}};
   for(const [externalId,time,price] of [['10','10:00:00',null],['100','10:00:00',15],['200','11:00:00',null],['30','09:00:00',null],['300','12:00:00',10]] as const)await prisma.booking.create({data:{...base,externalId,pickupDueTime:new Date('2051-01-01T'+time+'Z'),price}});
   const before=await prisma.booking.findMany({where:{provider},orderBy:{id:'asc'}});
+  const targets=await externalBookingComparison('targets',null,null,options);assert.ok('targets'in targets&&targets.targets.length===3);if('targets'in targets)assert.ok(targets.targets.every(t=>t.price===null&&t.cost===null&&!('rawPayload'in t)));
   const probe=await externalBookingComparison('probe',null,null,options);assert.equal('idType'in probe&&probe.idType,'int8');
   const bounds=await externalBookingComparison('bounds',null,null,options);assert.equal('last'in bounds&&(bounds.last as Array<{throughId:string}>)[0].throughId,'30');
   const summary=await externalBookingComparison('summary',null,null,options);assert.equal('rows'in summary&&(summary.rows as Array<{source_rows:number}>)[0].source_rows,4);

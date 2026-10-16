@@ -1,8 +1,9 @@
+import { createHash } from 'node:crypto';
 import { Prisma } from '@/generated/prisma/client';
 import { prisma } from '@/lib/prisma';
 import { recordedAmount } from '@/lib/revenue/booking-value';
 
-export const externalComparisonModes=['metadata','probe','bounds','summary','duplicates','scan','local-duplicates'] as const;
+export const externalComparisonModes=['targets','metadata','probe','bounds','summary','duplicates','scan','local-duplicates'] as const;
 export type ExternalComparisonMode=typeof externalComparisonModes[number];
 const cursorTypes:Record<string,string>={int2:'smallint',int4:'integer',int8:'bigint',numeric:'numeric',uuid:'uuid',text:'text',varchar:'character varying',bpchar:'character'};
 type SourceRow={sourceId:string;reference:string|null;originalReference:string|null;sourceStatus:string|null;price:string|null;cost:string|null;fare:string|null;pickupAt:string|null;completedAt:string|null;pickupMs:string|null};
@@ -17,6 +18,15 @@ export async function externalBookingComparison(mode:ExternalComparisonMode,afte
   await tx.$executeRaw`SET LOCAL statement_timeout='25s'`;
   await tx.$executeRaw`SET LOCAL max_parallel_workers_per_gather=0`;
   await tx.$executeRaw`SET LOCAL work_mem='8MB'`;
+  if(mode==='targets'){
+   const rows=await tx.booking.findMany({where:{provider:test?.provider??'AUTOCAB',...(afterId?{id:{gt:afterId}}:{}),OR:[{price:null,cost:null},{createdAt:{gte:new Date('2026-10-02T06:12:30Z'),lte:new Date('2026-10-02T06:18:07Z')}}]},orderBy:{id:'asc'},take:1001,select:{id:true,provider:true,externalId:true,originalBookingId:true,status:true,price:true,cost:true,fare:true,pickupDueTime:true,completedAt:true,createdAt:true,updatedAt:true,driverId:true,driverBadgeNumber:true,paymentType:true,companyId:true,rawPayload:true,locations:{select:{type:true,address:true}}}});
+   const hash=(v:string|undefined)=>v?createHash('sha256').update(v).digest('hex'):null;
+   const targets=rows.slice(0,1000).map(({rawPayload,locations,...b})=>{
+    const payload=rawPayload&&typeof rawPayload==='object'&&!Array.isArray(rawPayload)?rawPayload as Record<string,unknown>:{};
+    return {...b,importMarker:payload.source==='aws_import'?'aws_import':null,locations:locations.map(l=>({type:l.type,exactHash:hash(l.address),normalizedHash:hash(l.address.trim().toLowerCase().replace(/\s+/g,' '))}))};
+   });
+   return {readOnly:true,targets,selected:targets.length,nextCursor:targets.at(-1)?.id??afterId,hasMore:rows.length>1000,containsCustomerContacts:false};
+  }
   if(mode==='local-duplicates'){
    const raw=await tx.$queryRaw`WITH duplicated AS (SELECT provider,"externalId",count(*) n FROM "Booking" GROUP BY provider,"externalId" HAVING count(*)>1) SELECT count(*)::int duplicate_groups,coalesce(sum(n),0)::text rows_in_groups FROM duplicated`;
    const normalized=await tx.$queryRaw`WITH duplicated AS (SELECT upper(trim(provider)),CASE WHEN trim("externalId") ~ '^[0-9]+$' THEN coalesce(nullif(ltrim(trim("externalId"),'0'),''),'0') ELSE trim("externalId") END normalized_reference,count(*) n FROM "Booking" GROUP BY 1,2 HAVING count(*)>1) SELECT count(*)::int candidate_groups,coalesce(sum(n),0)::text rows_in_groups FROM duplicated`;

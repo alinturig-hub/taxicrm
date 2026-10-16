@@ -1,6 +1,6 @@
 # External booking reference audit
 
-The explicitly approved investigation reads only `public.needacab_bookings` and canonical TaxiCRM booking references. The authenticated internal financial-audit GET endpoint accepts `external=probe|bounds|summary|duplicates|scan|local-duplicates`; no mutation operation exists. These modes are separate from the resident-only `compare` modes.
+The explicitly approved investigation reads only `public.needacab_bookings` and canonical TaxiCRM booking references. The authenticated internal financial-audit GET endpoint accepts `external=targets|metadata|probe|bounds|summary|duplicates|scan|local-duplicates`; no mutation operation exists. These modes are separate from the resident-only `compare` modes.
 
 Source reads run in read-only transactions with 25-second statement limits, no parallel query workers and an 8 MB work-memory limit. Native source-ID keyset pagination limits batches to 1,000 rows. Capture an upper bound before scanning and verify source-ID uniqueness first. Each batch has its own snapshot; updates during a scan can affect results. No customer names, phone numbers or emails are selected.
 
@@ -9,3 +9,5 @@ A reference present once in each system is a normal replica. Multiple source row
 Diagnostics return financial evidence only to the existing internal audit authentication. Keep operational receipts outside the repository with restricted permissions. Running an audit must not invoke a revenue rebuild, backfill, provider API, SMS or schema migration.
 
 Synthetic integration coverage: `tests/integration/external-booking-comparison.test.ts`, guarded by the exact local database URL and `TAXICRM_SYNTHETIC_TESTS=1`.
+
+The `targets` mode reads canonical AUTOCAB bookings with missing cost and price plus the fixed October 2 import-time window. It exports bounded reference/financial/timestamp evidence and exact/whitespace-normalized SHA-256 address hashes, never customer contacts or original payloads. The import marker is returned only when exactly `aws_import`. These operational targets are read over separate snapshots and must be revalidated before any future correction. `metadata` reads declared source-column types without source records. Neither mode changes source permissions.
