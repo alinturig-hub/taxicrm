@@ -4,6 +4,12 @@ import { financialAudit } from '@/lib/revenue/financial-audit';
 export const dynamic='force-dynamic';
 export async function GET(request:NextRequest){
  if(!auditAuthorized(request))return NextResponse.json({error:'UNAUTHORIZED'},{status:401});
+ if(request.nextUrl.searchParams.has('compare')){
+  const {bookingImportComparison,importComparisonModes}=await import('@/lib/revenue/booking-import-comparison');
+  const mode=request.nextUrl.searchParams.get('compare');
+  if(!importComparisonModes.some(m=>m===mode))return NextResponse.json({error:'INVALID_COMPARISON'},{status:400});
+  try{return NextResponse.json({checkedAt:new Date().toISOString(),readOnly:true,containsCustomerContacts:false,rows:await bookingImportComparison(mode as typeof importComparisonModes[number],null,request.nextUrl.searchParams.get('table'))},{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'IMPORT_COMPARISON_FAILED'},{status:503})}
+ }
  if(request.nextUrl.searchParams.get('cohort')==='missing-completed'){
   try{const {missingCompletedCohort}=await import('@/lib/revenue/missing-amount-cohort');return NextResponse.json({checkedAt:new Date().toISOString(),readOnly:true,containsPersonalData:false,rows:await missingCompletedCohort()},{headers:{'Cache-Control':'no-store'}})}catch{return NextResponse.json({error:'COHORT_AUDIT_FAILED'},{status:503})}
  }
