@@ -167,6 +167,13 @@ export const navigationGroups: NavigationGroup[] = [
     description: "Turn recorded activity into business and customer insights.",
     items: [
       item(
+        "Business analytics",
+        "/dashboard/analytics",
+        "reports",
+        "Explore booking outcomes, income, zones and demand across London periods.",
+        "reports.view",
+      ),
+      item(
         "Business overview",
         "/dashboard",
         "executive",
