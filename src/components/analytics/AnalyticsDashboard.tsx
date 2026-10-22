@@ -13,6 +13,7 @@ import {
   type Totals,
 } from "@/lib/analytics/explorer/model";
 import ExecutiveOverview from "./ExecutiveOverview";
+import DataCoverage from "./DataCoverage";
 const AreaMap = dynamic(() => import("./AreaHeatMap"), {
   ssr: false,
   loading: () => (
@@ -829,6 +830,10 @@ export default function AnalyticsDashboard({
               </p>
             </Panel>
           )}
+          <details className="rounded-2xl border border-app-border bg-surface p-5">
+            <summary className="cursor-pointer text-sm font-semibold">Data quality & definitions</summary>
+            <div className="mt-4 space-y-4">
+              <DataCoverage data={data} />
           <Panel title="Coverage & definitions">
             <div className="grid gap-4 text-sm sm:grid-cols-3">
               <div>
@@ -865,6 +870,8 @@ export default function AnalyticsDashboard({
               records. This is recorded activity, not a forecast or net profit.
             </p>
           </Panel>
+            </div>
+          </details>
         </>
       )}
     </div>

@@ -64,3 +64,15 @@ Production build, TypeScript and ESLint checks passed. Browser checks against th
 ## Explicit selection and coverage counts
 
 The coverage panel now displays selected booking and completed-booking counts, payment filter, exact London pickup window, and numerator/denominator for each field. Price and Cost use completed bookings; zone coverage uses all selected bookings. Empty selections and zero completed jobs do not imply 100% financial coverage. The panel explicitly distinguishes selected-period coverage from the full historical database and source-accuracy auditing. This is a presentation change: no global count, database copy, altered query scope or live data write was introduced. Three synthetic component-render tests, TypeScript and lint passed. This clarification has not been deployed.
+
+## Business-first overview
+
+The overview leads with booking demand, completed-job company margin, current unfulfilled bookings and recorded gross income. Volume and gross are compared with the preceding equal-duration pickup window using the same payment filter. Margin change is an absolute GBP difference, so negative/zero baselines do not produce misleading growth percentages; incomplete Price/Cost withholds that comparison.
+
+Unfulfilled bookings combine mutually exclusive current cancellation, rejection and no-fare statuses. The overview displays their counts/rates and the change in count, without estimating lost money or inferring driver shortage. “Where to focus” shows the highest known-zone demand, the highest complete recorded area margin (including negative values), and the known zone with the most unfulfilled outcomes. Unknown zones stay in overall totals with a visible ranking limitation.
+
+The area scorecard includes bookings, demand change, cancellation/rejection/no-fare counts and rates, gross income, driver money and Price minus Cost. Previous-area volume comes from one bounded server-side aggregate query in the existing read-only snapshot, with provider-scoped zone matching and a 1,000-zone guard. A zero prior area volume means new activity, not an invented percentage. Mobile uses stacked area cards; desktop retains a comparison table.
+
+Data quality and definitions have moved to a collapsed-by-default section at the bottom. They remain available for investigation rather than taking the place of business indicators. No unverified timing/GPS KPI, dispatch recommendation, financial rule, real-data mutation or schema change was introduced. This change is local and has not been deployed.
+
+Validation for the business-first change: 16 component/model/synthetic-PostgreSQL tests passed, including previous-period payment/zone isolation, completed-only margins and the 100,000-booking bounded-output case. Production build and browser checks passed, including collapsed data quality, filter/card persistence, mobile layout, access checks and error/empty states. The six component tests also passed again after the mobile-card change. Screenshots contain synthetic data; external map tiles were blocked. No live data access or deployment was performed.

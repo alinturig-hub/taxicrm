@@ -251,7 +251,12 @@ try {
     .getByText("6", { exact: true })
     .waitFor();
   await page.getByRole("region", { name: "Executive overview", exact: true }).waitFor();
+  const quality = page.locator("details").filter({ has: page.getByText("Data quality & definitions", { exact: true }) });
+  assert.equal(await quality.getAttribute("open"), null);
+  await quality.locator("summary").click();
   await page.getByRole("region", { name: "Data confidence", exact: true }).waitFor();
+  await quality.locator("summary").click();
+  await page.getByRole("region", { name: "Business focus", exact: true }).waitFor();
   await page.getByLabel("Rank areas by").selectOption("noFare");
   await page.getByRole("region", { name: "Area performance scorecard", exact: true }).waitFor();
   await page.screenshot({

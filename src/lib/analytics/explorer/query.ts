@@ -100,10 +100,22 @@ export async function getAnalytics(
         Prisma.sql`${base} SELECT grouping(area_key)::int overall,area_key key,area_name name,latitude::text latitude,longitude::text longitude,${aggregate} FROM selected GROUP BY GROUPING SETS ((area_key,area_name,latitude,longitude),()) ORDER BY grouping(area_key) DESC,count(*) DESC LIMIT 1002`,
       );
       const previous = previousRange(range);
-      const [comparison] = await tx.$queryRaw<{ total: number; completed: number; gross: string; missingPrice: number }[]>(Prisma.sql`${cte(previous, false)}
-        SELECT count(*)::int total, count(*) FILTER(WHERE status='COMPLETED')::int completed,
+      const comparisonRows = await tx.$queryRaw<Row[]>(Prisma.sql`${cte(previous, false)}, previous_zones AS (
+        SELECT b.*,coalesce(z.provider||':'||z."externalId",'UNKNOWN') area_key FROM selected b
+        LEFT JOIN public."BookingLocation" l ON l."bookingId"=b.id AND l.type='PICKUP'
+        LEFT JOIN public."Zone" z ON z.provider=b.provider AND z."externalId"=l."zoneId"
+      ) SELECT grouping(area_key)::int overall,area_key key,count(*)::int total,
+        count(*) FILTER(WHERE status='COMPLETED')::int completed,
+        count(*) FILTER(WHERE status IN ('CANCELLED','CANCELLED_CUSTOMER','CANCELLED_DRIVER','CANCELLED_OPERATOR'))::int cancelled,
+        count(*) FILTER(WHERE status='NO_FARE')::int "noFare",count(*) FILTER(WHERE status='REJECTED')::int rejected,
         coalesce(sum(price) FILTER(WHERE status='COMPLETED'),0)::text gross,
-        count(*) FILTER(WHERE status='COMPLETED' AND price IS NULL)::int "missingPrice" FROM selected`);
+        count(*) FILTER(WHERE status='COMPLETED' AND price IS NULL)::int "missingPrice",
+        CASE WHEN count(*) FILTER(WHERE status='COMPLETED' AND(price IS NULL OR cost IS NULL))>0 THEN NULL
+          ELSE coalesce(sum(price-cost) FILTER(WHERE status='COMPLETED'),0)::text END margin
+        FROM previous_zones GROUP BY GROUPING SETS ((area_key),()) ORDER BY grouping(area_key) DESC,count(*) DESC LIMIT 1002`);
+      const comparison = comparisonRows.find(row => row.overall === 1)!;
+      const comparisonAreas = comparisonRows.filter(row => row.overall === 0);
+      if (comparisonAreas.length > 1000) throw Error("Too many previous-period zones. Narrow the date range.");
       const total = grouped.find((row) => row.overall === 1)!;
       const areaRows = grouped.filter((row) => row.overall === 0);
       if (areaRows.length > 1000)
@@ -199,7 +211,14 @@ export async function getAnalytics(
       }
       return {
         generatedAt: new Date().toISOString(),
-        comparison: { ...comparison, gross: Number(comparison.gross), from: previous.from.toISOString(), to: previous.to.toISOString() },
+        comparison: {
+          from: previous.from.toISOString(), to: previous.to.toISOString(),
+          total: Number(comparison.total), completed: Number(comparison.completed), gross: Number(comparison.gross),
+          missingPrice: Number(comparison.missingPrice), cancelled: Number(comparison.cancelled),
+          noFare: Number(comparison.noFare), rejected: Number(comparison.rejected),
+          margin: comparison.margin === null ? null : Number(comparison.margin),
+          areas: comparisonAreas.map(row => ({ key: String(row.key), total: Number(row.total) })),
+        },
         range: {
           ...range,
           from: range.from.toISOString(),

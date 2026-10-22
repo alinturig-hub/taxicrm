@@ -116,7 +116,11 @@ export type AnalyticsData = {
     payment: Payment;
     calendarDays: number;
   };
-  comparison?: { from: string; to: string; total: number; completed: number; gross: number; missingPrice: number };
+  comparison?: {
+    from: string; to: string; total: number; completed: number; gross: number; missingPrice: number;
+    cancelled?: number; noFare?: number; rejected?: number; margin?: number | null;
+    areas?: { key: string; total: number }[];
+  };
   totals: Totals;
   areas: Area[];
   revenueTrend: { date: string; gross: number; driverMoney: number }[];
