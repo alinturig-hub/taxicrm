@@ -250,6 +250,10 @@ try {
     .getByRole("article", { name: "Total bookings", exact: true })
     .getByText("6", { exact: true })
     .waitFor();
+  await page.getByRole("region", { name: "Executive overview", exact: true }).waitFor();
+  await page.getByRole("region", { name: "Data confidence", exact: true }).waitFor();
+  await page.getByLabel("Rank areas by").selectOption("noFare");
+  await page.getByRole("region", { name: "Area performance scorecard", exact: true }).waitFor();
   await page.screenshot({
     path: "/workspace/taxicrm-local/analytics-desktop.png",
     fullPage: true,

@@ -116,6 +116,7 @@ export type AnalyticsData = {
     payment: Payment;
     calendarDays: number;
   };
+  comparison?: { from: string; to: string; total: number; completed: number; gross: number; missingPrice: number };
   totals: Totals;
   areas: Area[];
   revenueTrend: { date: string; gross: number; driverMoney: number }[];
@@ -246,4 +247,16 @@ export function rentEstimate(
     cap,
     missingCosts,
   };
+}
+
+// Equal elapsed duration immediately preceding the selected pickup window.
+// Explicit timestamps prevent a DST comparison from implying equal local clock hours.
+export function previousRange(range: Range): Range {
+  return { ...range, from: new Date(2 * range.from.getTime() - range.to.getTime()), to: new Date(range.from) };
+}
+export function percentage(part: number, whole: number): number | null {
+  return whole > 0 ? part / whole * 100 : null;
+}
+export function changePercent(current: number, previous: number): number | null {
+  return previous > 0 ? (current - previous) / previous * 100 : null;
 }

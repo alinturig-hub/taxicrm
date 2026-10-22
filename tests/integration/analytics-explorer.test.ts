@@ -75,6 +75,8 @@ test("SQL analytics preserves monetary facts, avoids join/recovery duplicates, i
             : {}),
         },
       });
+    await make("PreviousCash", "COMPLETED", 20, 15, "Cash", "2026-10-24T12:00Z");
+    await make("PreviousAccount", "COMPLETED", 40, 30, "Account", "2026-10-24T13:00Z");
     const a = await make(
       "A",
       "COMPLETED",
@@ -136,6 +138,9 @@ test("SQL analytics preserves monetary facts, avoids join/recovery duplicates, i
       }),
     );
     const data = await getAnalytics(r, true);
+    assert.equal(data.comparison?.total, 2);
+    assert.equal(data.comparison?.gross, 60);
+    assert.equal(data.comparison?.from, "2026-10-23T22:00:00.000Z");
     assert.equal(data.totals.total, 7);
     assert.equal(data.totals.completed, 5);
     assert.equal(data.totals.gross, 79.1);
@@ -153,6 +158,8 @@ test("SQL analytics preserves monetary facts, avoids join/recovery duplicates, i
     assert.equal(data.drivers.unattributed, 1);
     assert.equal(data.rent.estimated, null);
     const cash = await getAnalytics({ ...r, payment: "CASH" }, false);
+    assert.equal(cash.comparison?.total, 1);
+    assert.equal(cash.comparison?.gross, 20);
     assert.equal(cash.totals.total, 2);
     assert.equal(cash.totals.gross, 17.1);
     assert.equal(cash.totals.margin, -1.9);

@@ -3,6 +3,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   dayKey,
+  previousRange,
   rentEstimate,
   type Range,
   type Totals,
@@ -98,6 +99,11 @@ export async function getAnalytics(
       const grouped = await tx.$queryRaw<Row[]>(
         Prisma.sql`${base} SELECT grouping(area_key)::int overall,area_key key,area_name name,latitude::text latitude,longitude::text longitude,${aggregate} FROM selected GROUP BY GROUPING SETS ((area_key,area_name,latitude,longitude),()) ORDER BY grouping(area_key) DESC,count(*) DESC LIMIT 1002`,
       );
+      const previous = previousRange(range);
+      const [comparison] = await tx.$queryRaw<{ total: number; completed: number; gross: string; missingPrice: number }[]>(Prisma.sql`${cte(previous, false)}
+        SELECT count(*)::int total, count(*) FILTER(WHERE status='COMPLETED')::int completed,
+        coalesce(sum(price) FILTER(WHERE status='COMPLETED'),0)::text gross,
+        count(*) FILTER(WHERE status='COMPLETED' AND price IS NULL)::int "missingPrice" FROM selected`);
       const total = grouped.find((row) => row.overall === 1)!;
       const areaRows = grouped.filter((row) => row.overall === 0);
       if (areaRows.length > 1000)
@@ -193,6 +199,7 @@ export async function getAnalytics(
       }
       return {
         generatedAt: new Date().toISOString(),
+        comparison: { ...comparison, gross: Number(comparison.gross), from: previous.from.toISOString(), to: previous.to.toISOString() },
         range: {
           ...range,
           from: range.from.toISOString(),

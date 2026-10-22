@@ -12,6 +12,7 @@ import {
   type Payment,
   type Totals,
 } from "@/lib/analytics/explorer/model";
+import ExecutiveOverview from "./ExecutiveOverview";
 const AreaMap = dynamic(() => import("./AreaHeatMap"), {
   ssr: false,
   loading: () => (
@@ -592,6 +593,7 @@ export default function AnalyticsDashboard({
               })}
             </span>
           </div>
+          <ExecutiveOverview data={data} />
           {data.totals.total === 0 && (
             <p
               role="status"

@@ -48,3 +48,15 @@ Requests abort stale client fetches and discard out-of-order responses. Loading 
 - Evidence: `/workspace/taxicrm-local/analytics-tests.log`, `analytics-build.log`, `analytics-browser.log`, `analytics-desktop.png`, `analytics-dark.png`, `analytics-mobile.png`.
 
 All validation used only the hardcoded loopback `analytics_synthetic` database and disposable users/bookings. No live schema migration, backfill, deploy, push or merge was performed.
+
+## Executive overview and area scorecard
+
+The dashboard includes booking-volume and recorded-income changes against the immediately preceding pickup window of equal elapsed duration, using the same payment filter and the same read-only transaction snapshot. Exact comparison timestamps are visible in Europe/London. This is not a matched weekday or local-clock comparison: DST can change local hours. Both windows use current booking statuses, not reconstructed historical statuses. Gross-income percentage comparisons are withheld if either window has missing completed-booking Price; a zero prior denominator is shown as new/no activity rather than an invented percentage.
+
+Completion share uses all selected bookings as the denominator, including ongoing jobs. Unfulfilled outcomes group current cancellations, no fares and rejections without estimating lost income or attributing fault. The confidence panel reports Price/Cost coverage among completed jobs, zone coverage among all selected jobs, and mixed/missing/other payment classifications. It measures coverage, not source accuracy or bookings excluded by missing pickup time.
+
+The area scorecard ranks up to ten known pickup zones by bookings, no-fare volume, cancellation volume or recorded margin, with counts and rates side by side. Margin ranking excludes zones without completed jobs and places incomplete margins last. Negative margins remain signed and prompt a review of discount/loyalty funding; they are not automatically labelled operational losses. No new alert thresholds, financial rules, schema changes, scheduled jobs or external calls were introduced.
+
+Validation: eight model tests plus real synthetic-PostgreSQL correctness and 100,000-booking bounded-output tests (10 total) passed. Synthetic 100,000-booking aggregate runtime was approximately 3.9 seconds in the isolated test environment; this is not a production performance guarantee.
+
+Production build, TypeScript and ESLint checks passed. Browser checks against the local production build passed for the executive overview, confidence panel and scorecard sorting, along with the existing filter, access, preference, error/empty and mobile checks. Light/dark/mobile screenshots use synthetic data; external map tiles were blocked during testing. No production access or deployment was performed.

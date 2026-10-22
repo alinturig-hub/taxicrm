@@ -104,3 +104,16 @@ test("area profitability retains negative margins, excludes unknown/incomplete/n
   ] as Area[];
   assert.equal(topArea(areas, "margin")?.name, "A");
 });
+
+test("comparison uses equal elapsed windows across DST and preserves payment scope", async () => {
+  const { previousRange, percentage, changePercent } = await import("./model");
+  const current = parseRange(new URLSearchParams({ preset: "custom", from: "2026-10-25", to: "2026-10-25", payment: "CASH" }));
+  const previous = previousRange(current);
+  assert.equal(previous.to.getTime(), current.from.getTime());
+  assert.equal(previous.to.getTime() - previous.from.getTime(), 25 * 3600000);
+  assert.equal(previous.payment, "CASH");
+  assert.equal(percentage(0, 0), null);
+  assert.equal(percentage(1, 4), 25);
+  assert.equal(changePercent(5, 0), null);
+  assert.equal(changePercent(120, 100), 20);
+});
