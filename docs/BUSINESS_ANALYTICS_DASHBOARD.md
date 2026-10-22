@@ -60,3 +60,7 @@ The area scorecard ranks up to ten known pickup zones by bookings, no-fare volum
 Validation: eight model tests plus real synthetic-PostgreSQL correctness and 100,000-booking bounded-output tests (10 total) passed. Synthetic 100,000-booking aggregate runtime was approximately 3.9 seconds in the isolated test environment; this is not a production performance guarantee.
 
 Production build, TypeScript and ESLint checks passed. Browser checks against the local production build passed for the executive overview, confidence panel and scorecard sorting, along with the existing filter, access, preference, error/empty and mobile checks. Light/dark/mobile screenshots use synthetic data; external map tiles were blocked during testing. No production access or deployment was performed.
+
+## Explicit selection and coverage counts
+
+The coverage panel now displays selected booking and completed-booking counts, payment filter, exact London pickup window, and numerator/denominator for each field. Price and Cost use completed bookings; zone coverage uses all selected bookings. Empty selections and zero completed jobs do not imply 100% financial coverage. The panel explicitly distinguishes selected-period coverage from the full historical database and source-accuracy auditing. This is a presentation change: no global count, database copy, altered query scope or live data write was introduced. Three synthetic component-render tests, TypeScript and lint passed. This clarification has not been deployed.
