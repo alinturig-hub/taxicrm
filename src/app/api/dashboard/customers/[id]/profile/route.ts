@@ -77,6 +77,7 @@ export async function GET(
             ],
             select: {
               externalId: true,
+              provider: true,
               status: true,
               bookedAtTime: true,
               pickupDueTime: true,
