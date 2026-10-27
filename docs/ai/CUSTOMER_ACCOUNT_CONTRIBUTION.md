@@ -18,7 +18,7 @@ The smallest number of contributors reaching 80% and the actual share generated 
 
 Existing profile output now includes `observations`, displayed in the customer profile overview. This computes completed-pickup recency, median positive elapsed interval, recent/previous trailing 30 elapsed-day counts, and frequent London weekday/hour slots. Missing/invalid pickup times, future completed pickups and repeated provider/reference pairs are counted and excluded. Booking time is not substituted for an unknown pickup. Same-time distinct trips remain separate observations; zero intervals do not enter the median. Four positive intervals are the descriptive-history minimum, not a calibration guarantee. Observation signals are not personal intent, churn classification, or predicted booking probabilities. Existing shared-contact warnings still apply.
 
-Corrected the stale profile `valueBasis` label from MAX_COST_PRICE to COMPLETED_PRICE: its calculation already uses Price through bookingValue. No financial values or existing tags were rewritten.
+The profile now reads recorded Price directly and labels its basis COMPLETED_PRICE. This avoids inheriting the older shared bookingValue helper's MAX(Price,Cost) behavior in the standalone release. Other financial consumers are outside this package. No financial values or existing tags were rewritten.
 
 ## Remaining work
 

@@ -2,7 +2,7 @@ import { customerObservations } from "./customer-observations";
 import {
   buildCustomerBehaviourTags,
 } from "./customer-behaviour-tags";
-import { bookingValue } from "@/lib/revenue/booking-value";
+import { recordedAmount } from "@/lib/revenue/booking-value";
 import { isSharedBookingPoint } from "./customer-identity";
 
 type ProfileLocation = {
@@ -170,7 +170,7 @@ export function buildCustomerProfile(
       booking.status.toUpperCase() === "REJECTED",
   );
 
-  const knownCompletedPrices = completed.map(booking => bookingValue(booking)).filter((price): price is number => price !== null);
+  const knownCompletedPrices = completed.map(booking => recordedAmount(booking.price)).filter((price): price is number => price !== null);
   const totalSpent = knownCompletedPrices.length ? knownCompletedPrices.reduce((sum, price) => sum + price, 0) : null;
 
   const datedBookings = orderedBookings

@@ -25,7 +25,7 @@ try {
   assert.equal((await fetch(endpoint + "?preset=custom&from=2059-02-30&to=2059-03-01", { headers })).status, 400);
   assert.equal((await fetch(endpoint + "?preset=custom&from=2059-01-01&to=2059-03-01", { headers })).status, 400);
   browser = await chromium.launch({ executablePath: "/usr/bin/chromium", headless: true, args: ["--no-sandbox"] });
-  const context = await browser.newContext({ viewport: { width: 1440, height: 1050 } });
+  const context = await browser.newContext({ locale: "en-GB", viewport: { width: 1440, height: 1050 } });
   await context.addCookies([{ name: "next-auth.session-token", value: admin, url: origin }]);
   const page = await context.newPage(), errors = [];
   page.on("pageerror", e => errors.push(e.message));
@@ -40,6 +40,7 @@ try {
   const all = await run();
   assert.equal(all.coverage.completed, 4); assert.equal(all.coverage.unattributed, 1);
   await page.getByRole("heading", { name: "Evidence coverage" }).waitFor();
+  await page.getByText("Synthetic account display", { exact: true }).first().waitFor();
   await page.getByText("Pareto unavailable: Missing financial data.", { exact: true }).first().waitFor();
   await page.screenshot({ path: "/workspace/taxicrm-local/contribution-desktop.png", fullPage: true });
   await page.setViewportSize({ width: 390, height: 844 });
@@ -61,6 +62,7 @@ try {
   // to prevent weather/snapshot side effects. Contribution API above uses real local SQL.
   const profileBookings = before.map(b => ({ ...b, locations: [] }));
   const profile = buildCustomerProfile(profileBookings, new Date("2059-10-27T12:00:00Z"));
+  assert.equal(profile.overview.totalSpent, 67.1);
   await page.route(`**/api/dashboard/customers/${contact.id}/profile`, route => route.fulfill({ json: { success: true, customer: { id: contact.id, name: contact.displayName, telephoneNumber: "SYNTHETIC" }, profile } }));
   await page.goto(origin + "/dashboard/customers");
   await page.getByRole("button", { name: "Normal Customers", exact: true }).click();
