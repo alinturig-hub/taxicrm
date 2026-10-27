@@ -1,3 +1,4 @@
+import { customerObservations } from "./customer-observations";
 import {
   buildCustomerBehaviourTags,
 } from "./customer-behaviour-tags";
@@ -18,6 +19,7 @@ type ProfileLocation = {
 
 export type ProfileBooking = {
   externalId: string;
+  provider?: string;
   status: string;
   bookedAtTime: Date | null;
   pickupDueTime: Date | null;
@@ -431,6 +433,7 @@ export function buildCustomerProfile(
         );
 
   return {
+    observations: customerObservations(bookings, now),
     overview: {
       totalBookings,
       completed: completed.length,
@@ -449,7 +452,7 @@ export function buildCustomerProfile(
         noFare.length,
         totalBookings,
       ),
-      valueBasis: "MAX_COST_PRICE" as const,
+      valueBasis: "COMPLETED_PRICE" as const,
       recordedBookings: allOrderedBookings.length,
       futureDatedBookings,
       undatedBookings,

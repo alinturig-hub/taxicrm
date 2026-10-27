@@ -11,9 +11,12 @@ export default async function AnalyticsPage() {
   )
     redirect("/dashboard/today");
   return (
+    <>
+    <a href="/dashboard/analytics/contribution" className="mx-4 mt-4 inline-block text-sm text-brand">Customer &amp; account contribution →</a>
     <AnalyticsDashboard
       userId={access.user.id}
       showDrivers={access.permissions.includes("drivers.view")}
     />
+    </>
   );
 }

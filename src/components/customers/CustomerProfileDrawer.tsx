@@ -1,4 +1,5 @@
 "use client";
+import type { customerObservations } from "@/lib/customers/customer-observations";
 
 import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 
@@ -118,6 +119,7 @@ type ProfileResponse = {
     } | null;
   };
   profile?: {
+    observations?: ReturnType<typeof customerObservations>;
     overview: {
       totalBookings: number;
       completed: number;
@@ -1128,9 +1130,13 @@ function Overview({
   weather?: ProfileResponse["observation"];
 }) {
   const { overview, classification } = profile;
+  const observations = profile.observations;
 
   return (
     <div className="space-y-6">
+      {observations && <section className="rounded-2xl border border-app-border p-5"><h3 className="font-semibold">Observed completed-trip activity</h3><p className="mt-2 text-sm text-app-muted">{observations.completedWithPickup} completed pickups · Last 30 days: {observations.recent30Days} · Previous 30 days: {observations.previous30Days}</p><p className="mt-2 text-sm text-app-muted">Median positive interval: {observations.medianIntervalHours === null ? "Insufficient data" : `${observations.medianIntervalHours.toFixed(1)} hours`} · Since last completed pickup: {observations.daysSinceLastCompletedPickup === null ? "Unknown" : `${observations.daysSinceLastCompletedPickup.toFixed(1)} days`}</p><p className="mt-2 text-xs text-app-muted">{observations.status === "INSUFFICIENT_HISTORY" ? "Insufficient history for a stable pattern." : "Descriptive history available."} {observations.method}</p><p className="mt-2 text-xs text-app-muted">Excluded: {observations.missingPickup} missing/invalid pickup times, {observations.futurePickup} future pickups, {observations.duplicateReferences} repeated source references. This booking contact may represent multiple passengers.</p></section>}
+
+
       {!classification
         .profileSafeForPersonalisation ? (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
