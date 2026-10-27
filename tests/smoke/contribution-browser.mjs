@@ -65,10 +65,11 @@ try {
   assert.equal(profile.overview.totalSpent, 67.1);
   await page.route(`**/api/dashboard/customers/${contact.id}/profile`, route => route.fulfill({ json: { success: true, customer: { id: contact.id, name: contact.displayName, telephoneNumber: "SYNTHETIC" }, profile } }));
   await page.goto(origin + "/dashboard/customers");
+  await page.evaluate(() => window.scrollTo(0, 0));
   await page.getByRole("button", { name: "Normal Customers", exact: true }).click();
   await page.getByRole("button", { name: contact.displayName, exact: true }).click();
   await page.getByRole("heading", { name: "Observed completed-trip activity", exact: true }).waitFor();
-  await page.screenshot({ path: "/workspace/taxicrm-local/contribution-profile-mobile.png", fullPage: true });
+  await page.screenshot({ path: "/workspace/taxicrm-local/contribution-profile-mobile.png", fullPage: false });
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), "Profile layout overflows on mobile");
   await page.keyboard.press("Escape");
   await page.getByRole("heading", { name: "Observed completed-trip activity", exact: true }).waitFor({ state: "hidden" });
