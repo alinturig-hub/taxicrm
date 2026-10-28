@@ -274,6 +274,13 @@ export const navigationGroups: NavigationGroup[] = [
         ["ADMIN", "MANAGER"],
       ),
       item(
+        "WhatsApp templates",
+        "/dashboard/configuration/whatsapp",
+        "automation",
+        "Meta connection readiness, template listing and local draft previews.",
+        "configuration.view",
+      ),
+      item(
         "Account revenue rules",
         "/dashboard/configuration/accounts",
         "revenue",
