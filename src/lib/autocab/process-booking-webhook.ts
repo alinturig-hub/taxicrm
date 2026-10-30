@@ -1,3 +1,4 @@
+import { sendJourneyCompleteWhatsApp } from "@/lib/integrations/whatsapp";
 import { Prisma } from "@/generated/prisma/client";
 import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
 import { persistBookingEvent } from "@/lib/autocab/booking-event-persistence";
@@ -150,6 +151,14 @@ export async function runBookingPostCommitEffects(
     throw new Error("Booking event has no CRM post-commit effects.");
   }
 
+  if (normaliseEventType(event.eventType) === "bookingcomplete") {
+    try {
+      await sendJourneyCompleteWhatsApp(event.bookingId, webhookEventId, event.receivedAt);
+    } catch {
+      // Messaging availability must never fail the booking or leak provider credentials.
+      console.error("Journey-complete WhatsApp effect failed", { webhookEventId });
+    }
+  }
   await reconcileUnknownAutocabAccount(
     event.payload as Record<string, unknown>,
   );

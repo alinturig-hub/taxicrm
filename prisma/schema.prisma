@@ -1359,3 +1359,37 @@ model PlaceIntelligence {
   @@index([latitude, longitude])
   @@index([isSensitive])
 }
+
+
+model WhatsAppConfiguration {
+  id String @id @default("journey-complete")
+  enabled Boolean @default(false)
+  enabledSince DateTime?
+  phoneNumberId String
+  templateName String
+  language String @default("en_GB")
+  graphVersion String @default("v23.0")
+  encryptedToken String
+  updatedAt DateTime @updatedAt
+}
+
+model WhatsAppConsent {
+  phone String @id
+  grantedAt DateTime @default(now())
+  revokedAt DateTime?
+  evidence String
+  actorUserId String
+}
+
+model WhatsAppDelivery {
+  id String @id @default(cuid())
+  bookingId String @unique
+  webhookEventId String
+  phone String
+  status String
+  providerMessageId String?
+  errorCode String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([createdAt])
+}

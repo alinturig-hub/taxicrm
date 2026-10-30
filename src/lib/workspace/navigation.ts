@@ -230,6 +230,13 @@ export const navigationGroups: NavigationGroup[] = [
         "integrations.view",
       ),
       item(
+        "WhatsApp",
+        "/dashboard/integrations/whatsapp",
+        "sync",
+        "Send an approved WhatsApp message when a journey completes.",
+        "integrations.manage",
+      ),
+      item(
         "Local integration",
         "/dashboard/integrations/local",
         "keys",
