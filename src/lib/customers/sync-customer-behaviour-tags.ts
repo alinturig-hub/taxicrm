@@ -51,6 +51,7 @@ export async function syncCustomerBehaviourTags(
     afterId?: string;
     dryRun?: boolean;
   } = {},
+  db: typeof prisma = prisma,
 ): Promise<CustomerTagSyncResult> {
   const now =
     options.now ?? new Date();
@@ -113,7 +114,7 @@ export async function syncCustomerBehaviourTags(
         tagId: string;
       }>;
     }> =
-      await prisma.normalCustomer.findMany({
+      await db.normalCustomer.findMany({
         where: {
           ...(cursorId ? { id: { gt: cursorId } } : {}),
           ...(options.scope === "all" ? {} : { OR: [
@@ -192,7 +193,7 @@ export async function syncCustomerBehaviourTags(
     }));
     const candidateIds = calculated.filter(({ tags }) => tags.length > 0).map(({ customer }) => customer.id);
     const histories = candidateIds.length > 0
-      ? await prisma.booking.findMany({
+      ? await db.booking.findMany({
           where: { normalCustomerId: { in: candidateIds } },
           select: {
             normalCustomerId: true,
@@ -236,7 +237,7 @@ export async function syncCustomerBehaviourTags(
             ),
           );
 
-        const changes = await prisma.$transaction(async (tx) => {
+        const changes = await db.$transaction(async (tx) => {
           let created = 0;
           let updated = 0;
           const deactivated =
@@ -245,6 +246,8 @@ export async function syncCustomerBehaviourTags(
                 normalCustomerId:
                   customer.id,
                 active: true,
+                // Historical booking-channel tags are not behaviour-window predictions.
+                source: "AUTOMATIC",
                 ...(activeTagIds.length >
                 0
                   ? {
@@ -374,7 +377,7 @@ export async function syncCustomerBehaviourTags(
   }
 
   result.nextCursor = cursorId;
-  result.hasMore = Boolean(cursorId && await prisma.normalCustomer.findFirst({
+  result.hasMore = Boolean(cursorId && await db.normalCustomer.findFirst({
     where: { id: { gt: cursorId! }, ...(options.scope === "all" ? {} : { OR: [
       { lastBookingAt: { gte: windowStartAt } },
       { bookings: { some: { pickupDueTime: { gte: windowStartAt, lte: now } } } },
