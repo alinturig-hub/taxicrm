@@ -36,3 +36,36 @@ For production template submission, add an audit record, expected revision, expl
 ## Validation
 
 Unit tests use a synthetic token and mocked Meta responses. Browser tests use synthetic users and a local isolated database. They verify redaction, permissions, local preview, malformed variables and mobile layout. No real Meta, Com.Bot or production database calls are part of development validation.
+
+## Communication foundation (isolated development)
+
+The 20261028000000 migration is generated, not applied to any database. It adds
+workspace-scoped communication, consent, suppression, campaign and workflow records.
+Credentials are referenced, never stored in message payloads. Booking ingestion stays
+owned by Need A Cab Plus. Do not expose these models through application routes until
+workspace authorization and relational ownership checks are implemented. IDs currently
+use scalar references; repository services must validate same-workspace ownership.
+
+The send eligibility policy is tested with synthetic data: marketing requires explicit
+consent and an approved template; suppression overrides eligibility; free-form service
+replies require an inbound message less than 24 hours old. Recheck before dispatch.
+
+Still pending: isolated migration execution, relational integrity enforcement, provider
+transport selection (Com.Bot versus direct Meta for the existing number), authenticated
+webhook receiver and replay handling, queue worker, campaign UI, workflow editor and AI
+inbox. No actual sender is activated by this foundation. Do not deploy as a complete
+campaign feature. Workflow revisions and audience snapshots must be immutable through
+application permissions before execution is enabled.
+
+## Dual-provider adapter
+
+`providers.ts` defines META and COMBOT with explicit capabilities. The authenticated
+configuration GET reports both. Meta retains its bounded read-only template API;
+Com.Bot is blocked pending its documented API contract. Neither adapter sends messages.
+There is no automatic provider fallback: switching transport after an ambiguous timeout
+could duplicate a message. Assign one transport to each phone connection before enabling
+workers. Campaigns and workflows must call the adapter, not provider-specific URLs.
+
+Com.Bot activation requires vendor documentation for authentication, template listing,
+send requests, inbound/status webhooks, signature validation, provider message IDs,
+rate limits and retry/idempotency behavior. No Com.Bot URL or credentials are guessed.

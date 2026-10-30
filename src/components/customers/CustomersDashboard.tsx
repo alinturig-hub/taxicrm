@@ -90,11 +90,13 @@ function formatDate(value: string | null) {
 }
 
 export default function CustomersDashboard({
-  initialTab = "ACCOUNT",
+  initialTab = "NORMAL",
   initialTag = "ALL",
   audienceMode = false,
+  directoryMode,
 }: {
   initialTab?: Tab;
+  directoryMode?: Tab;
   initialTag?: string;
   audienceMode?: boolean;
 } = {}) {
@@ -106,6 +108,7 @@ export default function CustomersDashboard({
     useState("");
   const [selectedTag, setSelectedTag] =
     useState(initialTag);
+  const [payment, setPayment] = useState("ALL");
   const [page, setPage] =
     useState(1);
   const [totalPages, setTotalPages] =
@@ -147,7 +150,7 @@ export default function CustomersDashboard({
   // Reset to the first page whenever the filter changes.
   useEffect(() => {
     setPage(1);
-  }, [debouncedSearch, selectedTag, tab]);
+  }, [debouncedSearch, selectedTag, tab, payment]);
 
   const loadCustomers = useCallback(async () => {
     try {
@@ -156,6 +159,7 @@ export default function CustomersDashboard({
 
       const params = new URLSearchParams();
       params.set("page", String(page));
+      params.set("payment", payment);
       params.set("limit", String(PAGE_SIZE));
       if (debouncedSearch) {
         params.set("search", debouncedSearch);
@@ -205,7 +209,7 @@ export default function CustomersDashboard({
     } finally {
       setLoading(false);
     }
-  }, [page, debouncedSearch, selectedTag]);
+  }, [page, debouncedSearch, selectedTag, payment]);
 
   useEffect(() => {
     void loadCustomers();
@@ -285,12 +289,11 @@ export default function CustomersDashboard({
           </p>
 
           <h1 className="mt-2 text-4xl font-bold text-white">
-            {audienceMode ? "Audience segments" : "Customers"}
+            {audienceMode ? "Audience segments" : directoryMode === "ACCOUNT" ? "Business accounts" : "Customers"}
           </h1>
 
           <p className="mt-3 max-w-3xl text-slate-400">
-            Account customers imported from Autocab and
-            normal customers identified from booking history.
+            Companies and institutions are listed separately from the people who travel. Payment filters use recorded booking history; a customer may use several methods.
           </p>
         </div>
 
@@ -329,11 +332,11 @@ export default function CustomersDashboard({
 
       <div className="grid gap-4 sm:grid-cols-3">
         <Metric
-          label="Account Customers"
+          label="Business accounts"
           value={accountCustomers.length}
         />
         <Metric
-          label="Normal Customers"
+          label="Customers"
           value={totalNormal}
         />
         <Metric
@@ -347,14 +350,14 @@ export default function CustomersDashboard({
       <div className="rounded-2xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 p-4 sm:p-5">
           <div className="flex flex-wrap items-center justify-between gap-4">
-            <div className="flex rounded-xl border border-slate-800 bg-slate-950 p-1">
+            <div className={`${directoryMode ? "hidden" : "flex"} rounded-xl border border-slate-800 bg-slate-950 p-1`}>
               <TabButton
                 active={tab === "ACCOUNT"}
                 onClick={() =>
                   setTab("ACCOUNT")
                 }
               >
-                Account Customers
+                Business accounts
               </TabButton>
 
               <TabButton
@@ -363,12 +366,13 @@ export default function CustomersDashboard({
                   setTab("NORMAL")
                 }
               >
-                Normal Customers
+                Customers
               </TabButton>
 
             </div>
 
             <div className="flex w-full flex-wrap gap-3 sm:w-auto">
+              {tab === "NORMAL" && <select aria-label="Filter customers by recorded payment method" value={payment} onChange={e=>setPayment(e.target.value)} className="rounded-xl border border-slate-700 bg-slate-950 px-4 py-2.5 text-white"><option value="ALL">All payment methods</option><option value="CASH">Cash</option><option value="ACCOUNT">Account</option><option value="CARD">Card</option><option value="APP">App</option></select>}
               {tab === "NORMAL" ? (
                 <select
                   value={selectedTag}

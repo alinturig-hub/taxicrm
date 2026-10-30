@@ -1,3 +1,4 @@
+import { providerCapabilities } from "@/lib/integrations/whatsapp/providers";
 import { NextResponse } from "next/server";
 import { whatsappSettings, WhatsAppError } from "@/lib/integrations/whatsapp/settings";
 import { listTemplates, templatePreview } from "@/lib/integrations/whatsapp/templates";
@@ -11,7 +12,7 @@ function failure(error: unknown) {
 export async function GET() {
   try {
     const access = await whatsappAccess();
-    return NextResponse.json({ settings: whatsappSettings(), canManage: access.permissions.includes("integrations.manage") }, { headers: privateHeaders });
+    return NextResponse.json({ settings: whatsappSettings(), providers: [providerCapabilities("META"), providerCapabilities("COMBOT")], canManage: access.permissions.includes("integrations.manage") }, { headers: privateHeaders });
   } catch (error) { return failure(error); }
 }
 export async function POST(request: Request) {
