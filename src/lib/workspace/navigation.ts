@@ -59,6 +59,13 @@ export const navigationGroups: NavigationGroup[] = [
     description: "Choose your workspace or review the business overview.",
     items: [
       item(
+        "Command Center",
+        "/dashboard/command-center",
+        "executive",
+        "Connected business workspaces and recorded signals requiring review.",
+        "dashboard.view",
+      ),
+      item(
         "Today",
         "/dashboard/workspace",
         "dashboard",
