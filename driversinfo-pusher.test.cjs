@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { getClearDrivers, createPusher, ENDPOINTS } = require('./driversinfo-pusher');
+test('uses the verified receiver routes', () => assert.deepEqual(ENDPOINTS, ['https://api.plymhub.app/api/webhook/drivers', 'https://testapi.plymhub.app/api/webhook/drivers']));
 
 test('driversInfo queries canonical state, not a historical Clear snapshot', async () => {
   const { PGlite } = await import('@electric-sql/pglite');
