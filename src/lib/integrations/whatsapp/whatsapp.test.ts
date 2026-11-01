@@ -4,11 +4,11 @@ import { whatsappSettings, whatsappCredentials, WhatsAppError } from "./settings
 import { listTemplates, templatePreview } from "./templates";
 import { reserveWhatsAppList } from "./limit";
 const token = "synthetic-meta-token-not-a-real-secret";
-const env = { META_WHATSAPP_ENABLED: "true", META_WHATSAPP_APP_ID: "123456789", META_WHATSAPP_WABA_ID: "987654321", META_WHATSAPP_GRAPH_VERSION: "v999.0", META_WHATSAPP_ACCESS_TOKEN: token };
+const env = { NODE_ENV: "test" as const, META_WHATSAPP_ENABLED: "true", META_WHATSAPP_APP_ID: "123456789", META_WHATSAPP_WABA_ID: "987654321", META_WHATSAPP_GRAPH_VERSION: "v999.0", META_WHATSAPP_ACCESS_TOKEN: token };
 const draft = { name: "booking_update", language: "en_GB", category: "UTILITY", text: "Hello {{1}}, reference {{2}}. Thank you.", samples: ["Synthetic customer", "SYNTHETIC-123"] };
 const code = (value: string) => (error: unknown) => error instanceof WhatsAppError && error.code === value;
 test("configuration starts disabled, missing fields stay explicit, secrets never enter public settings", () => {
-  const empty = whatsappSettings({}); assert.equal(empty.enabled, false); assert.equal(empty.ready, false); assert.equal(empty.issues.length, 4);
+  const empty = whatsappSettings({ NODE_ENV: "test" }); assert.equal(empty.enabled, false); assert.equal(empty.ready, false); assert.equal(empty.issues.length, 4);
   const ready = whatsappSettings(env); assert.equal(ready.ready, true); assert.equal(ready.messagingEnabled, false); assert.equal(ready.templateSubmissionEnabled, false); assert.ok(!JSON.stringify(ready).includes(token));
   const bad = whatsappSettings({ ...env, META_WHATSAPP_WABA_ID: "https://bad.example/", META_WHATSAPP_ACCESS_TOKEN: "bad\nsecret" }); assert.equal(bad.wabaId, ""); assert.equal(bad.hasToken, false); assert.ok(!JSON.stringify(bad).includes("bad.example"));
 });

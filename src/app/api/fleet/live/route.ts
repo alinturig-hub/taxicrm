@@ -1,3 +1,4 @@
+import { fleetLifecycleJoins, fleetLiveEligibility } from "@/lib/fleet-lifecycle";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
@@ -118,6 +119,16 @@ export async function GET() {
         },
       },
     });
+
+    const lifecycle = await prisma.$queryRawUnsafe<Array<{ id: string; status: string; on_shift: boolean; booking_id: number | null }>>(`
+      SELECT vehicle.id, fleet_state.status, fleet_state.booking_id, (${fleetLiveEligibility}) AS on_shift
+      FROM public."Vehicle" vehicle
+      LEFT JOIN public."Driver" driver ON driver.id=vehicle."currentDriverId"
+      ${fleetLifecycleJoins}
+      WHERE vehicle.provider='AUTOCAB'
+    `);
+    const lifecycleById = new Map(lifecycle.map(row => [row.id, row]));
+    for (const vehicle of vehicles) vehicle.currentBookingId = lifecycleById.get(vehicle.id)?.booking_id ?? null;
 
     const currentBookingIds = Array.from(
       new Set(
@@ -261,6 +272,8 @@ export async function GET() {
 
     const liveVehicles = vehicles
       .map((vehicle) => {
+        const state = lifecycleById.get(vehicle.id);
+        const effectiveStatus = state?.status ?? "NotWorking";
         const latitude = toNumber(vehicle.currentLatitude);
         const longitude = toNumber(vehicle.currentLongitude);
 
@@ -297,15 +310,10 @@ export async function GET() {
           callsign: vehicle.callsign,
           registration:
             vehicle.registration || vehicle.plateNumber || null,
-          status: vehicle.currentStatus || "Unknown",
+          status: effectiveStatus,
           operationalStatus: getOperationalStatus(
-            vehicle.currentStatus,
-            vehicle.currentBookingId &&
-              vehicle.currentBookingId > 0
-              ? bookingStatusByExternalId.get(
-                  String(vehicle.currentBookingId),
-                )
-              : undefined,
+            effectiveStatus,
+            effectiveStatus === "Arrived" ? "ARRIVED" : undefined,
           ),
           bookingId:
             vehicle.currentBookingId &&
@@ -334,7 +342,7 @@ export async function GET() {
           longitude,
           lastSeenAt: lastSeenAt?.toISOString() || null,
           ageSeconds,
-          isLive: ageSeconds !== null && ageSeconds <= 120,
+          isLive: Boolean(state?.on_shift) && ageSeconds !== null && ageSeconds <= 120,
           driver: vehicle.currentDriver
             ? {
                 id: vehicle.currentDriver.id,
@@ -367,9 +375,9 @@ export async function GET() {
           accumulator.stale += 1;
         }
 
-        if (vehicle.status === "Clear") {
+        if (vehicle.status === "Clear" && vehicle.isLive) {
           accumulator.clear += 1;
-        } else if (vehicle.status === "NotWorking") {
+        } else if (vehicle.status === "NotWorking" || !vehicle.isLive) {
           accumulator.notWorking += 1;
         } else {
           accumulator.busy += 1;
