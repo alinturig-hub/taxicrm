@@ -160,6 +160,13 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
+        "WhatsApp templates",
+        "/dashboard/marketing/templates",
+        "webhooks",
+        "Preview templates and submit them to Meta for review when configured.",
+        "integrations.manage",
+      ),
+      item(
         "Offers & benefits",
         "/dashboard/marketing/vouchers",
         "automation",

@@ -59,3 +59,24 @@ export async function listTemplates(env: NodeJS.ProcessEnv = process.env, fetche
     throw new WhatsAppError("META_CONNECTION_FAILED", 502);
   }
 }
+
+/** Explicit operator submission only. Never retry ambiguous POST outcomes. */
+export async function submitTemplate(input: unknown, env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch) {
+  const config = whatsappCredentials(env);
+  if (!config.templateSubmissionEnabled) throw new WhatsAppError("TEMPLATE_SUBMISSION_DISABLED", 503);
+  const { payload } = templatePreview(input);
+  try {
+    const response = await fetcher(`https://graph.facebook.com/${config.graphVersion}/${config.wabaId}/message_templates`, {
+      method: "POST", headers: { Authorization: `Bearer ${config.accessToken}`, "Content-Type": "application/json" },
+      body: JSON.stringify(payload), redirect: "error", cache: "no-store", signal: AbortSignal.timeout(8000),
+    });
+    if (!response.ok) throw new WhatsAppError(response.status === 401 || response.status === 403 ? "META_ACCESS_DENIED" : response.status === 429 ? "META_RATE_LIMITED" : "TEMPLATE_SUBMISSION_REJECTED", 502);
+    const result = await boundedJson(response);
+    if (typeof result.id !== "string" || !/^\d{1,64}$/.test(result.id)) throw new WhatsAppError("TEMPLATE_SUBMISSION_UNCONFIRMED", 502);
+    return { id: result.id, status: typeof result.status === "string" ? result.status.slice(0,64) : "UNKNOWN", submitted: true,
+      notice: "Submitted to Meta. Acceptance is not approval; refresh the template list to check the current status. No WhatsApp message was sent." };
+  } catch (error) {
+    if (error instanceof WhatsAppError) throw error;
+    throw new WhatsAppError("TEMPLATE_SUBMISSION_UNCONFIRMED", 502);
+  }
+}

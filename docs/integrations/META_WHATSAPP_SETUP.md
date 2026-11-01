@@ -69,3 +69,17 @@ workers. Campaigns and workflows must call the adapter, not provider-specific UR
 Com.Bot activation requires vendor documentation for authentication, template listing,
 send requests, inbound/status webhooks, signature validation, provider message IDs,
 rate limits and retry/idempotency behavior. No Com.Bot URL or credentials are guessed.
+
+## Marketing template management
+
+Marketing > WhatsApp templates reuses the existing settings and authorization.
+Body-only template submission is implemented via Meta message_templates POST.
+Requires META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED=true in addition to the existing
+connection settings, integrations.manage, same-origin request, explicit submit action
+and a validated draft. Defaults remain disabled. Credentials are never browser inputs.
+No media/buttons/authentication template support or local durable draft storage yet.
+The form requires preview before submitting; Meta determines approval/category.
+Transport ambiguity must be reconciled through template listing/Meta before retry;
+there is no durable cross-process idempotency ledger in this phase. No submission
+or messaging is authorized by deployment alone. The number's Com.Bot transport is
+unchanged. No database migration is needed for this template module.
