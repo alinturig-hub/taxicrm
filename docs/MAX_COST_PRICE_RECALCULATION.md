@@ -1,0 +1,13 @@
+# Authorized financial basis and all-customer recalculation
+
+The user requested an all-database Cost/Price comparison, adoption of the larger value and recalculation of all customers. This supersedes the previous price-first/cost-fallback gross basis. Original Cost, Price, Fare and payloads are never overwritten.
+
+`bookingValue` selects the maximum finite recorded Cost/Price, retaining known zero and signed amounts; missing both stays unknown. Customer profiles report known CRM value and coverage. Company gross-value calculations and daily completed-value caches use the same selection. Source driver-cost fields, explicit payment allocations, rent rules and account-specific/no-fare rules are preserved. This is a CRM valuation basis, not a claim of cash received or company profit. Fare is not substituted.
+
+The authenticated GET financial audit uses a bounded, repeatable-read, read-only aggregate query with exact numeric sums rendered as strings. It groups the canonical Booking table by provider/status and Europe/London business month, compares the previous price-positive/cost-fallback formula with max(Cost,Price), reports missing/signed/future amounts and a recognition comparison retaining provider+accountId waiting rules. Aggregate quote values for cancelled/future bookings are not earned revenue. Separate legacy/shadow/backup tables are not combined into the authoritative Booking totals because this could double-count the same trip.
+
+The all-customer snapshot path uses an ID high-water mark and cursor partitions, loading one customer's booking history at a time. It includes dormant, low-history and empty customers. Today's snapshots are idempotently updated; past dates and source bookings are not rewritten. Prediction refresh remains gated by individual identity/history safeguards. No new forecasts are claimed to be statistically calibrated by this operation.
+
+The operator runner stores checkpoint receipts outside the repository, retries incomplete batches without advancing the checkpoint, refreshes existing behaviour tags under their existing 14-day rules, processes at most four profile partitions concurrently, and rebuilds explicitly listed cached daily metrics in bounded groups. External weather refresh is skipped; only existing weather/place data is read. No Geoapify, Autocab or SMS send is invoked by the rebuild path.
+
+Validation: 11 synthetic tests passed, including exact financial aggregates, account waiting rules, unchanged source rows, max-valued daily cash cache, dormant/empty profile pagination, repeat idempotency and rejected external networking. Production build with lint/type checks passed. Real execution receipts and financial reports belong outside Git and are reported separately after completion.

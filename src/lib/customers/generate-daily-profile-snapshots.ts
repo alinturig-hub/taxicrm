@@ -1,3 +1,4 @@
+import { refreshCustomerBookingPrediction } from "./customer-booking-predictions";
 import { Prisma } from "@/generated/prisma/client";
 
 import { buildCustomerBehaviourChange } from "@/lib/customers/customer-behaviour-change";
@@ -13,7 +14,7 @@ import { buildCustomerRelationshipQuality } from "@/lib/customers/customer-relat
 import { buildCustomerReturnJourney } from "@/lib/customers/customer-return-journey";
 import { buildCustomerRhythm } from "@/lib/customers/customer-rhythm";
 import { buildCustomerServiceOutcomes } from "@/lib/customers/customer-service-outcomes";
-import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weather-intelligence";
+import { buildWeatherCoverageIndex, countWeatherMatchedBookings } from "@/lib/customers/customer-weather-intelligence";
 import { prisma } from "@/lib/prisma";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
@@ -22,6 +23,11 @@ type BatchOptions = {
   activeDays?: number;
   minimumBookings?: number;
   now?: Date;
+  scope?: "eligible" | "all";
+  afterId?: string;
+  throughId?: string;
+  skipExternal?: boolean;
+  refreshPredictions?: boolean;
 };
 
 type EligibleCustomer = {
@@ -33,10 +39,11 @@ export async function generateDailyProfileSnapshots({
   activeDays = 60,
   minimumBookings = 5,
   now = new Date(),
+  scope = "eligible", afterId, throughId, skipExternal = false, refreshPredictions = false,
 }: BatchOptions = {}) {
   const safeLimit = Math.min(
     Math.max(Math.trunc(limit), 1),
-    50,
+    scope === "all" ? 100 : 50,
   );
 
   const safeActiveDays = Math.min(
@@ -66,7 +73,7 @@ export async function generateDailyProfileSnapshots({
       safeActiveDays * 24 * 60 * 60 * 1000,
   );
 
-  const eligibleCustomers =
+  const selectedCustomers = scope === "all" ? await prisma.normalCustomer.findMany({ where: { id: { ...(afterId ? { gt: afterId } : {}), ...(throughId ? { lte: throughId } : {}) } }, orderBy: { id: "asc" }, take: safeLimit + 1, select: { id: true } }) :
     await prisma.$queryRaw<
       EligibleCustomer[]
     >(Prisma.sql`
@@ -95,6 +102,9 @@ export async function generateDailyProfileSnapshots({
       LIMIT ${safeLimit}
     `);
 
+  const eligibleCustomers = selectedCustomers.slice(0, safeLimit);
+  const moreCustomers = scope === "all" ? selectedCustomers.length > safeLimit : eligibleCustomers.length === safeLimit;
+
   if (eligibleCustomers.length === 0) {
     return {
       success: true,
@@ -105,11 +115,12 @@ export async function generateDailyProfileSnapshots({
       saved: 0,
       failed: 0,
       hasMore: false,
+      nextCursor: null,
     };
   }
 
   try {
-    await ensureHourlyWeatherCurrent(now);
+    if (!skipExternal) await ensureHourlyWeatherCurrent(now);
   } catch (error) {
     console.error(
       "Daily snapshot weather refresh failed:",
@@ -127,29 +138,13 @@ export async function generateDailyProfileSnapshots({
       },
       select: {
         observedAt: true,
-        temperature: true,
-        apparentTemperature: true,
-        precipitation: true,
-        rain: true,
-        snowfall: true,
-        windSpeed: true,
-        windGusts: true,
-        cloudCover: true,
-        isDay: true,
-        weatherCode: true,
+
       },
     });
 
-  const customers =
-    await prisma.normalCustomer.findMany({
-      where: {
-        id: {
-          in: eligibleCustomers.map(
-            (customer) => customer.id,
-          ),
-        },
-      },
-      select: {
+  const weatherHours = buildWeatherCoverageIndex(weatherObservations);
+
+  const customerSelect = {
         id: true,
         bookings: {
           orderBy: [
@@ -167,6 +162,7 @@ export async function generateDailyProfileSnapshots({
             pickupDueTime: true,
             completedAt: true,
             price: true,
+              cost: true,
             distance: true,
             paymentType: true,
             bookingSource: true,
@@ -194,17 +190,18 @@ export async function generateDailyProfileSnapshots({
             },
           },
         },
-      },
-    });
+      } satisfies Prisma.NormalCustomerSelect;
 
   let saved = 0;
   let failed = 0;
+  const failedCustomerIds: string[] = [];
 
-  for (const customer of customers) {
+  for (const eligible of eligibleCustomers) {
     try {
+      const customer = await prisma.normalCustomer.findUniqueOrThrow({ where: { id: eligible.id }, select: customerSelect });
       const profile =
         buildCustomerProfile(
-          customer.bookings,
+          customer.bookings, now,
         );
 
       const nextBookingPrediction =
@@ -249,18 +246,13 @@ export async function generateDailyProfileSnapshots({
           returnJourney,
         });
 
-      const weather =
-        buildCustomerWeatherIntelligence(
-          customer.bookings,
-          weatherObservations,
-        );
+      const weatherMatchedBookings = countWeatherMatchedBookings(customer.bookings, weatherHours);
 
       const profileDataQuality =
         buildCustomerProfileDataQuality(
           customer.bookings,
           {
-            weatherMatchedBookings:
-              weather.matchedBookings,
+            weatherMatchedBookings,
           },
         );
 
@@ -279,9 +271,11 @@ export async function generateDailyProfileSnapshots({
         now,
       );
 
+      if (refreshPredictions) await refreshCustomerBookingPrediction(customer.id, { now });
       saved += 1;
     } catch (error) {
       failed += 1;
+      failedCustomerIds.push(eligible.id);
 
       console.error(
         "Daily customer snapshot failed.",
@@ -298,7 +292,8 @@ export async function generateDailyProfileSnapshots({
     selected: eligibleCustomers.length,
     saved,
     failed,
-    hasMore:
-      eligibleCustomers.length === safeLimit,
+    hasMore: moreCustomers,
+    nextCursor: eligibleCustomers.at(-1)?.id ?? null,
+    failedCustomerIds,
   };
 }

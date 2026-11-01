@@ -528,6 +528,7 @@ export function buildCustomerBookingWindow(
 
       return (
         bookedAt !== null &&
+        bookedAt <= nowTimestamp &&
         pickupAt !== null &&
         pickupAt >= bookedAt
       )

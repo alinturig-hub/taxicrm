@@ -1,4 +1,5 @@
 "use client";
+import type { customerObservations } from "@/lib/customers/customer-observations";
 
 import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 
@@ -118,6 +119,7 @@ type ProfileResponse = {
     } | null;
   };
   profile?: {
+    observations?: ReturnType<typeof customerObservations>;
     overview: {
       totalBookings: number;
       completed: number;
@@ -127,8 +129,14 @@ type ProfileResponse = {
       completionRate: number;
       cancellationRate: number;
       noFareRate: number;
-      totalSpent: number;
-      averageCompletedValue: number;
+      recordedBookings: number;
+      futureDatedBookings: number;
+      undatedBookings: number;
+      pricedCompletedBookings: number;
+      missingCompletedPrices: number;
+      spendCoverage: number;
+      totalSpent: number | null;
+      averageCompletedValue: number | null;
       firstBookingAt: string | null;
       lastBookingAt: string | null;
       daysSinceLastBooking: number | null;
@@ -668,12 +676,14 @@ type Tab =
   | "OPPORTUNITIES";
 
 function money(value: number | string | null) {
-  const number = Number(value ?? 0);
+  if (value === null || value === "") return "Not available";
+  const number = Number(value);
 
+  if (!Number.isFinite(number)) return "Not available";
   return new Intl.NumberFormat("en-GB", {
     style: "currency",
     currency: "GBP",
-  }).format(Number.isFinite(number) ? number : 0);
+  }).format(number);
 }
 
 function dateTime(value: string | null) {
@@ -1120,9 +1130,13 @@ function Overview({
   weather?: ProfileResponse["observation"];
 }) {
   const { overview, classification } = profile;
+  const observations = profile.observations;
 
   return (
     <div className="space-y-6">
+      {observations && <section className="rounded-2xl border border-app-border p-5"><h3 className="font-semibold">Observed completed-trip activity</h3><p className="mt-2 text-sm text-app-muted">{observations.completedWithPickup} completed pickups · Last 30 days: {observations.recent30Days} · Previous 30 days: {observations.previous30Days}</p><p className="mt-2 text-sm text-app-muted">Median positive interval: {observations.medianIntervalHours === null ? "Insufficient data" : `${observations.medianIntervalHours.toFixed(1)} hours`} · Since last completed pickup: {observations.daysSinceLastCompletedPickup === null ? "Unknown" : `${observations.daysSinceLastCompletedPickup.toFixed(1)} days`}</p><p className="mt-2 text-xs text-app-muted">{observations.status === "INSUFFICIENT_HISTORY" ? "Insufficient history for a stable pattern." : "Descriptive history available."} {observations.method}</p><p className="mt-2 text-xs text-app-muted">Excluded: {observations.missingPickup} missing/invalid pickup times, {observations.futurePickup} future pickups, {observations.duplicateReferences} repeated source references. This booking contact may represent multiple passengers.</p></section>}
+
+
       {!classification
         .profileSafeForPersonalisation ? (
         <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-5">
@@ -1140,7 +1154,8 @@ function Overview({
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric
-          label="Total bookings"
+          label="Historical bookings"
+          detail={`${overview.recordedBookings} recorded · ${overview.futureDatedBookings} future-dated · ${overview.undatedBookings} undated`}
           value={overview.totalBookings.toLocaleString(
             "en-GB",
           )}
@@ -1153,9 +1168,9 @@ function Overview({
           detail={`${overview.completionRate}% completion rate`}
         />
         <Metric
-          label="Total spent"
+          label={overview.missingCompletedPrices > 0 ? "Known CRM value" : "CRM booking value"}
           value={money(overview.totalSpent)}
-          detail={`${money(overview.averageCompletedValue)} average`}
+          detail={overview.averageCompletedValue === null ? "No completed Cost/Price values available" : `${money(overview.averageCompletedValue)} average · ${overview.pricedCompletedBookings}/${overview.completed} completed values known · Max(Cost, Price)`}
         />
         <Metric
           label="Last booking"

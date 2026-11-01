@@ -28,7 +28,7 @@ test("nested pages select exactly the owning module and deepest destination", ()
   );
   assert.equal(
     activeNavigation("/dashboard/configuration/webhooks/events")?.item.label,
-    "Webhook configuration",
+    "Integration events",
   );
   assert.equal(
     activeNavigation("/dashboard/marketing/segments")?.item.label,

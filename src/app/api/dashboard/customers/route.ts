@@ -42,6 +42,8 @@ export async function GET(request: Request) {
   );
   const search = (searchParams.get("search") ?? "").trim();
   const tag = searchParams.get("tag") ?? "ALL";
+  const payment = searchParams.get("payment") ?? "ALL";
+  if (!["ALL", "CASH", "ACCOUNT", "CARD", "APP"].includes(payment)) return NextResponse.json({success:false,message:"Invalid payment filter"},{status:400});
   const skip = (page - 1) * limit;
 
   try {
@@ -49,6 +51,9 @@ export async function GET(request: Request) {
 
     const andConditions: Record<string, unknown>[] = [];
 
+    if (payment !== "ALL") {
+      andConditions.push({bookings:{some:{paymentType:{equals:payment,mode:"insensitive"}}}});
+    }
     if (tag !== "ALL") {
       andConditions.push({
         behaviourTags: {

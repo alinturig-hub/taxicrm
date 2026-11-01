@@ -128,14 +128,12 @@ export default function MarketingDashboard({
           Next module
         </span>
         <h2 className="mt-4 text-lg font-semibold text-white">
-          Campaigns & communication journeys
+          WhatsApp campaigns & customer journeys
         </h2>
         <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
-          Audience selection, message approval, consent and unsubscribe records,
-          delivery history and campaign outcomes will form a separate campaign
-          workspace. Bulk marketing sending is not available yet. Operational
-          freephone alerts remain in Configuration.
+          Plan WhatsApp outreach with Meta or Com.Bot, preview campaign plans and review the workflow and inbox setup. Sending is not activated.
         </p>
+        <Link href="/dashboard/marketing/whatsapp" className="mt-4 inline-block text-sm text-teal-300 underline">Open WhatsApp workspace →</Link>
       </section>
     </div>
   );

@@ -204,6 +204,86 @@ try {
     0,
   );
   const operationsRequestTimes = [];
+  await page.goto(origin + "/dashboard/integrations/overview");
+  await page.getByRole("heading", { name: "Data connections", exact: true }).waitFor();
+  await page.getByRole("textbox", { name: "Search connections" }).fill("NeedACabPlus");
+  assert.equal(await page.locator(".integration-connection-card").count(), 1);
+  await page.getByRole("textbox", { name: "Search connections" }).fill("not-a-synthetic-provider");
+  await page.getByRole("heading", { name: "No matching connections" }).waitFor();
+  await page.getByRole("button", { name: "Clear filters", exact: true }).click();
+  await page.getByLabel("Connection category", { exact: true }).selectOption("Local data");
+  assert.equal(await page.locator(".integration-connection-card").count(), 1);
+  await page.getByLabel("Connection category", { exact: true }).selectOption("All sources");
+  await page.screenshot({ path: "/workspace/taxicrm-local/integrations-enterprise-light.png", fullPage: true });
+  await page.getByRole("button", { name: "Switch to dark theme" }).click();
+  await page.screenshot({ path: "/workspace/taxicrm-local/integrations-enterprise-dark.png", fullPage: true });
+  await page.getByRole("button", { name: "Switch to light theme" }).click();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.screenshot({ path: "/workspace/taxicrm-local/integrations-enterprise-mobile.png", fullPage: true });
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await page.getByRole("link", { name: "Open Autocab workspace", exact: true }).click();
+  assert.equal(await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "Webhooks", exact: true }).count(), 0);
+  for (const legacyPath of ["/dashboard/configuration/webhooks", "/dashboard/configuration/webhooks/add", "/dashboard/integrations/autocab/webhooks", "/dashboard/integrations/autocab/webhooks/new", "/dashboard/integrations/autocab/webhooks/synthetic-retired-id"]) {
+    await page.goto(origin + legacyPath);
+    await page.waitForURL(origin + "/dashboard/integrations/needacabplus");
+    await page.getByRole("heading", { name: "Webhook administration", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Edit source", exact: true }).count(), 0);
+    assert.equal(await page.getByRole("link", { name: "Open NeedACabPlus webhooks", exact: false }).getAttribute("href"), "https://admin.needacabplus.app/admin/configuration#webhooks");
+  }
+  await page.goto(origin + "/dashboard/integrations/autocab");
+  if (process.env.BOOKING_WEBHOOK_WRITER === "NAC") {
+    for (const [method, path] of [
+      ["POST", "/api/dashboard/autocab/webhooks"],
+      ["PATCH", "/api/dashboard/autocab/webhooks/synthetic-retired-id"],
+      ["DELETE", "/api/dashboard/autocab/webhooks/synthetic-retired-id"],
+      ["POST", "/api/dashboard/autocab/providers"],
+      ["PATCH", "/api/dashboard/autocab/providers/synthetic-retired-id"],
+      ["DELETE", "/api/dashboard/autocab/providers/synthetic-retired-id"],
+    ]) {
+      const response = await page.request.fetch(origin + path, { method, data: {} });
+      assert.equal(response.status(), 403, `Retired administration must reject ${method} ${path}`);
+    }
+  }
+  await page.getByRole("navigation", { name: "Autocab workspace" }).getByRole("link", { name: "API & Sync", exact: true }).click();
+  await page.waitForURL(origin + "/dashboard/integrations/autocab/api");
+  await page.goto(origin + "/dashboard/integrations/overview");
+  await page.getByRole("link", { name: "Plan a new connection" }).click();
+  await page.getByRole("heading", { name: "Connection setup", exact: true }).waitFor();
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByRole("alert").filter({ hasText: "Enter a company name." }).waitFor();
+  await page.getByLabel("Company name").fill("Synthetic connection company");
+  await page.getByLabel("Data source").selectOption("AUTOCAB");
+  await page.getByRole("button", { name: "Continue", exact: true }).click();
+  await page.getByLabel("Storage plan").selectOption("DEDICATED_DATABASE");
+  await page.getByRole("button", { name: "Review plan", exact: true }).click();
+  await page.getByText("Confirm exclusive booking ownership", { exact: false }).waitFor();
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Download draft plan" }).click();
+  const download = await downloadPromise;
+  const stream = await download.createReadStream();
+  const chunks = [];
+  for await (const chunk of stream) chunks.push(chunk);
+  const plan = JSON.parse(Buffer.concat(chunks).toString());
+  assert.equal(plan.status, "DRAFT");
+  assert.equal(plan.preserveExistingConnection, true);
+  assert.equal(plan.source, "AUTOCAB");
+  assert.equal(plan.storage, "DEDICATED_DATABASE");
+  const registryResponse = await page.request.get(origin + "/api/dashboard/integrations/connections");
+  assert.equal(registryResponse.status(), 200);
+  const registry = await registryResponse.json();
+  if (registry.draftStorageEnabled === false) {
+    assert.equal(await page.getByRole("button", { name: "Save draft in TaxiCRM", exact: true }).count(), 0);
+    const blocked = await page.request.post(origin + "/api/dashboard/integrations/connections", { data: { companyName: "Synthetic blocked", source: "AUTOCAB", storage: "CURRENT_DATABASE", requestId: prefix } });
+    assert.equal(blocked.status(), 409);
+    assert.equal(await prisma.integrationConnection.count({ where: { createdById: user.id } }), 0);
+  } else {
+  await page.getByRole("button", { name: "Save draft in TaxiCRM", exact: true }).click();
+  await page.getByText("Draft saved in TaxiCRM. The existing connection is unchanged.", { exact: true }).waitFor();
+  assert.equal(await prisma.integrationConnection.count({ where: { createdById: user.id } }), 1);
+  await page.reload();
+  await page.getByRole("region", { name: "Saved connection drafts" }).getByText("Synthetic connection company", { exact: false }).waitFor();
+  }
   page.on("request", (request) => {
     if (new URL(request.url()).pathname === "/api/dashboard/live-operations")
       operationsRequestTimes.push(Date.now());
@@ -307,6 +387,10 @@ try {
   );
   await page.goto(origin + "/dashboard/configuration");
   await page.waitForURL(origin + "/dashboard");
+  await page.goto(origin + "/dashboard/integrations/setup");
+  await page.waitForURL(origin + "/dashboard");
+  assert.equal((await page.request.get(origin + "/api/dashboard/integrations/connections")).status(), 403);
+  assert.equal((await page.request.post(origin + "/api/dashboard/integrations/connections", { data: {} })).status(), 403);
   await context.clearCookies();
   await page.goto(origin + "/dashboard/marketing");
   await page.waitForURL(/\/login/);
@@ -319,5 +403,6 @@ try {
   await prisma.booking.deleteMany({ where: { externalId: prefix } });
   await prisma.normalCustomer.delete({ where: { id: customer.id } });
   await prisma.user.delete({ where: { id: user.id } });
+  await prisma.integrationConnection.deleteMany({ where: { createdById: user.id } });
   await prisma.$disconnect();
 }

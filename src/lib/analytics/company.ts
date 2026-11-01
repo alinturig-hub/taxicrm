@@ -1,3 +1,4 @@
+import { bookingValue } from "@/lib/revenue/booking-value";
 import {
   addLondonDays,
   addLondonMonths,
@@ -193,11 +194,7 @@ async function calculatePeriod(
 
   const revenueBreakdown = completedBookings.reduce(
     (totals, booking) => {
-      const price = toNumber(booking.price);
-      const cost = toNumber(booking.cost);
-
-      const bookingRevenue =
-        price > 0 ? price : cost;
+      const bookingRevenue = bookingValue(booking) ?? 0;
 
       const explicitAccount =
         toNumber(booking.accountAmount);

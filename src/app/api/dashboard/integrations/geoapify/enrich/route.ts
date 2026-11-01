@@ -244,6 +244,7 @@ export async function POST(request: Request) {
     )) as {
       limit?: unknown;
       bookingId?: unknown;
+      locationId?: unknown;
       scope?: unknown;
       dailyCreditCeiling?: unknown;
       dryRun?: unknown;
@@ -256,6 +257,10 @@ export async function POST(request: Request) {
     const bookingId =
       typeof body.bookingId === "string"
         ? body.bookingId.trim()
+        : "";
+    const locationId =
+      typeof body.locationId === "string"
+        ? body.locationId.trim()
         : "";
 
     const historicalOnly =
@@ -301,6 +306,7 @@ export async function POST(request: Request) {
     const locations =
       await prisma.bookingLocation.findMany({
         where: {
+          ...(locationId ? { id: locationId } : {}),
           type: { in: ["PICKUP", "DESTINATION"] },
           booking: bookingId
             ? {
@@ -376,7 +382,9 @@ export async function POST(request: Request) {
                 updatedAt: "desc",
               },
             ],
-        take: bookingId
+        take: locationId
+          ? 1
+          : bookingId
           ? Math.min(limit, 10)
           : limit,
         select: {
@@ -392,7 +400,7 @@ export async function POST(request: Request) {
 
     if (body.dryRun === true) {
       const missingCoordinates = await prisma.bookingLocation.count({
-        where: { type: { in: ["PICKUP", "DESTINATION"] }, OR: [{ latitude: null }, { longitude: null }],
+        where: { ...(locationId ? { id: locationId } : {}), type: { in: ["PICKUP", "DESTINATION"] }, OR: [{ latitude: null }, { longitude: null }],
           ...(bookingId ? { booking: { externalId: bookingId } } : historicalOnly ? {booking: {OR: [
             {pickupDueTime: {lte: new Date()}}, {pickupDueTime: null, bookedAtTime: {lte: new Date()}},
           ]}} : {}),

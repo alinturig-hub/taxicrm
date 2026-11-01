@@ -59,6 +59,13 @@ export const navigationGroups: NavigationGroup[] = [
     description: "Choose your workspace or review the business overview.",
     items: [
       item(
+        "Command Center",
+        "/dashboard/command-center",
+        "executive",
+        "Connected business workspaces and recorded signals requiring review.",
+        "dashboard.view",
+      ),
+      item(
         "Today",
         "/dashboard/workspace",
         "dashboard",
@@ -127,7 +134,14 @@ export const navigationGroups: NavigationGroup[] = [
         "Customers",
         "/dashboard/customers",
         "customers",
-        "Accounts, customer profiles, booking histories and behaviour tags.",
+        "Customer profiles, payment filters, booking histories and behaviour tags.",
+        "customers.view",
+      ),
+      item(
+        "Business accounts",
+        "/dashboard/customers/business-accounts",
+        "customers",
+        "Companies and institutions that pay for customer journeys.",
         "customers.view",
       ),
     ],
@@ -143,6 +157,20 @@ export const navigationGroups: NavigationGroup[] = [
         "/dashboard/marketing",
         "dashboard",
         "Customer audiences and the path from insights to outreach.",
+        "customers.view",
+      ),
+      item(
+        "Vouchers",
+        "/dashboard/marketing/vouchers",
+        "automation",
+        "Use Need A Cab Plus vouchers in customer campaigns and track redemptions.",
+        "customers.view",
+      ),
+      item(
+        "WhatsApp campaigns",
+        "/dashboard/marketing/whatsapp",
+        "automation",
+        "Plan WhatsApp campaigns, customer journeys and replies with Meta or Com.Bot.",
         "customers.view",
       ),
       item(
@@ -166,6 +194,13 @@ export const navigationGroups: NavigationGroup[] = [
     label: "Performance",
     description: "Turn recorded activity into business and customer insights.",
     items: [
+      item(
+        "Business analytics",
+        "/dashboard/analytics",
+        "reports",
+        "Explore booking outcomes, income, zones and demand across London periods.",
+        "reports.view",
+      ),
       item(
         "Business overview",
         "/dashboard",
@@ -223,10 +258,17 @@ export const navigationGroups: NavigationGroup[] = [
         "integrations.view",
       ),
       item(
+        "NeedACabPlus integration",
+        "/dashboard/integrations/needacabplus",
+        "sync",
+        "Dispatch source, booking ownership and connection planning.",
+        "integrations.view",
+      ),
+      item(
         "Autocab integration",
         "/dashboard/integrations/autocab",
         "autocab",
-        "Autocab credentials, webhook events, API sources and entity synchronisation.",
+        "Autocab REST settings, saved API data and received event history.",
         "integrations.view",
       ),
       item(
@@ -258,6 +300,13 @@ export const navigationGroups: NavigationGroup[] = [
         "Orion gateway, monitored lines, event recipients and delivery history.",
         "configuration.view",
         ["ADMIN", "MANAGER"],
+      ),
+      item(
+        "WhatsApp templates",
+        "/dashboard/configuration/whatsapp",
+        "automation",
+        "Meta connection readiness, template listing and local draft previews.",
+        "configuration.view",
       ),
       item(
         "Account revenue rules",
@@ -295,10 +344,10 @@ export const navigationGroups: NavigationGroup[] = [
         "configuration.view",
       ),
       item(
-        "Webhook configuration",
-        "/dashboard/configuration/webhooks",
+        "Integration events",
+        "/dashboard/configuration/webhooks/events",
         "webhooks",
-        "Configure webhook rules and delivery endpoints separately from received events.",
+        "Inspect received events and processing results. Webhook administration is in NeedACabPlus.",
         "configuration.view",
       ),
       item(

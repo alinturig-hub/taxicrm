@@ -117,12 +117,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (process.env.AUTOCAB_WEBHOOKS_PAUSED === "true") {
     return NextResponse.json(
       {
-        success: false,
-        error: "WEBHOOKS_PAUSED",
-        message: "Autocab webhook processing is temporarily paused.",
+        success: true,
+        ignored: true,
+        message: "Autocab webhook intake has moved to Need A Cab Plus.",
       },
       {
-        status: 503,
+        status: 200,
       },
     );
   }

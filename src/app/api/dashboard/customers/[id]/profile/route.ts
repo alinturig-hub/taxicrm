@@ -77,11 +77,13 @@ export async function GET(
             ],
             select: {
               externalId: true,
+              provider: true,
               status: true,
               bookedAtTime: true,
               pickupDueTime: true,
               completedAt: true,
               price: true,
+              cost: true,
               fare: true,
               distance: true,
               paymentType: true,

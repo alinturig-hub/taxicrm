@@ -76,6 +76,9 @@ async function enrichBookingLocationsBestEffort(
 async function reconcileUnknownAutocabAccount(
   payload: Record<string, unknown>,
 ): Promise<void> {
+  // The shared database is owned by Need A Cab Plus after the source cutover.
+  // Its registry sync supplies accounts; TaxiCRM must not call Autocab itself.
+  if (process.env.AUTOCAB_REST_INGEST_DISABLED === 'true') return;
   const accountPayload = payload.Account;
 
   if (!isObject(accountPayload)) {
