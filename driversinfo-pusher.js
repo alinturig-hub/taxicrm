@@ -4,8 +4,8 @@ const EXCLUDED_CALLSIGN = '926';
 const WINDOW_SECS = 120;
 const INTERVAL_MS = 10000;
 const ENDPOINTS = [
-  'https://api.plymhub.app/api/webhook/driversInfo',
-  'https://testapi.plymhub.app/api/webhook/driversInfo',
+  'https://api.plymhub.app/api/webhook/drivers',
+  'https://testapi.plymhub.app/api/webhook/drivers',
 ];
 
 async function getClearDrivers(client) {
