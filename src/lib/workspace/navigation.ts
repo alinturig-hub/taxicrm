@@ -153,14 +153,14 @@ export const navigationGroups: NavigationGroup[] = [
       "Explore audiences and customer opportunities before planning outreach.",
     items: [
       item(
-        "Marketing hub",
+        "Marketing overview",
         "/dashboard/marketing",
         "dashboard",
         "Customer audiences and the path from insights to outreach.",
         "customers.view",
       ),
       item(
-        "Vouchers",
+        "Offers & benefits",
         "/dashboard/marketing/vouchers",
         "automation",
         "Use Need A Cab Plus vouchers in customer campaigns and track redemptions.",
