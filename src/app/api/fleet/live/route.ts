@@ -164,13 +164,6 @@ export async function GET() {
           })
         : [];
 
-    const bookingStatusByExternalId = new Map(
-      currentBookings.map((booking) => [
-        booking.externalId,
-        booking.status,
-      ]),
-    );
-
     const bookingByExternalId = new Map(
       currentBookings.map((booking) => [
         booking.externalId,
