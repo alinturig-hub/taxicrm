@@ -14,7 +14,7 @@ test('aggregate audit compares exact values, preserves account waiting rules and
  try{
   await prisma.accountRevenueRule.create({data:{provider:prefix,accountId:'a',accountCode:'original',waitingChargeable:true,waitingRatePerMinute:2}});
   const inputs=[{status:'COMPLETED',price:10,cost:15,completedAt:new Date('2051-01-01T10:00:00Z'),paymentType:'CASH'},{status:'CANCELLED',price:12,cost:2},{status:'COMPLETED',price:null,cost:null},{status:'NO_FARE',price:10,cost:20,accountId:'a',accountCode:'changed',arrivedAt:new Date('2042-01-01T10:00:00Z'),noFareAt:new Date('2042-01-01T10:05:00Z')}];
-  for(const [i,input] of inputs.entries())await prisma.booking.create({data:{...input,provider:prefix,externalId:`${prefix}-${i}`,rawPayload:{synthetic:true},pickupDueTime:new Date('2042-01-01T10:00:00Z')}});
+  for(const [i,input] of Array.from(inputs.entries()))await prisma.booking.create({data:{...input,provider:prefix,externalId:`${prefix}-${i}`,rawPayload:{synthetic:true},pickupDueTime:new Date('2042-01-01T10:00:00Z')}});
   const before=await prisma.booking.findMany({where:{provider:prefix},orderBy:{externalId:'asc'}});
   const report=await financialAudit(prefix);const total=report.find(row=>row.scope==='TOTAL')!;
   assert.equal(total.bookings,4);assert.equal(total.cost_higher,2);assert.equal(total.price_higher,1);assert.equal(total.missing_both,1);
