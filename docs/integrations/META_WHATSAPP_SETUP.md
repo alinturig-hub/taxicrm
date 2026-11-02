@@ -109,3 +109,31 @@ reusing that inbox for WhatsApp would risk accidental dispatch to Autocab handle
 A separate durable inbox or verified provider isolation is required before enabling
 subscriptions, plus real database duplicate/replay tests. This commit prepares the
 handshake only and does not claim completed message ingestion.
+
+## Durable receipt stage — isolated validation
+
+Migration 20261102000000 adds WhatsAppWebhookInbox only. Original bytes are kept
+as strict UTF-8 raw text, scoped to configured META_WHATSAPP_WABA_ID. Unique
+connectionKey/bodyHash collapses byte-identical concurrent retry envelopes.
+No canonical booking tables or Autocab processors are modified. Authenticated raw
+payloads may contain customer data; access and retention policy must be reviewed
+before production operation. No message text or secrets are written to logs.
+
+Enable receipt only after reviewing/applying this migration and application role
+privileges: META_WHATSAPP_INBOX_ENABLED=true. It also requires the correct WABA ID
+and META_WHATSAPP_APP_SECRET in secure settings. Missing table/privilege or database
+failure returns 503, never success. Invalid signature returns 401; wrong WABA 403.
+The default remains disabled. GET verification remains independently available.
+
+Actual PostgreSQL 17 test: eight simultaneous inserts of the same delivery yield
+one record; raw body is preserved and distinct connections do not collide. Unit
+checks verify acknowledgement after sink completion and failure propagation.
+
+This is transport receipt only. No conversation/status reducer, AI response,
+message-level semantic deduplication, template status projection or sending worker
+is enabled. Different byte envelopes with the same logical event may coexist;
+a future worker must deduplicate provider message/status IDs, handle timestamps
+without regressing state, and mark inbox rows processed transactionally. Receipt
+can be activated separately for capture after production approval, but is not a
+claim of an operational inbox UI. Existing earlier handshake-only notes describe
+the live release until the durable migration and code are explicitly approved.

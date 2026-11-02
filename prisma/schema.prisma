@@ -1393,3 +1393,17 @@ model PlaceIntelligence {
   @@index([latitude, longitude])
   @@index([isSensitive])
 }
+
+// Dedicated Meta transport inbox; canonical booking ingestion is unchanged.
+model WhatsAppWebhookInbox {
+  id String @id
+  connectionKey String
+  bodyHash String
+  rawBody String @db.Text
+  receivedAt DateTime @default(now()) @db.Timestamptz
+  status String @default("RECEIVED")
+  attemptCount Int @default(0)
+  processedAt DateTime? @db.Timestamptz
+  @@unique([connectionKey, bodyHash])
+  @@index([status, receivedAt])
+}

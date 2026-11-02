@@ -2,7 +2,7 @@ export type PromotionOutcome = {customerId:string; arm:"PROMOTION"|"CONTROL";sta
 /** Cohorts must be assigned before exposure. Discount already reflected in Price is not subtracted again. */
 export function promotionMeasurement(input:{promotionCustomers:string[];controlCustomers:string[];outcomes:PromotionOutcome[];campaignSpendPence:number}){
  const p=new Set(input.promotionCustomers),c=new Set(input.controlCustomers);
- if(p.size!==input.promotionCustomers.length||c.size!==input.controlCustomers.length||[...p].some(id=>c.has(id)))throw Error("INVALID_COHORTS");
+ if(p.size!==input.promotionCustomers.length||c.size!==input.controlCustomers.length||Array.from(p).some(id=>c.has(id)))throw Error("INVALID_COHORTS");
  if(!Number.isSafeInteger(input.campaignSpendPence)||input.campaignSpendPence<0)throw Error("INVALID_SPEND");
  const groups={PROMOTION:{completed:0,customers:new Set<string>(),margin:0,missing:0},CONTROL:{completed:0,customers:new Set<string>(),margin:0,missing:0}};
  for(const o of input.outcomes){
