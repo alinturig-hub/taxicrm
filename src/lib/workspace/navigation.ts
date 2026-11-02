@@ -160,6 +160,13 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
+        "WhatsApp inbox",
+        "/dashboard/marketing/whatsapp/inbox",
+        "webhooks",
+        "Read received WhatsApp messages and delivery status events.",
+        "integrations.view",
+      ),
+      item(
         "WhatsApp templates",
         "/dashboard/marketing/templates",
         "webhooks",
@@ -307,6 +314,13 @@ export const navigationGroups: NavigationGroup[] = [
         "Orion gateway, monitored lines, event recipients and delivery history.",
         "configuration.view",
         ["ADMIN", "MANAGER"],
+      ),
+      item(
+        "WhatsApp inbox",
+        "/dashboard/marketing/whatsapp/inbox",
+        "webhooks",
+        "Read received WhatsApp messages and delivery status events.",
+        "integrations.view",
       ),
       item(
         "WhatsApp templates",

@@ -137,3 +137,23 @@ without regressing state, and mark inbox rows processed transactionally. Receipt
 can be activated separately for capture after production approval, but is not a
 claim of an operational inbox UI. Existing earlier handshake-only notes describe
 the live release until the durable migration and code are explicitly approved.
+
+## Read-only inbox UI first version
+
+Marketing / WhatsApp / Inbox derives a read model from the latest 200 durable
+transport envelopes for the configured WABA. It does not mark them PROCESSED or
+run a worker. Identical logical message IDs within the same business phone are
+shown once; read status does not regress to delivered/sent/failed when reordered.
+Conversations are partitioned by business phone and provider participant ID, not
+silently linked to CRM customers. Username IDs may differ from phone identities.
+Outbound content is unavailable from status-only receipts. Unsupported media is
+labelled, not downloaded. No AI response or send occurs.
+
+API and page require existing configuration.view + integrations.view permissions.
+Response is private/no-store; raw envelopes never reach browser. Bounded history is
+explicit in the UI; semantic persistence, pagination, retention and full conversation
+history remain future work. Statuses outside the loaded window cannot be inferred.
+
+Read-only live sample check found zero rows containing the demonstrated message ID
+ABGGFlA5Fpa. Do not equate Meta dashboard success with verified receipt of that exact
+sample. Repeat official dashboard test and verify DB receipt before claiming it.
