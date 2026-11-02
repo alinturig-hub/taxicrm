@@ -93,3 +93,19 @@ not all Meta template formats. Submission still requires explicit server enablem
 and Meta approval. Public image URL is not a header_handle. Direct resumable image
 upload is not implemented; UI states that limit. No external upload was performed.
 Dynamic URL variables, media sending and provider-side image rendering are pending.
+
+## Webhook handshake preparation
+
+Candidate callback: /api/webhooks/whatsapp/meta. Not deployed by this change.
+GET verifies Meta hub.mode, challenge and META_WHATSAPP_VERIFY_TOKEN (32+ chars).
+POST validates exact raw-body SHA256 HMAC with META_WHATSAPP_APP_SECRET and bounds
+payloads to 256 KiB. Both secrets belong in secure server settings, not chat.
+
+IMPORTANT: durable WhatsApp inbox is not activated. Valid POST requests deliberately
+return 503 instead of falsely acknowledging/discarding events. Do not subscribe the
+messages field or switch a production number to this endpoint yet. The existing
+shared WebhookEvent processor scans non-booking events without a provider filter;
+reusing that inbox for WhatsApp would risk accidental dispatch to Autocab handlers.
+A separate durable inbox or verified provider isolation is required before enabling
+subscriptions, plus real database duplicate/replay tests. This commit prepares the
+handshake only and does not claim completed message ingestion.
