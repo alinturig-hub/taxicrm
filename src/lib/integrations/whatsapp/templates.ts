@@ -1,9 +1,10 @@
+import { extraTemplateComponents, type ImageHeader, type TemplateButton } from "./template-components";
 import { WhatsAppError, whatsappCredentials } from "./settings";
-export type TemplateDraft = { name: string; language: string; category: string; text: string; samples: string[] };
+export type TemplateDraft = { name: string; language: string; category: string; text: string; samples: string[]; header?: ImageHeader; buttons?: TemplateButton[] };
 export function templatePreview(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new WhatsAppError("INVALID_DRAFT");
   const draft = input as Record<string, unknown>;
-  if (Object.keys(draft).some(k => !["name", "language", "category", "text", "samples"].includes(k))) throw new WhatsAppError("INVALID_DRAFT");
+  if (Object.keys(draft).some(k => !["name", "language", "category", "text", "samples", "header", "buttons"].includes(k))) throw new WhatsAppError("INVALID_DRAFT");
   const { name, language, category, text, samples } = draft;
   if (typeof name !== "string" || !/^[a-z0-9_]{1,512}$/.test(name)) throw new WhatsAppError("INVALID_TEMPLATE_NAME");
   if (typeof language !== "string" || !["en_GB", "en_US", "ro"].includes(language)) throw new WhatsAppError("UNSUPPORTED_LANGUAGE");
@@ -15,8 +16,9 @@ export function templatePreview(input: unknown) {
   if (indexes.length > 10 || indexes.some((n, i) => n !== i + 1)) throw new WhatsAppError("VARIABLES_MUST_BE_SEQUENTIAL");
   if (!Array.isArray(samples) || samples.length !== indexes.length || samples.some(v => typeof v !== "string" || !v.trim() || v.length > 200 || /[\x00-\x1f]/.test(v))) throw new WhatsAppError("VARIABLE_SAMPLES_REQUIRED");
   const examples = samples as string[];
+  const extra = extraTemplateComponents(draft.header, draft.buttons);
   return {
-    payload: { name, language, category, components: [{ type: "BODY", text, ...(examples.length ? { example: { body_text: [examples] } } : {}) }] },
+    payload: { name, language, category, components: [...extra.filter(c=>c.type === "HEADER"), { type: "BODY", text, ...(examples.length ? { example: { body_text: [examples] } } : {}) }, ...extra.filter(c=>c.type === "BUTTONS")] },
     renderedText: text.replace(/\{\{([1-9]\d*)\}\}/g, (_, n) => examples[Number(n) - 1]),
     submitted: false,
     notice: "Local preview only. Nothing has been saved or submitted to Meta. Final approval and category are determined by Meta.",

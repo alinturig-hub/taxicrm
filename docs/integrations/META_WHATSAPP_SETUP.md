@@ -83,3 +83,13 @@ Transport ambiguity must be reconciled through template listing/Meta before retr
 there is no durable cross-process idempotency ledger in this phase. No submission
 or messaging is authorized by deployment alone. The number's Com.Bot transport is
 unchanged. No database migration is needed for this template module.
+
+## Image and button template drafts
+
+Editor supports optional IMAGE header using an existing Meta resumable-upload
+sample handle, body text, and up to three validated static buttons (up to two HTTPS
+URLs, one phone number, quick replies). This is a conservative supported subset,
+not all Meta template formats. Submission still requires explicit server enablement
+and Meta approval. Public image URL is not a header_handle. Direct resumable image
+upload is not implemented; UI states that limit. No external upload was performed.
+Dynamic URL variables, media sending and provider-side image rendering are pending.
