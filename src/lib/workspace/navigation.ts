@@ -167,6 +167,13 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
+        "WhatsApp inbox",
+        "/dashboard/marketing/whatsapp/inbox",
+        "webhooks",
+        "Read received messages and delivery status notifications.",
+        "integrations.view",
+      ),
+      item(
         "WhatsApp campaigns",
         "/dashboard/marketing/whatsapp",
         "automation",
