@@ -1407,3 +1407,24 @@ model WhatsAppWebhookInbox {
   @@unique([connectionKey, bodyHash])
   @@index([status, receivedAt])
 }
+
+model WhatsAppOutboundMessage {
+ id String @id
+ connectionKey String
+ operationKey String
+ requestHash String
+ actorUserId String
+ recipient String
+ templateSnapshot Json
+ purpose String
+ eligibilityEvidence Json
+ status String @default("QUEUED")
+ providerMessageId String?
+ createdAt DateTime @default(now()) @db.Timestamptz
+ claimedAt DateTime? @db.Timestamptz
+ finishedAt DateTime? @db.Timestamptz
+ attemptCount Int @default(0)
+ @@unique([connectionKey, operationKey])
+ @@unique([connectionKey, providerMessageId])
+ @@index([status, createdAt])
+}
