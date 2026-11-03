@@ -24,7 +24,7 @@ export function templatePreview(input: unknown) {
     notice: "Local preview only. Nothing has been saved or submitted to Meta. Final approval and category are determined by Meta.",
   };
 }
-async function boundedJson(response: Response) {
+export async function boundedJson(response: Response) {
   const reader = response.body?.getReader();
   if (!reader) throw new WhatsAppError("META_INVALID_RESPONSE", 502);
   let size = 0, text = ""; const decoder = new TextDecoder();
