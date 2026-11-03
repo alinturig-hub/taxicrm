@@ -14,11 +14,11 @@ export async function POST(request:Request){
  const chunks:Uint8Array[]=[];let size=0;
  for(;;){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>262144){await reader.cancel();return new Response("Payload too large",{status:413,headers});}chunks.push(part.value);}
  const raw=Buffer.concat(chunks);
- if(!verifyMetaSignature(raw,request.headers.get("x-hub-signature-256"),process.env.META_WHATSAPP_APP_SECRET))return new Response("Invalid signature",{status:401,headers});
+ if(!verifyMetaSignature(raw,request.headers.get("x-hub-signature-256"),process.env.META_WHATSAPP_APP_SECRET)){console.warn("META_WEBHOOK_REJECTED", "INVALID_SIGNATURE");return new Response("Invalid signature",{status:401,headers});}
  if(process.env.META_WHATSAPP_INBOX_ENABLED!=="true")return new Response("Durable webhook inbox not activated",{status:503,headers:{...headers,"Retry-After":"60"}});
  await receiveMetaEnvelope(raw,process.env.META_WHATSAPP_WABA_ID,async record=>{
  await prisma.$executeRaw`INSERT INTO "WhatsAppWebhookInbox" ("id","connectionKey","bodyHash","rawBody") VALUES (${record.id},${record.connectionKey},${record.bodyHash},${record.rawBody}) ON CONFLICT ("connectionKey","bodyHash") DO NOTHING`;
  });
  return new Response("EVENT_RECEIVED",{status:200,headers});
- }catch(error){return new Response(error instanceof InboxError?error.code:"Webhook unavailable",{status:error instanceof InboxError?error.status:503,headers});}
+ }catch(error){console.warn("META_WEBHOOK_REJECTED",error instanceof InboxError?error.code:"RECEIPT_UNAVAILABLE");return new Response(error instanceof InboxError?error.code:"Webhook unavailable",{status:error instanceof InboxError?error.status:503,headers});}
 }
