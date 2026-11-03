@@ -43,3 +43,28 @@ retention controls, and authenticated cross-tenant scope resolution. The outbox
 functions are internal primitives, not an activated sender. Approval for isolated
 schema testing does not authorize live migration or real test sends. No startup
 migration, new live privileges or network messaging enabled by this commit.
+
+## Controlled test-send operator flow
+
+Protected POST /api/dashboard/marketing/whatsapp/send-test requires existing
+configuration.view, integrations.view and integrations.manage, same-origin POST,
+confirmSend=true and an operation key. Requires both META_WHATSAPP_SENDING_ENABLED
+and META_WHATSAPP_TEST_SEND_ENABLED; recipient must match server-controlled
+META_WHATSAPP_TEST_RECIPIENTS (comma-separated E.164). Only hello_world/en_US is
+supported. This is an operator test, NOT a marketing-consent mechanism or campaign
+sender. Never enable it for arbitrary recipients or expose general client payloads.
+
+Outbox enqueue/claim commits BEFORE network dispatch. Accepted ID/outcome is then
+persisted. If saving acceptance fails, SENDING remains and cannot be reclaimed.
+Timeout -> UNKNOWN; provider rejection -> REJECTED. No automatic resend. An operator
+must reconcile ambiguous operations; UI retry retains the same key while mounted.
+Reloading creates a new operation, so UI warns against reload-and-resend. A future
+persistent operation history/recovery screen is still needed for usability.
+
+Inbox optionally joins outbound records to webhook read model by configured business
+phone and Meta message ID. Displays the stored template reference, not fabricated
+rendered body. Preserves received READ status and existing provider participant
+identity. The query remains bounded to 200 records; no claims of complete history.
+No schema migration, deploy, send activation or real send performed in this stage.
+Production requires reviewed outbox migration, SELECT/INSERT/UPDATE on that table,
+secure flags/allowlist, then approval for the first actual test message.
