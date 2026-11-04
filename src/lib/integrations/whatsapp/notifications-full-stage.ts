@@ -1,0 +1,81 @@
+import {randomUUID} from 'node:crypto';
+import type {Pool,PoolClient} from 'pg';
+import {authenticate,failure} from './service-http';
+import {sharedPool,stable,emit,handoff} from './shared';
+import {fullStageGuard} from './notifications-full-stage-guard';
+import {parseIntent,parseState,parseResult,type IntentV2,type GatewayState,type ResultV2,sourceFields} from './notifications-v2-contract';
+import {readNacContext} from './notifications-v2-http';
+export async function fullGatewayState(db:PoolClient,scope:string,intent:IntentV2):Promise<GatewayState>{
+ const conv=(await db.query('SELECT * FROM "WhatsAppConversation" WHERE scope=$1 AND participant=$2',[scope,intent.recipient])).rows[0];if(!conv)throw Error('STAGE_CONVERSATION_MISSING');
+ const grant=(await db.query('SELECT * FROM "WhatsAppRecipientGrant" WHERE scope=$1 AND recipient=$2',[scope,intent.recipient])).rows[0],booking=(await db.query('SELECT * FROM "Booking" WHERE "externalId"=$1',[intent.booking_id.slice(8)])).rows[0];
+ const inbound=(await db.query(`SELECT max("occurredAt") AS at FROM "WhatsAppMessage" WHERE scope=$1 AND "conversationId"=$2 AND direction='INBOUND' AND status='RECEIVED' AND content->>'origin'='customer' AND content->>'type' IN ('text','image','audio','video','document','interactive','button','location') AND "occurredAt"<=now()`,[scope,conv.id])).rows[0].at;
+ const valid=Boolean(grant&&booking?.normalCustomerId&&grant.customerId===booking.normalCustomerId&&new Date(grant.validUntil).getTime()>Date.now()&&new Date(grant.verifiedAt).getTime()<=Date.now());
+ return parseState({conversation_id:conv.id,conversation_revision:conv.revision,operator:conv.mode==='OPERATOR',last_eligible_inbound_at:inbound?new Date(inbound).toISOString():null,recipient_verified:valid,service_allowed:valid&&grant.serviceAllowed,suppressed:Boolean(grant?.suppressed),provider_status:'NONE',definitively_unavailable:false,seen:false,highest_booking_revision:intent.revision,capabilities:{text:true,named:true,dynamic_buttons:true,media:false,sms:false,parameter_sources:sourceFields}});
+}
+async function readStageContext(intent:IntentV2,state:GatewayState){
+ const target=new URL(process.env.NOTIFICATIONS_NAC_ORIGIN||'');
+ if(process.env.NOTIFICATIONS_STAGE_LOCAL_TEST==='true'&&target.hostname==='127.0.0.1'&&target.protocol==='http:'){
+  const actual=target.origin;target.protocol='https:';
+  return readNacContext(target.origin,intent,state,process.env.WHATSAPP_CRM_KEY_ID||'',process.env.WHATSAPP_CRM_SECRET||'',((url,init)=>fetch(new URL(new URL(String(url)).pathname,actual),init)) as typeof fetch);
+ }
+ return readNacContext(target.origin,intent,state,process.env.WHATSAPP_CRM_KEY_ID||'',process.env.WHATSAPP_CRM_SECRET||'',fetch);
+}
+type Dependencies={context?:(i:IntentV2,s:GatewayState)=>Promise<unknown>;beforeCommit?:()=>Promise<void>};
+/** Staging-only adapter to the single gateway. No actual provider/outbox imports. */
+export async function simulateFullDelivery(pool:Pool,scope:string,input:unknown,dependencies:Dependencies={}){
+ const {workspace}=fullStageGuard(),intent=parseIntent(input,workspace),db=await pool.connect();let barrier:string|undefined;
+ try{
+  const conv=(await db.query('SELECT id FROM "WhatsAppConversation" WHERE scope=$1 AND participant=$2',[scope,intent.recipient])).rows[0];if(!conv)throw Error('STAGE_CONVERSATION_MISSING');barrier=scope+':conversation:'+conv.id;
+  // Same session advisory barrier as production dispatchIntent; handoff uses the same xact key.
+  await db.query('SELECT pg_advisory_lock(hashtextextended($1,0))',[barrier]);
+  const old=(await db.query('SELECT result FROM notification_stage_delivery WHERE scope=$1 AND operation_key=$2',[scope,intent.idempotency_key])).rows[0];if(old)return old.result as ResultV2;
+  const state=await fullGatewayState(db,scope,intent);
+  let envelope:{decision:unknown;revision:string};let result:ResultV2;let contextFailed=false;
+  try{
+   const raw=await (dependencies.context?dependencies.context(intent,state):readStageContext(intent,state));
+   envelope=raw as {decision:unknown;revision:string};if(!/^\d+$/.test(envelope.revision))throw Error('INVALID_STAGE_REVISION');
+   result=parseResult(envelope.decision,intent,state,Date.now());
+  }catch{
+   contextFailed=true;envelope={decision:null,revision:'0'};
+   result={schema_version:'2.0',mode:'DRY_RUN',idempotency_key:intent.idempotency_key,booking_id:intent.booking_id,rule:intent.rule,conversation_id:state.conversation_id,conversation_revision:state.conversation_revision,checked_at:new Date().toISOString(),result:'blocked',reason:'CONTEXT_VALIDATION_UNAVAILABLE',channel:'none',provider_status:'NONE',provider_called:false};
+  }
+  // A visible staging-only phase marker enables deterministic real-HTTP concurrency tests.
+  await db.query(`UPDATE notification_stage_control SET value='"SIMULATION_PENDING"' WHERE key='phase'`);
+  const delay=Number((await db.query("SELECT value FROM notification_stage_control WHERE key='delay_ms'")).rows[0].value);if(delay>0)await db.query('SELECT pg_sleep($1)',[Math.min(delay,2000)/1000]);
+  await dependencies.beforeCommit?.();
+  await db.query('BEGIN');try{
+   const marker=(await db.query('SELECT revision::text FROM notification_stage_marker WHERE id=true FOR UPDATE')).rows[0].revision;
+   const current=await fullGatewayState(db,scope,intent),booking=(await db.query('SELECT * FROM "Booking" WHERE "externalId"=$1',[intent.booking_id.slice(8)])).rows[0];
+   const block=(reason:string):ResultV2=>({schema_version:'2.0',mode:'DRY_RUN',idempotency_key:intent.idempotency_key,booking_id:intent.booking_id,rule:intent.rule,conversation_id:current.conversation_id,conversation_revision:current.conversation_revision,checked_at:new Date().toISOString(),result:'blocked',reason,channel:'none',provider_status:'NONE',provider_called:false});
+   if(booking?.cancelledAt)result=block('BOOKING_CANCELLED');
+   else if(current.operator)result=block('OPERATOR_TAKEOVER');
+   else if(current.suppressed)result=block('RECIPIENT_SUPPRESSED');
+   else if(contextFailed)result=block('CONTEXT_VALIDATION_UNAVAILABLE');
+   else if(marker!==envelope.revision||stable(state)!==stable(current))result=block('CANONICAL_SNAPSHOT_CHANGED');
+   else if(Date.parse(intent.expires_at)<=Date.now())result=block('NOTIFICATION_EXPIRED');
+   await db.query('INSERT INTO notification_stage_delivery(scope,operation_key,result,conversation_id) VALUES($1,$2,$3::jsonb,$4)',[scope,intent.idempotency_key,JSON.stringify(result),conv.id]);
+   if(result.result==='ready'){
+    // SIMULATED is intentionally not ACCEPTED/DELIVERED. No provider receipt is fabricated.
+    await db.query(`INSERT INTO "WhatsAppMessage"(scope,"conversationId","providerMessageId",direction,content,status,"occurredAt") VALUES($1,$2,$3,'OUTBOUND',$4::jsonb,'SIMULATED',now())`,[scope,conv.id,'simulated:'+randomUUID(),JSON.stringify({text:result.rendered_text,origin:'operational_notification',transport:'SIMULATED',booking_id:intent.booking_id.slice(8),event_type:intent.event_type,rule:result.rule,channel:result.channel,content_mode:result.content_mode,synthetic:true})]);
+   }
+   await emit(db,scope,'stage:'+intent.idempotency_key,'notification.simulated',{booking_id:intent.booking_id.slice(8),origin:'operational_notification',mode:'DRY_RUN',result});
+   // This is shared local audit history, never a callback queued for a production consumer.
+   await db.query('UPDATE "WhatsAppSharedEvent" SET "deliveredAt"=now() WHERE scope=$1 AND "eventKey"=$2',[scope,'stage:'+intent.idempotency_key]);
+   await db.query(`UPDATE notification_stage_control SET value='"COMMITTED"' WHERE key='phase'`);await db.query('COMMIT');return result;
+  }catch(e){await db.query('ROLLBACK');throw e}
+ }finally{if(barrier)await db.query('SELECT pg_advisory_unlock(hashtextextended($1,0))',[barrier]);db.release()}
+}
+export async function fullPreviewPOST(request:Request){try{fullStageGuard();const {body,scope}=await authenticate(request);return Response.json(await simulateFullDelivery(sharedPool(),scope,JSON.parse(body)),{headers:{'Cache-Control':'no-store'}})}catch(e){return failure(e)}}
+export async function fullControlPOST(request:Request){try{
+ fullStageGuard();const {body,scope}=await authenticate(request),input=JSON.parse(body),pool=sharedPool();
+ if(input.action==='handoff'){
+  if(!['AUTOMATED','OPERATOR'].includes(input.mode))throw Error('INVALID_STAGE_MODE');const db=await pool.connect();try{await db.query('BEGIN');const row=(await db.query('SELECT revision FROM "WhatsAppConversation" WHERE id=\'SYNTHETIC-CONVERSATION\' AND scope=$1',[scope])).rows[0];if(!row)throw Error('NOT_FOUND');const result=await handoff(db,scope,'SYNTHETIC-CONVERSATION',{id:randomUUID(),mode:input.mode,revision:row.revision},'staging-operator');
+   if(input.delay_ms){await pool.query(`UPDATE notification_stage_control SET value='"HANDOFF_LOCKED"' WHERE key='phase'`);await db.query('SELECT pg_sleep($1)',[Math.min(1500,Math.max(0,Number(input.delay_ms)))/1000])}
+   const applied=(await db.query('SELECT clock_timestamp() AS at')).rows[0].at;await db.query('COMMIT');return Response.json({...result,applied_at:new Date(applied).toISOString()});
+  }catch(e){await db.query('ROLLBACK');throw e}finally{db.release()}
+ }
+ if(input.action==='delay'){const delay=Number(input.ms);if(!Number.isFinite(delay)||delay<0||delay>2000)throw Error('INVALID_STAGE_DELAY');await pool.query("UPDATE notification_stage_control SET value=$1::jsonb WHERE key='delay_ms'",[JSON.stringify(delay)]);await pool.query(`UPDATE notification_stage_control SET value='"IDLE"' WHERE key='phase'`);return Response.json({delay_ms:delay})}
+ if(input.action==='locks')return Response.json({waiting:Number((await pool.query("SELECT count(*) AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'")).rows[0].n)});
+ if(input.action==='phase')return Response.json((await pool.query("SELECT value AS phase FROM notification_stage_control WHERE key='phase'")).rows[0]);
+ throw Error('INVALID_STAGE_ACTION');
+ }catch(e){return failure(e)}}
