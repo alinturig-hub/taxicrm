@@ -6,6 +6,7 @@ FROM node:24-alpine AS builder
 WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
+RUN DATABASE_URL=postgresql://build_only@127.0.0.1:1/build_only npx prisma generate
 RUN DATABASE_URL=postgresql://build_only@127.0.0.1:1/build_only NEXT_TELEMETRY_DISABLED=1 npm run build
 FROM node:24-alpine
 WORKDIR /app
