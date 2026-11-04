@@ -30,7 +30,7 @@ export default function WhatsAppSettings({ connectionOnly = false }: { connectio
     } catch (e) { setError(e instanceof Error ? e.message : "WhatsApp request failed."); }
     finally { setBusy(false); }
   }
-  return <main className="mx-auto max-w-5xl space-y-6 p-4 sm:p-7">
+  return <main className="mx-auto max-w-7xl space-y-6 p-4 sm:p-7">
     <header><p className="text-xs font-semibold uppercase tracking-widest text-brand">{connectionOnly ? "Integrations / WhatsApp" : "Marketing / WhatsApp"}</p><h1 className="mt-2 text-3xl font-semibold">{connectionOnly ? "Meta WhatsApp connection" : "WhatsApp templates"}</h1><p className="mt-2 text-sm text-app-muted">{connectionOnly ? "Review the Meta account and secure server configuration." : "Browse Meta templates and prepare message drafts."}</p>{!connectionOnly && <button type="button" disabled={!setup?.canManage || busy} aria-expanded={editorOpen} aria-controls="new-whatsapp-template" onClick={() => setEditorOpen(true)} className="mt-4 rounded-lg bg-brand px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">Add a new template</button>}</header>
     {error && <p role="alert" className="rounded-xl border border-amber-500/30 p-4 text-sm">{error}</p>}
     {!setup ? <p className="text-sm text-app-muted">{error ? "Setup could not be loaded." : "Checking server configuration…"}</p> : <>

@@ -1,26 +1,24 @@
 import { extraTemplateComponents, type ImageHeader, type TemplateButton } from "./template-components";
+import { parameterExample, type ParameterFormat } from "./template-parameters";
 import { WhatsAppError, whatsappCredentials } from "./settings";
-export type TemplateDraft = { name: string; language: string; category: string; text: string; samples: string[]; header?: ImageHeader; buttons?: TemplateButton[]; footer?: string };
+export type TemplateDraft = { name: string; language: string; category: string; text: string; samples: string[]; header?: ImageHeader; buttons?: TemplateButton[]; footer?: string; parameterFormat?: ParameterFormat };
 export function templatePreview(input: unknown) {
   if (!input || typeof input !== "object" || Array.isArray(input)) throw new WhatsAppError("INVALID_DRAFT");
   const draft = input as Record<string, unknown>;
-  if (Object.keys(draft).some(k => !["name", "language", "category", "text", "samples", "header", "buttons", "footer"].includes(k))) throw new WhatsAppError("INVALID_DRAFT");
+  if (Object.keys(draft).some(k => !["name", "language", "category", "text", "samples", "header", "buttons", "footer", "parameterFormat"].includes(k))) throw new WhatsAppError("INVALID_DRAFT");
   const { name, language, category, text, samples } = draft;
   if (typeof name !== "string" || !/^[a-z0-9_]{1,512}$/.test(name)) throw new WhatsAppError("INVALID_TEMPLATE_NAME");
   if (typeof language !== "string" || !["en_GB", "en_US", "ro"].includes(language)) throw new WhatsAppError("UNSUPPORTED_LANGUAGE");
   if (category !== "UTILITY" && category !== "MARKETING") throw new WhatsAppError("UNSUPPORTED_CATEGORY");
   if (typeof text !== "string" || !text.trim() || text.length > 1024 || /[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(text)) throw new WhatsAppError("INVALID_TEMPLATE_TEXT");
-  const matches = Array.from(text.matchAll(/\{\{([1-9]\d*)\}\}/g));
-  if (/[{}]/.test(text.replace(/\{\{([1-9]\d*)\}\}/g, ""))) throw new WhatsAppError("INVALID_VARIABLES");
-  const indexes = Array.from(new Set(matches.map(m => Number(m[1])))).sort((a, b) => a - b);
-  if (indexes.length > 10 || indexes.some((n, i) => n !== i + 1)) throw new WhatsAppError("VARIABLES_MUST_BE_SEQUENTIAL");
-  if (!Array.isArray(samples) || samples.length !== indexes.length || samples.some(v => typeof v !== "string" || !v.trim() || v.length > 200 || /[\x00-\x1f]/.test(v))) throw new WhatsAppError("VARIABLE_SAMPLES_REQUIRED");
-  const examples = samples as string[];
+  const parameterFormat = draft.parameterFormat || "POSITIONAL";
+  if(parameterFormat!=="POSITIONAL" && parameterFormat!=="NAMED")throw new WhatsAppError("INVALID_VARIABLES");
+  const {example,rendered}=parameterExample(text,samples,parameterFormat,"body");
   if (draft.footer !== undefined && (typeof draft.footer !== "string" || draft.footer.length>60 || /[\x00-\x1f{}]/.test(draft.footer))) throw new WhatsAppError("INVALID_TEMPLATE_FOOTER");
-  const extra = extraTemplateComponents(draft.header, draft.buttons);
+  const extra = extraTemplateComponents(draft.header, draft.buttons, parameterFormat);
   return {
-    payload: { name, language, category, components: [...extra.filter(c=>c.type === "HEADER"), { type: "BODY", text, ...(examples.length ? { example: { body_text: [examples] } } : {}) }, ...(draft.footer ? [{type:"FOOTER",text:draft.footer}] : []), ...extra.filter(c=>c.type === "BUTTONS")] },
-    renderedText: text.replace(/\{\{([1-9]\d*)\}\}/g, (_, n) => examples[Number(n) - 1]),
+    payload: { name, language, category, ...(parameterFormat === "NAMED" ? {parameter_format:"NAMED"} : {}), components: [...extra.filter(c=>c.type === "HEADER"), { type: "BODY", text, ...(example ? {example} : {}) }, ...(draft.footer ? [{type:"FOOTER",text:draft.footer}] : []), ...extra.filter(c=>c.type === "BUTTONS")] },
+    renderedText: rendered,
     submitted: false,
     notice: "Local preview only. Nothing has been saved or submitted to Meta. Final approval and category are determined by Meta.",
   };

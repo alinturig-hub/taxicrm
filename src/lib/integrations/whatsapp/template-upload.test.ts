@@ -19,3 +19,9 @@ test("upload flag fails before requests and errors do not expose tokens",async()
  let calls=0;await assert.rejects(uploadTemplateImage(image,{...env,META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED:"false"},async()=>{calls++;throw Error();}));assert.equal(calls,0);
  await assert.rejects(uploadTemplateImage(image,env,async()=>{throw Error(env.META_WHATSAPP_ACCESS_TOKEN);}),e=>!String(e).includes(env.META_WHATSAPP_ACCESS_TOKEN));
 });
+test("upload session includes filename and PDF type",async()=>{
+ const {uploadTemplateMedia}=await import("./template-upload");let calls=0;
+ const result=await uploadTemplateMedia(new TextEncoder().encode("%PDF-synthetic"),env,async(url)=>{
+  calls++;const u=new URL(String(url));if(calls===1){assert.equal(u.searchParams.get("file_name"),"template_sample.pdf");assert.equal(u.searchParams.get("file_type"),"application/pdf");return Response.json({id:"upload:synthetic"});}return Response.json({h:"synthetic-document-handle"});
+ });assert.equal(result.format,"DOCUMENT");assert.equal(calls,2);
+});

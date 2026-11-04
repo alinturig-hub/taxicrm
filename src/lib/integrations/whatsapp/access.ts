@@ -19,7 +19,7 @@ export async function whatsappBody(request: Request) {
   while (true) {
     const part = await reader.read(); if (part.done) break;
     size += part.value.byteLength;
-    if (size > 16384) { await reader.cancel(); throw new WhatsAppError("REQUEST_TOO_LARGE", 413); }
+    if (size > 65536) { await reader.cancel(); throw new WhatsAppError("REQUEST_TOO_LARGE", 413); }
     text += decoder.decode(part.value, { stream: true });
   }
   try { const body = JSON.parse(text + decoder.decode()); if (!body || typeof body !== "object" || Array.isArray(body)) throw Error(); return body as Record<string, unknown>; }
