@@ -21,7 +21,7 @@ export async function materialize(db:PoolClient,scope:string,raw:string,waba:str
  const projection=projectInbox([raw],waba);if(projection.invalid)throw Error('INVALID_ENVELOPE');
  for(const m of projection.messages){
  if(m.phoneNumberId!==phone||m.participant==='Unknown recipient')continue;
- const phoneParticipant=m.phoneParticipant||'',participant=/^\+?[1-9]\d{7,14}$/.test(phoneParticipant)?'+'+phoneParticipant.replace(/^\+/, ''):m.participant;
+ const phoneParticipant=m.participantPhone||'',participant=/^\+?[1-9]\d{7,14}$/.test(phoneParticipant)?'+'+phoneParticipant.replace(/^\+/, ''):m.participant;
  const existing=(await db.query(`SELECT id FROM "WhatsAppConversation" WHERE scope=$1 AND participant=$2`,[scope,participant])).rows[0];
  if(existing)await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':conversation:'+existing.id]);
  const conv=await conversation(db,scope,participant);

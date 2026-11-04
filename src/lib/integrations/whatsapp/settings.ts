@@ -22,7 +22,7 @@ export function whatsappSettings(env: NodeJS.ProcessEnv = process.env) {
     enabled: env.META_WHATSAPP_ENABLED === "true",
     ready: issues.length === 0,
     issues,
-    templateSubmissionEnabled: false,
+    templateSubmissionEnabled: env.META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED === "true",
     messagingEnabled: env.WHATSAPP_SHARED_ENABLED === "true" && env.WHATSAPP_JOURNEY_SENDING_ENABLED === "true" && env.META_WHATSAPP_SENDING_ENABLED === "true",
   };
 }
