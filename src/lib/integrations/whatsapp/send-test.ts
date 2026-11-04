@@ -2,6 +2,7 @@ import {claimOutbound,enqueueOutbound,type OutboxTransaction} from "./outbox";
 import {sendMetaTemplate} from "./meta-send";
 import {WhatsAppError,whatsappCredentials} from "./settings";
 export async function sendControlledTest(input:{operationKey:string;recipient:string;actorUserId:string},tx:OutboxTransaction,env:NodeJS.ProcessEnv=process.env,fetcher:typeof fetch=fetch){
+ if(env.WHATSAPP_SHARED_ENABLED==="true")throw new WhatsAppError("SHARED_GATEWAY_TEST_SEND_DISABLED",503);
  if(env.META_WHATSAPP_SENDING_ENABLED!=="true"||env.META_WHATSAPP_TEST_SEND_ENABLED!=="true")throw new WhatsAppError("TEST_SEND_DISABLED",503);
  const c=whatsappCredentials(env);const phone=env.META_WHATSAPP_PHONE_NUMBER_ID||"";
  if(!/^\d{5,32}$/.test(phone)||!/^\+[1-9]\d{7,14}$/.test(input.recipient)||!env.META_WHATSAPP_TEST_RECIPIENTS?.split(',').map(x=>x.trim()).includes(input.recipient))throw new WhatsAppError("TEST_RECIPIENT_NOT_ALLOWED",403);

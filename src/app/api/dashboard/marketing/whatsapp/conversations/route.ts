@@ -1,0 +1,12 @@
+import {whatsappAccess,whatsappOrigin,whatsappBody} from '@/lib/integrations/whatsapp/access';
+import {sharedPool,sharedScope,transaction,handoff} from '@/lib/integrations/whatsapp/shared';
+import {failure} from '@/lib/integrations/whatsapp/service-http';
+import {WhatsAppError} from '@/lib/integrations/whatsapp/settings';
+export const dynamic='force-dynamic';
+function ready(){if(process.env.WHATSAPP_SHARED_ENABLED!=='true')throw Error('WHATSAPP_SERVICE_NOT_CONFIGURED');return sharedScope();}
+function error(e:unknown){return e instanceof WhatsAppError?Response.json({error:e.code},{status:e.status}):failure(e);}
+export async function GET(request:Request){try{await whatsappAccess();const scope=ready(),p=new URL(request.url).searchParams,id=p.get('id'),cursor=p.get('cursor')||'9223372036854775807';if(!/^\d{1,19}$/.test(cursor)||BigInt(cursor)>BigInt('9223372036854775807'))throw Error('INVALID_CURSOR');
+ if(id){const conversation=(await sharedPool().query(`SELECT id,participant,mode,revision,"assignedUserId" FROM "WhatsAppConversation" WHERE scope=$1 AND id=$2`,[scope,id])).rows[0];if(!conversation)throw Error('NOT_FOUND');const rows=(await sharedPool().query(`SELECT id::text,direction,content,status,"occurredAt","createdAt" FROM "WhatsAppMessage" WHERE scope=$1 AND "conversationId"=$2 AND id<$3::bigint ORDER BY id DESC LIMIT 51`,[scope,id,cursor])).rows;return Response.json({conversation,messages:rows.slice(0,50),next_cursor:rows.length>50?rows[49].id:null},{headers:{'Cache-Control':'no-store'}});}
+ const after=p.get('after')||'';return Response.json({conversations:(await sharedPool().query(`SELECT id,participant,mode,revision FROM "WhatsAppConversation" WHERE scope=$1 AND id>$2 ORDER BY id LIMIT 51`,[scope,after])).rows},{headers:{'Cache-Control':'no-store'}});
+ }catch(e){return error(e);}}
+export async function POST(request:Request){try{const access=await whatsappAccess(true);whatsappOrigin(request);const scope=ready(),b=await whatsappBody(request);if(typeof b.conversation_id!=='string'||typeof b.command_id!=='string'||!/^[a-zA-Z0-9_-]{16,100}$/.test(b.command_id)||(b.mode!=='OPERATOR'&&b.mode!=='AUTOMATED')||!Number.isSafeInteger(b.revision)||Number(b.revision)<0)throw Error('INVALID_COMMAND');const result=await transaction(db=>handoff(db,scope,b.conversation_id as string,{id:b.command_id as string,mode:b.mode as 'AUTOMATED'|'OPERATOR',revision:b.revision as number},access.user.id));return Response.json(result,{headers:{'Cache-Control':'no-store'}});}catch(e){return error(e);}}
