@@ -19,7 +19,7 @@ export async function uploadTemplateImage(bytes: Uint8Array, env: NodeJS.Process
     session.searchParams.set("file_length",String(bytes.length));session.searchParams.set("file_type",type);
     const created=await request(session.href,{method:"POST",headers:{Authorization:`Bearer ${config.accessToken}`}});
     if(typeof created.id!=="string" || !/^upload:[A-Za-z0-9_:=.?&%+\/-]{1,4096}$/.test(created.id))throw new WhatsAppError("TEMPLATE_IMAGE_UPLOAD_FAILED",502);
-    const uploaded=await request(`https://graph.facebook.com/${config.graphVersion}/${encodeURIComponent(created.id)}`,{method:"POST",headers:{Authorization:`OAuth ${config.accessToken}`,file_offset:"0","Content-Type":"application/octet-stream"},body:bytes as BodyInit});
+    const uploaded=await request(`https://graph.facebook.com/${config.graphVersion}/${created.id}`,{method:"POST",headers:{Authorization:`OAuth ${config.accessToken}`,file_offset:"0","Content-Type":"application/octet-stream"},body:bytes as BodyInit});
     if(typeof uploaded.h!=="string" || !uploaded.h || uploaded.h.length>4096 || /\s/.test(uploaded.h))throw new WhatsAppError("TEMPLATE_IMAGE_UPLOAD_FAILED",502);
     return {handle:uploaded.h};
   }catch(error){if(error instanceof WhatsAppError)throw error;throw new WhatsAppError("TEMPLATE_IMAGE_UPLOAD_FAILED",502);}

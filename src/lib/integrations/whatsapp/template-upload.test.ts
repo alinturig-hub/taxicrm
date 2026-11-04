@@ -11,8 +11,8 @@ test("upload uses fixed Meta origin, byte length and returned session; no creden
  let calls=0;
  const result=await uploadTemplateImage(image,env,async(url,options)=>{
   calls++;const u=new URL(String(url));assert.equal(u.origin,"https://graph.facebook.com");assert.equal(options?.method,"POST");assert.equal(options?.redirect,"error");
-  if(calls===1){assert.equal(u.pathname,"/v999.0/123456789/uploads");assert.equal(u.searchParams.get("file_length"),"8");return Response.json({id:"upload:synthetic-session"});}
-  assert.equal(decodeURIComponent(u.pathname),"/v999.0/upload:synthetic-session");assert.equal((options?.headers as Record<string,string>).file_offset,"0");return Response.json({h:"synthetic-handle"});
+  if(calls===1){assert.equal(u.pathname,"/v999.0/123456789/uploads");assert.equal(u.searchParams.get("file_length"),"8");return Response.json({id:"upload:synthetic-session?sig=synthetic-signature"});}
+  assert.equal(u.pathname,"/v999.0/upload:synthetic-session");assert.equal(u.searchParams.get("sig"),"synthetic-signature");assert.equal((options?.headers as Record<string,string>).file_offset,"0");return Response.json({h:"synthetic-handle"});
  });assert.equal(calls,2);assert.deepEqual(result,{handle:"synthetic-handle"});
 });
 test("upload flag fails before requests and errors do not expose tokens",async()=>{
