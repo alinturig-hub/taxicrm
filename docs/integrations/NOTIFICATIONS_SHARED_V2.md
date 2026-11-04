@@ -126,3 +126,7 @@ Owner-authorized execution is complete in a separate Coolify `notifications-v2-s
 - No WhatsApp/SMS messages, actual booking changes, production migrations or live application publication. Production application read-only health checks remained healthy.
 
 Evidence is versioned in `evidence/remote-staging-20261104.json`. Runtime setup, commands and isolation limits are documented in `staging/notifications/README.md`. Full Next route/middleware integration, real canonical account/grant resolution, secure live link issuance, Meta sender adapters and isolated PostgreSQL race tests remain pending. No controlled real send is authorized by these staging results.
+
+## Full application staging milestone
+
+See [NOTIFICATIONS_FULL_NEXT_STAGE.md](NOTIFICATIONS_FULL_NEXT_STAGE.md) for the complete Next application integration, isolated PostgreSQL canonical data, real NextAuth/RBAC inbox demonstration, simulated common history and concurrent operator/dispatch locks. Synthetic evidence is in `evidence/full-next/`. Sending and production activation remain disabled.
