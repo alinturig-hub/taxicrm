@@ -1,3 +1,4 @@
+import { editableTemplate } from "./template-edit";
 import { extraTemplateComponents, type ImageHeader, type TemplateButton } from "./template-components";
 import { parameterExample, type ParameterFormat } from "./template-parameters";
 import { WhatsAppError, whatsappCredentials } from "./settings";
@@ -39,7 +40,7 @@ export async function boundedJson(response: Response) {
 export async function listTemplates(env: NodeJS.ProcessEnv = process.env, fetcher: typeof fetch = fetch) {
   const config = whatsappCredentials(env);
   const url = new URL(`https://graph.facebook.com/${config.graphVersion}/${config.wabaId}/message_templates`);
-  url.searchParams.set("fields", "id,name,status,category,language,components");
+  url.searchParams.set("fields", "id,name,status,category,language,parameter_format,components");
   url.searchParams.set("limit", "25");
   try {
     const response = await fetcher(url, { method: "GET", headers: { Authorization: `Bearer ${config.accessToken}` }, cache: "no-store", redirect: "error", signal: AbortSignal.timeout(8000) });
@@ -50,7 +51,7 @@ export async function listTemplates(env: NodeJS.ProcessEnv = process.env, fetche
     const templates = payload.data.map((value: unknown) => {
       if (!value || typeof value !== "object" || Array.isArray(value)) throw new WhatsAppError("META_INVALID_RESPONSE", 502);
       const item = value as Record<string, unknown>;
-      return { id: clean(item.id), name: clean(item.name, 512), status: clean(item.status), category: clean(item.category), language: clean(item.language),
+      return { ...editableTemplate(item), id: clean(item.id), name: clean(item.name, 512), status: clean(item.status), category: clean(item.category), language: clean(item.language),
         body: Array.isArray(item.components) ? item.components.filter(c => c && typeof c === "object" && c.type === "BODY").map(c => clean(c.text, 4096)).join("\n").slice(0, 4096) : "" };
     });
     return { templates, hasMore: Boolean(payload.paging && typeof payload.paging === "object" && (payload.paging as Record<string, unknown>).next), fetchedAt: new Date().toISOString(), wabaId: config.wabaId };

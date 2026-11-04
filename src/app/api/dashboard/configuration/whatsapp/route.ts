@@ -1,3 +1,4 @@
+import { editTemplate } from "@/lib/integrations/whatsapp/template-edit";
 import { providerCapabilities } from "@/lib/integrations/whatsapp/providers";
 import { NextResponse } from "next/server";
 import { whatsappSettings, WhatsAppError } from "@/lib/integrations/whatsapp/settings";
@@ -21,6 +22,10 @@ export async function POST(request: Request) {
     const access = await whatsappAccess(true); whatsappOrigin(request);
     const body = await whatsappBody(request);
     if (body.action === "preview" && Object.keys(body).every(k => ["action", "draft"].includes(k))) return NextResponse.json(templatePreview(body.draft), { headers: privateHeaders });
+    if (body.action === "edit" && body.confirmSubmission === true && Object.keys(body).every(k => ["action", "draft", "confirmSubmission", "templateId"].includes(k))) {
+      release = reserveWhatsAppList(access.user.id);
+      return NextResponse.json(await editTemplate(body.templateId, body.draft), { headers: privateHeaders });
+    }
     if (body.action === "submit" && body.confirmSubmission === true && Object.keys(body).every(k => ["action", "draft", "confirmSubmission"].includes(k))) {
       release = reserveWhatsAppList(access.user.id);
       return NextResponse.json(await submitTemplate(body.draft), { headers: privateHeaders });
