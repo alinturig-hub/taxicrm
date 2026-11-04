@@ -181,6 +181,13 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
+        "WhatsApp templates",
+        "/dashboard/marketing/whatsapp/templates",
+        "automation",
+        "Browse Meta templates and prepare message drafts.",
+        "configuration.view",
+      ),
+      item(
         "Audience segments",
         "/dashboard/marketing/segments",
         "customers",
@@ -265,6 +272,13 @@ export const navigationGroups: NavigationGroup[] = [
         "integrations.view",
       ),
       item(
+        "WhatsApp connection",
+        "/dashboard/integrations/whatsapp",
+        "webhooks",
+        "Meta account and secure connection readiness.",
+        "integrations.view",
+      ),
+      item(
         "NeedACabPlus integration",
         "/dashboard/integrations/needacabplus",
         "sync",
@@ -307,13 +321,6 @@ export const navigationGroups: NavigationGroup[] = [
         "Orion gateway, monitored lines, event recipients and delivery history.",
         "configuration.view",
         ["ADMIN", "MANAGER"],
-      ),
-      item(
-        "WhatsApp templates",
-        "/dashboard/configuration/whatsapp",
-        "automation",
-        "Meta connection readiness, template listing and local draft previews.",
-        "configuration.view",
       ),
       item(
         "Account revenue rules",
