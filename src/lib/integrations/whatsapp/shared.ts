@@ -21,12 +21,16 @@ export async function materialize(db:PoolClient,scope:string,raw:string,waba:str
  const projection=projectInbox([raw],waba);if(projection.invalid)throw Error('INVALID_ENVELOPE');
  for(const m of projection.messages){
  if(m.phoneNumberId!==phone||m.participant==='Unknown recipient')continue;
- const conv=await conversation(db,scope,m.participant);
+ const phoneParticipant=m.phoneParticipant||'',participant=/^\+?[1-9]\d{7,14}$/.test(phoneParticipant)?'+'+phoneParticipant.replace(/^\+/, ''):m.participant;
+ const existing=(await db.query(`SELECT id FROM "WhatsAppConversation" WHERE scope=$1 AND participant=$2`,[scope,participant])).rows[0];
+ if(existing)await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':conversation:'+existing.id]);
+ const conv=await conversation(db,scope,participant);
+ if(m.direction==='INBOUND'&&/^(STOP|UNSUBSCRIBE|STOP ALL)$/i.test(m.text.trim())){await db.query(`UPDATE "WhatsAppRecipientGrant" SET suppressed=true,"updatedAt"=now() WHERE scope=$1 AND recipient=$2`,[scope,participant]);await db.query(`UPDATE "WhatsAppServiceIntent" SET status='CANCELLED',"lastReason"='RECIPIENT_SUPPRESSED' WHERE scope=$1 AND "conversationId"=$2 AND status='HELD'`,[scope,conv.id]);}
  const old=(await db.query(`SELECT * FROM "WhatsAppMessage" WHERE scope=$1 AND "providerMessageId"=$2 FOR UPDATE`,[scope,m.id])).rows[0];
  if(old&&old.conversationId!==conv.id)throw Error('MESSAGE_PARTICIPANT_CONFLICT');
- const rank:Record<string,number>={FAILED:0,ACCEPTED:1,SENT:2,DELIVERED:3,READ:4,RECEIVED:4};
+ const rank:Record<string,number>={FAILED:2.5,ACCEPTED:1,SENT:2,DELIVERED:3,READ:4,RECEIVED:4};
  if(old&&(rank[m.status]??-1)<=(rank[old.status]??-1))continue;
- const content={text:m.text,type:m.type,origin:m.direction==='INBOUND'?'customer':'provider_status'};
+ const content={text:m.text,type:m.type,providerParticipant:m.participant,origin:m.direction==='INBOUND'?'customer':'provider_status'};
  const result=await db.query(`INSERT INTO "WhatsAppMessage" (scope,"conversationId","providerMessageId",direction,content,status,"occurredAt") VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7) ON CONFLICT(scope,"providerMessageId") DO UPDATE SET status=EXCLUDED.status RETURNING id`,[scope,conv.id,m.id,m.direction,JSON.stringify(content),m.status,m.timestamp]);
  await emit(db,scope,`message:${m.id}:${m.status}`,m.direction==='INBOUND'?'message.received':'message.status',{conversation_id:conv.id,message_id:String(result.rows[0].id),provider_message_id:m.id,status:m.status});
  }
@@ -37,6 +41,7 @@ export async function handoff(db:PoolClient,scope:string,id:string,command:{id:s
  await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':'+command.id]);
  const previous=(await db.query(`SELECT * FROM "WhatsAppHandoffCommand" WHERE scope=$1 AND id=$2`,[scope,command.id])).rows[0];
  if(previous){if(previous.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return previous.result;}
+ await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':conversation:'+id]);
  const conv=(await db.query(`SELECT * FROM "WhatsAppConversation" WHERE scope=$1 AND id=$2 FOR UPDATE`,[scope,id])).rows[0];
  if(!conv)throw Error('NOT_FOUND');if(conv.revision!==command.revision)throw Error('REVISION_CONFLICT');
  const result=(await db.query(`UPDATE "WhatsAppConversation" SET mode=$3,revision=revision+1,"assignedUserId"=$4,"updatedAt"=now() WHERE scope=$1 AND id=$2 RETURNING id,mode,revision,"assignedUserId"`,[scope,id,command.mode,command.mode==='OPERATOR'?actor:null])).rows[0];
@@ -56,9 +61,9 @@ export function validateIntent(x:unknown,now=Date.now(),allowExpired=false):Serv
 export async function acceptIntent(db:PoolClient,scope:string,input:unknown){
  const v=validateIntent(input,Date.now(),true);if(v.workspace_id!==scope.split(':')[0])throw Error('WRONG_SCOPE');
  const h=hash(v),previous=(await db.query(`SELECT id,"requestHash",status,"conversationId" FROM "WhatsAppServiceIntent" WHERE scope=$1 AND "operationKey"=$2`,[scope,v.idempotency_key])).rows[0];
- if(previous){if(previous.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return {id:previous.id,status:previous.status,conversation_id:previous.conversationId,sending_enabled:false};}
+ if(previous){if(previous.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return {id:previous.id,status:previous.status,conversation_id:previous.conversationId,sending_enabled:process.env.WHATSAPP_JOURNEY_SENDING_ENABLED==='true'&&process.env.META_WHATSAPP_SENDING_ENABLED==='true'};}
  validateIntent(v);const conv=await conversation(db,scope,v.recipient);
  await db.query(`INSERT INTO "WhatsAppServiceIntent" (id,scope,"operationKey","requestHash","conversationId",payload,"expiresAt",status) VALUES ($1,$2,$3,$4,$5,$6::jsonb,$7,$8) ON CONFLICT(scope,"operationKey") DO NOTHING`,[randomUUID(),scope,v.idempotency_key,h,conv.id,JSON.stringify(v),v.expires_at,conv.mode==='OPERATOR'?'CANCELLED':'HELD']);
  const row=(await db.query(`SELECT id,"requestHash",status,"conversationId" FROM "WhatsAppServiceIntent" WHERE scope=$1 AND "operationKey"=$2`,[scope,v.idempotency_key])).rows[0];
- if(row.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return {id:row.id,status:row.status,conversation_id:row.conversationId,sending_enabled:false};
+ if(row.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return {id:row.id,status:row.status,conversation_id:row.conversationId,sending_enabled:process.env.WHATSAPP_JOURNEY_SENDING_ENABLED==='true'&&process.env.META_WHATSAPP_SENDING_ENABLED==='true'};
 }

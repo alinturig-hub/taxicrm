@@ -1,8 +1,9 @@
+import {seedServiceBindings} from './service-defaults';
 import {sharedPool,sharedScope,transaction,materialize} from './shared';
 import {signedHeaders} from './service-auth';
 /** Bounded batch; database claims make concurrent worker runs safe. No Meta transport here. */
 export async function processSharedReceipts(){
- if(process.env.WHATSAPP_SHARED_ENABLED!=='true')return {processed:0};const scope=sharedScope();let processed=0;
+ if(process.env.WHATSAPP_SHARED_ENABLED!=='true')return {processed:0};const scope=sharedScope();await transaction(db=>seedServiceBindings(db,scope));let processed=0;
  for(let i=0;i<100;i++){let receiptId:string|undefined;try{
  const done=await transaction(async db=>{const row=(await db.query(`SELECT id,"rawBody" FROM "WhatsAppWebhookInbox" WHERE "connectionKey"=$1 AND status='RECEIVED' AND "attemptCount"<5 ORDER BY "receivedAt",id FOR UPDATE SKIP LOCKED LIMIT 1`,['META:'+process.env.META_WHATSAPP_WABA_ID])).rows[0];if(!row)return false;receiptId=row.id;
  await materialize(db,scope,row.rawBody,process.env.META_WHATSAPP_WABA_ID!,process.env.META_WHATSAPP_PHONE_NUMBER_ID!);
