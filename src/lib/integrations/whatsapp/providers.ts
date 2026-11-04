@@ -11,7 +11,7 @@ export function providerCapabilities(provider: WhatsAppProvider, env: NodeJS.Pro
   if (provider === "META") {
     const meta = whatsappSettings(env);
     return { provider, configured: meta.ready, enabled: meta.enabled, canListTemplates: meta.ready && meta.enabled,
-      canSend: false, canReceive: false, blocker: meta.ready ? "MESSAGING_NOT_IMPLEMENTED" : "META_SETUP_REQUIRED" };
+      canSend: meta.ready && meta.enabled && meta.messagingEnabled, canReceive: meta.ready && meta.enabled && env.META_WHATSAPP_INBOX_ENABLED === "true", blocker: !meta.ready ? "META_SETUP_REQUIRED" : meta.messagingEnabled ? "SERVICE_DISPATCH_ONLY" : "JOURNEY_DISPATCH_DISABLED" };
   }
   return { provider, configured: false, enabled: false, canListTemplates: false,
     canSend: false, canReceive: false, blocker: "COMBOT_API_CONTRACT_REQUIRED" };

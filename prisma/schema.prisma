@@ -1428,3 +1428,106 @@ model WhatsAppOutboundMessage {
  @@unique([connectionKey, providerMessageId])
  @@index([status, createdAt])
 }
+
+model WhatsAppConversation {
+ id String @id
+ scope String
+ participant String
+ mode String @default("AUTOMATED")
+ revision Int @default(0)
+ assignedUserId String?
+ updatedAt DateTime @default(now()) @db.Timestamptz
+ messages WhatsAppMessage[]
+ intents WhatsAppServiceIntent[]
+ @@unique([scope, participant])
+}
+model WhatsAppMessage {
+ id BigInt @id @default(autoincrement())
+ scope String
+ conversationId String
+ conversation WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+ providerMessageId String
+ direction String
+ content Json
+ status String
+ occurredAt DateTime? @db.Timestamptz
+ createdAt DateTime @default(now()) @db.Timestamptz
+ @@unique([scope, providerMessageId])
+ @@index([conversationId, id])
+}
+model WhatsAppSharedEvent {
+ id BigInt @id @default(autoincrement())
+ scope String
+ eventKey String
+ type String
+ payload Json
+ createdAt DateTime @default(now()) @db.Timestamptz
+ deliveredAt DateTime? @db.Timestamptz
+ attempts Int @default(0)
+ nextAttemptAt DateTime @default(now()) @db.Timestamptz
+ @@unique([scope, eventKey])
+}
+model WhatsAppServiceNonce {
+ id String @id
+ createdAt DateTime @default(now()) @db.Timestamptz
+}
+model WhatsAppHandoffCommand {
+ scope String
+ id String
+ requestHash String
+ result Json
+ @@id([scope, id])
+}
+model WhatsAppServiceIntent {
+ nextAttemptAt DateTime @default(now()) @db.Timestamptz
+ attempts Int @default(0)
+ outboundId String?
+ lastReason String?
+ claimedAt DateTime? @db.Timestamptz
+ id String @id
+ scope String
+ operationKey String
+ requestHash String
+ conversationId String
+ conversation WhatsAppConversation @relation(fields: [conversationId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+ payload Json
+ status String @default("HELD")
+ expiresAt DateTime @db.Timestamptz
+ createdAt DateTime @default(now()) @db.Timestamptz
+ @@unique([scope, operationKey])
+ @@index([scope, status, expiresAt])
+}
+
+model WhatsAppRecipientGrant {
+ scope String
+ recipient String
+ customerId String
+ serviceAllowed Boolean @default(false)
+ suppressed Boolean @default(false)
+ verifiedAt DateTime @db.Timestamptz
+ validUntil DateTime @db.Timestamptz
+ proofType String
+ proofReference String
+ updatedBy String
+ updatedAt DateTime @default(now()) @db.Timestamptz
+ @@id([scope,recipient])
+}
+model WhatsAppTemplateBinding {
+ scope String
+ milestone String
+ name String
+ language String
+ parameterKeys Json
+ enabled Boolean @default(false)
+ updatedBy String
+ updatedAt DateTime @default(now()) @db.Timestamptz
+ @@id([scope,milestone])
+}
+model WhatsAppPolicyAudit {
+ id BigInt @id @default(autoincrement())
+ scope String
+ actor String
+ type String
+ payload Json
+ createdAt DateTime @default(now()) @db.Timestamptz
+}
