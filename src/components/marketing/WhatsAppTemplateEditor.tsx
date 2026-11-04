@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import type { TemplateDraft, templatePreview } from "@/lib/integrations/whatsapp/templates";
-import type { ImageHeader, TemplateButton } from "@/lib/integrations/whatsapp/template-components";
+import type {TemplateDraft,TemplatePreview} from "@/lib/integrations/whatsapp/editor-types";
+import type { ImageHeader, TemplateButton } from "@/lib/integrations/whatsapp/editor-types";
 import { parameterKeys, type ParameterFormat } from "@/lib/integrations/whatsapp/template-parameters";
 const field="mt-1 w-full rounded-lg border border-app-border bg-surface px-3 py-2 text-sm";
 const button="rounded-lg border border-app-border px-4 py-2 text-sm disabled:opacity-40";
@@ -13,13 +13,13 @@ function StyledText({text}:{text:string}){
  // Render WhatsApp's common inline markers as React text nodes, never HTML.
  return <>{text.split(/(```[\s\S]*?```|\*[^*\n]+\*|_[^_\n]+_|~[^~\n]+~)/g).map((s,i)=>s.startsWith("```")?<code key={i} className="font-mono">{s.slice(3,-3)}</code>:s.startsWith("*")?<strong key={i}>{s.slice(1,-1)}</strong>:s.startsWith("_")?<em key={i}>{s.slice(1,-1)}</em>:s.startsWith("~")?<s key={i}>{s.slice(1,-1)}</s>:<span key={i}>{s}</span>)}</>;
 }
-export default function WhatsAppTemplateEditor({enabled,initialDraft,target}:{enabled:boolean;initialDraft?:TemplateDraft;target?:{id:string;status:string}}){
+export default function WhatsAppTemplateEditor({enabled,initialDraft,target,apiUrl="/api/dashboard/configuration/whatsapp",uploadUrl="/api/dashboard/configuration/whatsapp/image"}:{enabled:boolean;initialDraft?:TemplateDraft;target?:{id:string;status:string};apiUrl?:string;uploadUrl?:string}){
  const root=useRef<HTMLElement>(null),body=useRef<HTMLTextAreaElement>(null);
  const [step,setStep]=useState(initialDraft?1:0),[draft,setDraft]=useState<TemplateDraft>(initialDraft||blank);
  const [header,setHeader]=useState(initialDraft?.header?.format||"NONE"),[heading,setHeading]=useState(initialDraft?.header?.format==="TEXT"?initialDraft.header.text:""),[footer,setFooter]=useState(initialDraft?.footer||"");
  const [examples,setExamples]=useState<Record<string,string>>(()=>initialDraft?Object.fromEntries(keys(initialDraft.text,initialDraft.parameterFormat||"POSITIONAL").map((k,i)=>[k,initialDraft.samples[i]||""])):{}),[headerExamples,setHeaderExamples]=useState<Record<string,string>>(()=>initialDraft?.header?.format==="TEXT"?Object.fromEntries(keys(initialDraft.header.text,initialDraft.parameterFormat||"POSITIONAL").map((k,i)=>[k,initialDraft.header?.format==="TEXT"?initialDraft.header.samples?.[i]||"":""])):{});
  const [buttons,setButtons]=useState<TemplateButton[]>(initialDraft?.buttons||[]),[file,setFile]=useState<File|null>(null),[fileUrl,setFileUrl]=useState("");
- const [busy,setBusy]=useState(false),[error,setError]=useState(""),[preview,setPreview]=useState<ReturnType<typeof templatePreview>|null>(null),[confirmed,setConfirmed]=useState(false),[result,setResult]=useState(""),[uncertain,setUncertain]=useState(false);
+ const [busy,setBusy]=useState(false),[error,setError]=useState(""),[preview,setPreview]=useState<TemplatePreview|null>(null),[confirmed,setConfirmed]=useState(false),[result,setResult]=useState(""),[uncertain,setUncertain]=useState(false);
  const format=draft.parameterFormat||"POSITIONAL",bodyKeys=keys(draft.text,format),headerKeys=keys(heading,format);
  useEffect(()=>{root.current?.scrollIntoView({behavior:"smooth",block:"start"});},[]);
  useEffect(()=>{if(!file){setFileUrl("");return;}const url=URL.createObjectURL(file);setFileUrl(url);return()=>URL.revokeObjectURL(url);},[file]);
@@ -50,15 +50,15 @@ export default function WhatsAppTemplateEditor({enabled,initialDraft,target}:{en
     let handle=draft.header&&"handle" in draft.header?draft.header.handle:"";
     if(!handle){
      if(!file)throw Error("Choose a sample file first.");if(!enabled)throw Error("Meta media upload is not enabled on this server.");
-     const r=await fetch("/api/dashboard/configuration/whatsapp/image",{method:"POST",body:file,headers:{"Content-Type":file.type},signal:AbortSignal.timeout(50000)});
-     const data=await r.json();if(!r.ok)throw Error("Sample upload failed. Check the file, Meta access and connection.");if(data.format!==header)throw Error("File contents do not match the selected media type.");
+     const r=await fetch(uploadUrl,{method:"POST",body:file,headers:{"Content-Type":file.type},signal:AbortSignal.timeout(50000)});
+     const data=await r.json() as {format?:string;handle:string};if(!r.ok)throw Error("Sample upload failed. Check the file, Meta access and connection.");if(data.format!==header)throw Error("File contents do not match the selected media type.");
      handle=data.handle;setDraft(v=>({...v,header:{format:header as "IMAGE"|"VIDEO"|"DOCUMENT",handle}}));
     }
     selected={format:header as "IMAGE"|"VIDEO"|"DOCUMENT",handle};
    }
    const value:TemplateDraft={...draft,samples:bodyKeys.map(k=>examples[k]||""),footer,buttons,header:selected};
-   const response=await fetch("/api/dashboard/configuration/whatsapp",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:action==="submit"&&target?"edit":action,draft:value,...(action==="submit"?{confirmSubmission:true,...(target?{templateId:target.id}:{})}:{})}),signal:AbortSignal.timeout(20000)});
-   const data=await response.json();
+   const response=await fetch(apiUrl,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action:action==="submit"&&target?"edit":action,draft:value,...(action==="submit"?{confirmSubmission:true,...(target?{templateId:target.id}:{})}:{})}),signal:AbortSignal.timeout(20000)});
+   const data=await response.json() as TemplatePreview & {error:string;id:string;status:string};
    if(!response.ok){if(action==="submit"&&data.error==="TEMPLATE_SUBMISSION_UNCONFIRMED")setUncertain(true);throw Error(describe(data.error));}
    if(action==="preview"){setPreview(data);setConfirmed(false);setStep(2);}else{setResult(`${target?"Changes submitted to Meta":"Submitted to Meta"} · ${data.status} · ID ${data.id}. Refresh the template list to check current status.`);setConfirmed(false);}
   }catch(e){

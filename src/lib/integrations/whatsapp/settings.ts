@@ -1,6 +1,5 @@
-export class WhatsAppError extends Error {
-  constructor(public code: string, public status = 400) { super(code); }
-}
+import {WhatsAppError} from "./template-error";
+export {WhatsAppError} from "./template-error";
 export function whatsappSettings(env: NodeJS.ProcessEnv = process.env) {
   const appId = env.META_WHATSAPP_APP_ID || "";
   const wabaId = env.META_WHATSAPP_WABA_ID || "";

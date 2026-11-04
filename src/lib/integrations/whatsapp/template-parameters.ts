@@ -1,4 +1,4 @@
-import { WhatsAppError } from "./settings";
+import { WhatsAppError } from "./template-error";
 export type ParameterFormat="POSITIONAL"|"NAMED";
 export function parameterKeys(text:string,format:ParameterFormat){
  const pattern=format==="NAMED"?/\{\{([a-z_]+)\}\}/g:/\{\{([1-9]\d*)\}\}/g;

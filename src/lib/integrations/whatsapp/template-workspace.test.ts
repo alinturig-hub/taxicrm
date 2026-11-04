@@ -1,0 +1,6 @@
+import {test} from 'node:test';import assert from 'node:assert/strict';
+import {templateWorkspaceRequest} from './template-workspace';
+import {templatePreview} from './templates';
+const draft={name:'nac_synthetic',language:'en_GB',category:'UTILITY',text:'Hello {{1}}, booking {{2}}.',samples:['Demo','SYNTHETIC-1001']};
+test('shared preview uses the existing Meta validator and never catalog or mutations',async()=>{let called=0;const fake=async()=>{called++;throw Error('NO_PROVIDER_ALLOWED')};assert.deepEqual(await templateWorkspaceRequest({action:'preview',draft},fake),templatePreview(draft));assert.equal(called,0);for(const action of ['submit','edit','upload','send'])await assert.rejects(templateWorkspaceRequest({action,draft},fake),/MUTATIONS_NOT_AVAILABLE/);assert.equal(called,0)});
+test('catalog is the same injected shared catalog; unknown fields and malformed variables rejected',async()=>{const catalog={templates:[],hasMore:false,fetchedAt:'2026-11-04T00:00:00Z',wabaId:'4556038757974595'};assert.deepEqual(await templateWorkspaceRequest({action:'list'},async()=>catalog),catalog);await assert.rejects(templateWorkspaceRequest({action:'preview',draft,token:'forbidden'}),/INVALID_REQUEST/);await assert.rejects(templateWorkspaceRequest({action:'preview',draft:{...draft,text:'Bad {{2}}',samples:['Demo']}}),/SEQUENTIAL/)});
