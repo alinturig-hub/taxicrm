@@ -18,6 +18,7 @@ COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/next.config.mjs ./
 COPY --from=builder /app/src/generated ./src/generated
+COPY --from=builder /app/staging/notifications-operator.sql ./staging/notifications-operator.sql
 EXPOSE 3000
 # Real Next routing/authentication, no custom production server or workers.
 CMD ["node","node_modules/next/dist/bin/next","start","--hostname","0.0.0.0"]

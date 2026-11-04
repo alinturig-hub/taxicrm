@@ -1,3 +1,5 @@
+import {readFile} from 'node:fs/promises';
+import {hash} from 'bcryptjs';
 import {randomUUID} from 'node:crypto';
 import type {Pool,PoolClient} from 'pg';
 import {authenticate,failure} from './service-http';
@@ -68,6 +70,16 @@ export async function simulateFullDelivery(pool:Pool,scope:string,input:unknown,
 export async function fullPreviewPOST(request:Request){try{fullStageGuard();const {body,scope}=await authenticate(request);return Response.json(await simulateFullDelivery(sharedPool(),scope,JSON.parse(body)),{headers:{'Cache-Control':'no-store'}})}catch(e){return failure(e)}}
 export async function fullControlPOST(request:Request){try{
  fullStageGuard();const {body,scope}=await authenticate(request),input=JSON.parse(body),pool=sharedPool();
+ if(input.action==='bootstrap-operator'){
+  const email=process.env.ADMIN_EMAIL||'',password=process.env.ADMIN_PASSWORD||'';
+  if(!email.endsWith('@notifications.invalid')||password.length<24)throw Error('INVALID_SYNTHETIC_OPERATOR');
+  const db=await pool.connect();try{await db.query('BEGIN');await db.query("SELECT pg_advisory_xact_lock(hashtextextended('notification-stage-operator',0))");
+   const present=(await db.query("SELECT to_regclass('\"User\"') AS ready")).rows[0].ready;
+   if(!present)await db.query(await readFile(process.cwd()+'/staging/notifications-operator.sql','utf8'));
+   await db.query(`INSERT INTO "User"(id,name,email,"passwordHash",role,"isActive","mustChangePassword","updatedAt") VALUES('SYNTHETIC-OPERATOR','Demo Operator',$1,$2,'ADMIN',true,false,now()) ON CONFLICT(id) DO UPDATE SET "passwordHash"=excluded."passwordHash","updatedAt"=now()`,[email,await hash(password,12)]);
+   await db.query('COMMIT');return Response.json({operator:'SYNTHETIC-OPERATOR',authentication:'existing NextAuth credentials and RBAC',mode:'DRY_RUN'});
+  }catch(e){await db.query('ROLLBACK');throw e}finally{db.release()}
+ }
  if(input.action==='handoff'){
   if(!['AUTOMATED','OPERATOR'].includes(input.mode))throw Error('INVALID_STAGE_MODE');const db=await pool.connect();try{await db.query('BEGIN');const row=(await db.query('SELECT revision FROM "WhatsAppConversation" WHERE id=\'SYNTHETIC-CONVERSATION\' AND scope=$1',[scope])).rows[0];if(!row)throw Error('NOT_FOUND');const result=await handoff(db,scope,'SYNTHETIC-CONVERSATION',{id:randomUUID(),mode:input.mode,revision:row.revision},'staging-operator');
    if(input.delay_ms){await pool.query(`UPDATE notification_stage_control SET value='"HANDOFF_LOCKED"' WHERE key='phase'`);await db.query('SELECT pg_sleep($1)',[Math.min(1500,Math.max(0,Number(input.delay_ms)))/1000])}
