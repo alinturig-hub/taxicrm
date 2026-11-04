@@ -1,0 +1,4 @@
+import {authenticate,failure} from '@/lib/integrations/whatsapp/service-http';
+import {sharedPool} from '@/lib/integrations/whatsapp/shared';
+export const dynamic='force-dynamic';
+export async function GET(request:Request,{params}:{params:{id:string}}){try{const {scope}=await authenticate(request),cursor=new URL(request.url).searchParams.get('cursor')||'9223372036854775807';if(!/^\d{1,19}$/.test(cursor)||BigInt(cursor)>BigInt('9223372036854775807'))throw Error('INVALID_CURSOR');const rows=(await sharedPool().query(`SELECT id::text,"providerMessageId",direction,content,status,"occurredAt","createdAt" FROM "WhatsAppMessage" WHERE scope=$1 AND "conversationId"=$2 AND id<$3::bigint ORDER BY id DESC LIMIT 51`,[scope,params.id,cursor])).rows;return Response.json({messages:rows.slice(0,50),next_cursor:rows.length>50?rows[49].id:null},{headers:{'Cache-Control':'no-store'}});}catch(e){return failure(e);}}
