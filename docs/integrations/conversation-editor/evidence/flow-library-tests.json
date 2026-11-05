@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "cases": [
+    "legacy browser draft opens without automatic server writes",
+    "create server draft",
+    "rename creates revision",
+    "server list survives reload and opens exact content",
+    "conflict preserves unsaved editor",
+    "immutable revision is read-only and simulates its snapshot",
+    "historical snapshot duplicates into a new flow",
+    "archive and restore",
+    "view-only library disables mutations"
+  ],
+  "page_errors": [],
+  "scope": "synthetic API intercepted in browser; no authenticated backend or provider"
+}

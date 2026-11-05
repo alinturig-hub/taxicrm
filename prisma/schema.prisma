@@ -1544,3 +1544,31 @@ model WhatsAppControlledDispatch {
  createdAt DateTime @default(now()) @db.Timestamptz @map("created_at")
  @@id([scope,operationKey])
 }
+
+// TaxiCRM draft-only conversation editor. No live execution state.
+model WhatsAppFlowDraft {
+  id String @id @db.Uuid
+  workspace String
+  name String @db.VarChar(100)
+  version Int
+  archived Boolean @default(false)
+  createdBy String @map("created_by")
+  updatedBy String @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @default(now()) @map("updated_at") @db.Timestamptz(6)
+  revisions WhatsAppFlowRevision[]
+  @@unique([workspace, id])
+  @@index([workspace, updatedAt(sort: Desc), id], map: "whatsapp_flow_drafts_workspace_updated")
+  @@map("whatsapp_flow_drafts")
+}
+model WhatsAppFlowRevision {
+  flowId String @map("flow_id") @db.Uuid
+  version Int
+  draft Json
+  archived Boolean
+  authorId String @map("author_id")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  flow WhatsAppFlowDraft @relation(fields: [flowId], references: [id], onDelete: Restrict, onUpdate: NoAction)
+  @@id([flowId, version])
+  @@map("whatsapp_flow_revisions")
+}

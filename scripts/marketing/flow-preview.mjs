@@ -9,9 +9,10 @@ await mkdir(output, { recursive: true });
 const contents = `import React from 'react';
 import {createRoot} from 'react-dom/client';
 import FlowBuilder from './src/components/marketing/flows/FlowBuilder';
+import FlowLibrary from './src/components/marketing/flows/FlowLibrary';
 import './src/app/workspace-theme.css';
 const params=new URLSearchParams(location.search);
-createRoot(document.getElementById('root')).render(<div data-workspace data-theme={params.get('theme')||'dark'} style={{padding:24,minHeight:'100vh'}}><FlowBuilder storageScope="synthetic-browser-review" canEdit={!params.has('readonly')}/></div>);`;
+createRoot(document.getElementById('root')).render(<div data-workspace data-theme={params.get('theme')||'dark'} style={{padding:24,minHeight:'100vh'}}>{params.has('library') ? <FlowLibrary storageScope="synthetic-library-review" canEdit={!params.has('readonly')}/> : <FlowBuilder storageScope="synthetic-browser-review" canEdit={!params.has('readonly')}/>}</div>);`;
 await build({
   stdin: { contents, loader: "tsx", resolveDir: root },
   outfile: resolve(output, "app.js"),

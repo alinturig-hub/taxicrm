@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { workspaceAccess } from "@/lib/workspace/access";
-import FlowBuilder from "@/components/marketing/flows/FlowBuilder";
+import FlowLibrary from "@/components/marketing/flows/FlowLibrary";
 export const dynamic = "force-dynamic";
 export default async function Page() {
   const { access } = await workspaceAccess();
@@ -8,7 +8,7 @@ export default async function Page() {
     redirect("/dashboard/workspace");
   const workspace = process.env.WHATSAPP_WORKSPACE_ID || "needacabplus";
   return (
-    <FlowBuilder
+    <FlowLibrary
       storageScope={workspace + ":" + access.user.id}
       canEdit={access.permissions.includes("automation.manage")}
     />

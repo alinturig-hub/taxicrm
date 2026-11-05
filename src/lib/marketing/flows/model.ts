@@ -1,4 +1,4 @@
-/** Browser-only draft model. Never imported by a sender, worker or booking adapter. */
+/** Shared draft validation and pure simulator. No sender, worker or booking adapter. */
 export const nodeKinds = [
   "trigger",
   "message",

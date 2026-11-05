@@ -146,11 +146,21 @@ const fieldLabel: Record<(typeof conditionFields)[number], string> = {
 export default function FlowBuilder({
   storageScope,
   canEdit = true,
+  initialDraft,
+  initialSaved = false,
+  onSave,
+  serverLabel,
+  onDirtyChange,
 }: {
   storageScope: string;
   canEdit?: boolean;
+  initialDraft?: FlowDraft;
+  initialSaved?: boolean;
+  onSave?: (draft: FlowDraft) => Promise<string>;
+  serverLabel?: string;
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
-  const initial = useMemo(starterDraft, []);
+  const initial = useMemo(() => initialDraft || starterDraft(), [initialDraft]);
   const [name, setName] = useState(initial.name),
     [nodes, setNodes, onNodesChange] = useNodesState<CanvasNode>(
       canvasNodes(initial),
@@ -162,7 +172,8 @@ export default function FlowBuilder({
   const [scenario, setScenario] = useState<SimulationContext>(syntheticContext),
     [simulation, setSimulation] = useState<SimulationResult | null>(null),
     [saved, setSaved] = useState(JSON.stringify(initial)),
-    [hasSaved, setHasSaved] = useState(false);
+    [hasSaved, setHasSaved] = useState(initialSaved);
+  const [saving, setSaving] = useState(false);
   const graph = useRef<HTMLDivElement>(null),
     file = useRef<HTMLInputElement>(null),
     flow = useRef<ReactFlowInstance<CanvasNode, Edge> | null>(null);
@@ -197,6 +208,7 @@ export default function FlowBuilder({
     [setNodes, setEdges],
   );
   useEffect(() => {
+    if (onSave) return;
     try {
       const raw = localStorage.getItem(storageKey);
       if (raw) {
@@ -211,7 +223,10 @@ export default function FlowBuilder({
         "Saved draft could not be restored. Import a JSON backup or start again.",
       );
     }
-  }, [storageKey, load]);
+  }, [storageKey, load, onSave]);
+  useEffect(() => {
+    onDirtyChange?.(dirty);
+  }, [dirty, onDirtyChange]);
   useEffect(() => {
     setSimulation(null);
     setScenario((old) => ({ ...old, answers: {}, elapsedSeconds: 0 }));
@@ -234,7 +249,7 @@ export default function FlowBuilder({
     )
       return;
     load(d);
-    setNotice("Draft loaded. Save it to keep it in this browser.");
+    setNotice("Draft loaded. Save it to keep this version.");
   }
   function update(settings: Partial<Settings>) {
     if (!canEdit || !selected) return;
@@ -324,18 +339,23 @@ export default function FlowBuilder({
       },
     ]);
   }
-  function save() {
-    if (!canEdit) return;
+  async function save() {
+    if (!canEdit || saving) return;
+    setSaving(true);
     try {
       parseDraft(fingerprint);
-      localStorage.setItem(storageKey, fingerprint);
+      const result = onSave ? await onSave(draft) : undefined;
+      if (!onSave) localStorage.setItem(storageKey, fingerprint);
       setSaved(fingerprint);
       setHasSaved(true);
       setNotice(
-        "Draft saved in this browser. Export JSON for a portable backup.",
+        result ||
+          "Draft saved in this browser. Export JSON for a portable backup.",
       );
     } catch (e) {
       setNotice("Not saved: " + (e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
   function download() {
@@ -387,19 +407,21 @@ export default function FlowBuilder({
           </p>
         </div>
         <div className={styles.actions}>
-          <button
-            onClick={() =>
-              replace({
-                ...starterDraft(),
-                name: "Untitled flow",
-                nodes: [makeNode("trigger", "start", 80, 180)],
-                edges: [],
-              })
-            }
-            disabled={!canEdit}
-          >
-            New flow
-          </button>
+          {!onSave && (
+            <button
+              onClick={() =>
+                replace({
+                  ...starterDraft(),
+                  name: "Untitled flow",
+                  nodes: [makeNode("trigger", "start", 80, 180)],
+                  edges: [],
+                })
+              }
+              disabled={!canEdit}
+            >
+              New flow
+            </button>
+          )}
           <button onClick={() => file.current?.click()} disabled={!canEdit}>
             Import JSON
           </button>
@@ -407,9 +429,9 @@ export default function FlowBuilder({
           <button
             className={styles.save}
             onClick={save}
-            disabled={!canEdit || (!dirty && hasSaved)}
+            disabled={!canEdit || saving || (!dirty && hasSaved)}
           >
-            Save draft
+            {saving ? "Saving…" : onSave ? "Save new version" : "Save draft"}
           </button>
           <button className={styles.primary} onClick={() => run()}>
             ▷ Simulate
@@ -419,7 +441,11 @@ export default function FlowBuilder({
       <div className={styles.info}>
         <span className={styles.dot} /> Simulation only · Messages, tags and
         handoffs stay in this preview.{" "}
-        <span>Example data only. Drafts are saved in this browser.</span>
+        <span>
+          {onSave
+            ? "Server drafts only. No flow is published or activated."
+            : "Example data only. Drafts are saved in this browser."}
+        </span>
       </div>
       {notice && (
         <p className={styles.notice} role="status">
@@ -443,9 +469,12 @@ export default function FlowBuilder({
           {dirty
             ? "Unsaved changes"
             : hasSaved
-              ? "Saved in this browser"
+              ? onSave
+                ? "Version saved on server"
+                : "Saved in this browser"
               : "Example draft — not saved"}{" "}
-          · {nodes.length} blocks · {edges.length} connections
+          {serverLabel ? ` · ${serverLabel}` : ""} · {nodes.length} blocks ·{" "}
+          {edges.length} connections
         </span>
         <button onClick={() => replace(starterDraft())} disabled={!canEdit}>
           Load welcome example
