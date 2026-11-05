@@ -43,3 +43,19 @@ node staging/notifications/controlled/runtime-tools-context.mjs
 ```
 
 The reproducible test driver is `staging/notifications/controlled/runtime-tools-check.ts` in NAC. Existing 26 two-application integration scenarios remain separate evidence and are not claimed rerun by this packaging check.
+
+## Read-only production readiness preflight
+
+The identical reviewed file `scripts/notifications/controlled-preflight.sql` is supplied in both checkouts. It runs one `BEGIN READ ONLY` transaction with statement/lock limits and ends in ROLLBACK. It reports DB/user identity, role flags, prerequisite/new relation presence, controlled trigger/function ownership/settings and both table and column ACLs. It does not select customer records or refresh the test event. It was verified on an empty synthetic database and after the exact reviewed migrations/grants in a disposable database. That does not establish production schema/ACL readiness.
+
+Run only from an authorized database administration context, against the owner-confirmed shared database, using `psql --set ON_ERROR_STOP=1 --file scripts/notifications/controlled-preflight.sql`. The file is a reviewed administrative input from the checkout, not a new app startup step. Its output must be reviewed before any separately approved production schema change. Existing unexpected tables/triggers/migrations stop the release.
+
+## Runtime image assembly
+
+TaxiCRM stages the same explicit runtime file list in `/runtime` and copies that tree into the final image once. Previously each selected file/directory had a separate final-stage COPY; on the managed VFS Docker backend these repeated full snapshots exhausted the 32 GB test disk after compilation. The selected file list, target paths, runtime user, environment defaults, healthcheck and startup command are preserved. No source tree is added to the runtime by this regrouping.
+
+## Subsequent complete production-image verification
+
+Both complete production Dockerfiles now build successfully in the managed environment with the session CA mounted only during networked build steps and synthetic build DB configuration. Both final images booted against a disposable PostgreSQL 17 database with external schema management and general sending/workers disabled; both health endpoints returned 200. Runtime tool hashes matched their manifests. The actual NAC final image, running as UID 1001 with an owner-readable 0600 template file, prepared the canonical descriptor read-only and ran inspect with execution=false. The actual CRM final image generated the offline approval from that descriptor with execution_enabled=false. Workflow ledger/outbound counts remained zero. No execute command or Meta request was performed.
+
+The machine-readable record is `evidence/runtime-tools/runtime-image-check.json`. This supersedes the earlier packaging-phase limitation that final application images had not yet been built; that earlier evidence file remains a historical record. No two-application 26-case suite or production database verification is newly claimed here.

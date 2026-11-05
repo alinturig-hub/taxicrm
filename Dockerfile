@@ -24,6 +24,42 @@ RUN --mount=type=secret,id=proxy_ca \
 
 RUN node scripts/notifications/build-tools.mjs
 
+RUN mkdir -p /runtime && \
+    mkdir -p /runtime && \
+    cp -a /app/.next /runtime/.next && \
+    mkdir -p /runtime && \
+    cp -a /app/public /runtime/public && \
+    mkdir -p /runtime && \
+    cp -a /app/dist/notification-tools /runtime/notification-tools && \
+    mkdir -p /runtime/ && \
+    cp -a /app/package*.json /runtime/ && \
+    mkdir -p /runtime && \
+    cp -a /app/node_modules /runtime/node_modules && \
+    mkdir -p /runtime/ && \
+    cp -a /app/next.config.mjs /runtime/ && \
+    mkdir -p /runtime && \
+    cp -a /app/server.mjs /runtime/server.mjs && \
+    mkdir -p /runtime && \
+    cp -a /app/driversinfo-pusher.js /runtime/driversinfo-pusher.js && \
+    mkdir -p /runtime/src/lib && \
+    cp -a /app/src/lib/fleet-lifecycle.mjs /runtime/src/lib/fleet-lifecycle.mjs && \
+    mkdir -p /runtime/scripts && \
+    cp -a /app/scripts/sms-schema-bootstrap.mjs /runtime/scripts/sms-schema-bootstrap.mjs && \
+    mkdir -p /runtime/scripts && \
+    cp -a /app/scripts/webhook-provider-bootstrap.mjs /runtime/scripts/webhook-provider-bootstrap.mjs && \
+    mkdir -p /runtime/scripts && \
+    cp -a /app/scripts/booking-recovery-deduplicate.mjs /runtime/scripts/booking-recovery-deduplicate.mjs && \
+    mkdir -p /runtime/scripts && \
+    cp -a /app/scripts/crm-effects-worker.mjs /runtime/scripts/crm-effects-worker.mjs && \
+    mkdir -p /runtime/src/lib && \
+    cp -a /app/src/lib/scheduler-result.mjs /runtime/src/lib/scheduler-result.mjs && \
+    mkdir -p /runtime/src && \
+    cp -a /app/src/generated /runtime/src/generated && \
+    mkdir -p /runtime && \
+    cp -a /app/prisma /runtime/prisma && \
+    mkdir -p /runtime && \
+    cp -a /app/prisma.config.ts /runtime/prisma.config.ts
+
 FROM node:24-alpine AS runner
 
 WORKDIR /app
@@ -32,23 +68,8 @@ ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
-COPY --from=builder /app/dist/notification-tools ./notification-tools
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/next.config.mjs ./
-COPY --from=builder /app/server.mjs ./server.mjs
-COPY --from=builder /app/driversinfo-pusher.js ./driversinfo-pusher.js
-COPY --from=builder /app/src/lib/fleet-lifecycle.mjs ./src/lib/fleet-lifecycle.mjs
-COPY --from=builder /app/scripts/sms-schema-bootstrap.mjs ./scripts/sms-schema-bootstrap.mjs
-COPY --from=builder /app/scripts/webhook-provider-bootstrap.mjs ./scripts/webhook-provider-bootstrap.mjs
-COPY --from=builder /app/scripts/booking-recovery-deduplicate.mjs ./scripts/booking-recovery-deduplicate.mjs
-COPY --from=builder /app/scripts/crm-effects-worker.mjs ./scripts/crm-effects-worker.mjs
-COPY --from=builder /app/src/lib/scheduler-result.mjs ./src/lib/scheduler-result.mjs
-COPY --from=builder /app/src/generated ./src/generated
-COPY --from=builder /app/prisma ./prisma
-COPY --from=builder /app/prisma.config.ts ./prisma.config.ts
+COPY --from=builder /runtime/ ./
+
 
 EXPOSE 3000
 

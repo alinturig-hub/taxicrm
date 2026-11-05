@@ -41,3 +41,6 @@ next-env.d.ts
 # Local database backups
 *.dump
 driversinfo-pusher.log
+
+# Generated standalone notification tools.
+/dist/
