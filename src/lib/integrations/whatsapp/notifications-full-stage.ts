@@ -25,7 +25,7 @@ async function readStageContext(intent:IntentV2,state:GatewayState){
  return readNacContext(target.origin,intent,state,process.env.WHATSAPP_CRM_KEY_ID||'',process.env.WHATSAPP_CRM_SECRET||'',fetch);
 }
 type Dependencies={context?:(i:IntentV2,s:GatewayState)=>Promise<unknown>;beforeCommit?:()=>Promise<void>};
-/** Staging-only adapter to the single gateway. No actual provider/outbox imports. */
+/** Staging-only adapter to the single gateway; invokes only its guarded simulation entrypoint. */
 export async function simulateFullDelivery(pool:Pool,scope:string,input:unknown,dependencies:Dependencies={}){
  const {workspace}=fullStageGuard(),intent=parseIntent(input,workspace),db=await pool.connect();let barrier:string|undefined;
  try{
