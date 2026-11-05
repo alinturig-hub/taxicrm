@@ -1,0 +1,23 @@
+{
+  "file": "controlled-booking-confirmed-install.sql",
+  "sha256": "37cc74f3765048d900d693150cc150adc2c7d12804be210e544d67cf7cecc9d9",
+  "sources": [
+    {
+      "file": "scripts/migrations/20261104_notifications_dry_run.sql",
+      "sha256": "8982988b3da86ca2b4db6d6c34732bd9ef8ec8726cce5fc99a7c475a40f5de41"
+    },
+    {
+      "file": "scripts/migrations/20261105_controlled_booking_confirmed.sql",
+      "sha256": "a5371d5b2a6527bc663ee5e45e1c25bae6725952475e51c91e05da7aa5717bf6"
+    },
+    {
+      "file": "prisma/migrations/20261105090000_controlled_booking_confirmed/migration.sql",
+      "sha256": "d802823f93aebfc39f58b03ac48baae798e5eefbce88213c3fd6393f59d6cf60"
+    },
+    {
+      "file": "docs/integrations/release/controlled_booking_confirmed_grants.sql",
+      "sha256": "e529279c4509fae7d90dc079d191e38f4f49b574269ebac1b5c1c0377417c2a2"
+    }
+  ],
+  "state": "PREPARED_NOT_APPROVED_NOT_EXECUTED_IN_PRODUCTION"
+}

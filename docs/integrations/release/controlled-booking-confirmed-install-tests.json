@@ -1,0 +1,13 @@
+{
+  "passed": true,
+  "cases": [
+    "atomic install: five tables/six triggers; sentinel booking and migration ledger unchanged",
+    "repeat install rejected without changes",
+    "unfinished historical migration blocks installation",
+    "unexpected existing relation blocks installation",
+    "unexpected default DELETE ACL rolls back all new tables/function/triggers"
+  ],
+  "production_changes": false,
+  "provider_posts": 0,
+  "database": "disposable isolated postgres:17-bookworm"
+}
