@@ -22,6 +22,8 @@ RUN --mount=type=secret,id=proxy_ca \
     if [ -f /run/secrets/proxy_ca ]; then export NODE_EXTRA_CA_CERTS=/run/secrets/proxy_ca; fi; \
     DATABASE_URL=postgresql://build_only@127.0.0.1:1/build_only NEXT_TELEMETRY_DISABLED=1 npm run build
 
+RUN node scripts/notifications/build-tools.mjs
+
 FROM node:24-alpine AS runner
 
 WORKDIR /app
@@ -32,6 +34,7 @@ ENV HOSTNAME=0.0.0.0
 
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/public ./public
+COPY --from=builder /app/dist/notification-tools ./notification-tools
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/next.config.mjs ./
