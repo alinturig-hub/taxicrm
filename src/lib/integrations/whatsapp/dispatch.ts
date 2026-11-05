@@ -76,3 +76,6 @@ export async function dispatchOperationalSimulation(input:Parameters<typeof impo
  const {operationalPayload,simulateProvider}=await import('./operational-adapters');
  return simulateProvider(operationalPayload(...input),scenario);
 }
+
+// Direct allowlisted trial only, separate from the general retry worker.
+export {dispatchControlledBooking} from './controlled-dispatch';

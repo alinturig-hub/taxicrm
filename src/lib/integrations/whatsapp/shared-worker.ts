@@ -1,3 +1,4 @@
+import {controlledGuard} from './controlled-protocol';
 import {seedServiceBindings} from './service-defaults';
 import {sharedPool,sharedScope,transaction,materialize} from './shared';
 import {signedHeaders} from './service-auth';
@@ -16,7 +17,7 @@ export async function processSharedReceipts(){
 export async function deliverSharedEvents(fetcher:typeof fetch=fetch){
  if(process.env.WHATSAPP_SHARED_ENABLED!=='true')return {delivered:0};const scope=sharedScope();
  // Fixed configured origin only. Never accept callback URLs from message intents.
- const url=new URL('/api/internal/whatsapp/v1/events',process.env.WHATSAPP_NAC_ORIGIN);if(url.protocol!=='https:'||url.username||url.password)throw Error('INVALID_CONSUMER_ORIGIN');
+ const url=new URL('/api/internal/whatsapp/v1/events',process.env.WHATSAPP_NAC_ORIGIN);if(url.protocol!=='https:'||url.username||url.password){if(!(process.env.CONTROLLED_BC_MODE==='SIMULATED'&&controlledGuard().mode==='SIMULATED'&&url.protocol==='http:'&&url.hostname==='127.0.0.1'&&!url.username&&!url.password))throw Error('INVALID_CONSUMER_ORIGIN');}
  const key=process.env.WHATSAPP_CRM_KEY_ID||'',secret=process.env.WHATSAPP_CRM_SECRET||'';if(!key||secret.length<32)throw Error('WHATSAPP_SERVICE_NOT_CONFIGURED');let delivered=0;
  for(let i=0;i<10;i++){
  const row=await transaction(async db=>{const r=(await db.query(`SELECT * FROM "WhatsAppSharedEvent" WHERE scope=$1 AND "deliveredAt" IS NULL AND attempts<12 AND "nextAttemptAt"<=now() ORDER BY id FOR UPDATE SKIP LOCKED LIMIT 1`,[scope])).rows[0];if(r)await db.query(`UPDATE "WhatsAppSharedEvent" SET attempts=attempts+1,"nextAttemptAt"=now()+interval '60 seconds' WHERE id=$1`,[r.id]);return r;});if(!row)break;

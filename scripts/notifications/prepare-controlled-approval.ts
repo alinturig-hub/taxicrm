@@ -1,0 +1,15 @@
+/** Offline only: no transport, credentials or DB imports. New format; rejects old owner packets. */
+import {readFileSync,writeFileSync} from 'node:fs';import {createHash} from 'node:crypto';
+import {parseIntent} from '../../src/lib/integrations/whatsapp/notifications-v2-contract';
+import {controlledBooking,controlledRecipientHash,approvalHash} from '../../src/lib/integrations/whatsapp/controlled-protocol';
+import {positionalTemplatePayload,templateFingerprint} from '../../src/lib/integrations/whatsapp/operational-adapters';
+const input=process.argv[2],output=process.argv[3];if(!input||!output)throw Error('PRIVATE_INPUT_AND_OUTPUT_FILES_REQUIRED');
+const p=JSON.parse(readFileSync(input,'utf8'));if(p.purpose!=='CONTROLLED_BOOKING_CONFIRMED_TRIGGER'||p.read_only!==true)throw Error('NEW_CONTROLLED_DESCRIPTOR_REQUIRED');
+const i=parseIntent(p.intent,p.intent.workspace_id),t=p.template;if(i.booking_id!=='autocab:'+controlledBooking||i.event_type!=='booking.confirmed'||i.revision!==1||createHash('sha256').update(i.recipient).digest('hex')!==controlledRecipientHash||i.content.body_mappings.length!==1||i.content.body_mappings[0].variable!=='1'||i.content.body_mappings[0].source!=='booking_id'||i.content.button_mappings.length)throw Error('CONTROLLED_BINDING_REJECTED');
+if((t.parameter_format||'POSITIONAL')!=='POSITIONAL'||t.status!=='APPROVED'||t.category!=='UTILITY'||t.name!=='nac_booking_confirmation_v1'||t.language!=='en_GB'||t.id!==i.content.template.id||t.components.length!==1||t.components[0].type!=='BODY'||/[{}]/.test(t.components[0].text.replace(/\{\{1\}\}/g,''))||templateFingerprint(t)!==i.content.template.fingerprint)throw Error('CONTROLLED_TEMPLATE_REJECTED');
+if(Date.parse(i.expires_at)<=Date.now()||p.deadline<=Date.now()||p.deadline>Date.now()+86400000)throw Error('CONTROLLED_EXPIRED_NO_REFRESH');
+for(const k of ['host','port','name','role'])if(typeof p.databaseIdentity[k]!=='string'||!p.databaseIdentity[k])throw Error('DATABASE_BINDING_REQUIRED');
+const expectedScope=i.workspace_id+':META:'+(p.preparation_mode==='SIMULATED'?'99999999999:99999999998':'4556038757974595:1406119395919653');if(p.scope!==expectedScope)throw Error('CONTROLLED_SCOPE_MISMATCH');
+const payload=positionalTemplatePayload(i.recipient,t.name,t.language,[controlledBooking]);
+const result={purpose:p.purpose,state:'PENDING_NEW_EXPLICIT_APPROVAL',scope:p.scope,preparation_mode:p.preparation_mode,intent:i,payload,rendered_text:t.components[0].text.replace(/\{\{1\}\}/g,controlledBooking),template_fingerprint:templateFingerprint(t),databaseIdentity:p.databaseIdentity,test_expires_at:new Date(p.deadline).toISOString(),event_expires_at:i.expires_at,effective_expires_at:new Date(Math.min(p.deadline,Date.parse(i.expires_at))).toISOString(),maximum_provider_posts:1,automatic_retries:0,sms_fallback:false,approval_sha256:approvalHash(i,payload,templateFingerprint(t),p.deadline,p.databaseIdentity),execution_enabled:false};
+writeFileSync(output,JSON.stringify(result,null,2)+'\n',{mode:0o600});console.log('Offline approval packet prepared. This command has no execution mode.');

@@ -32,7 +32,12 @@ export async function materialize(db:PoolClient,scope:string,raw:string,waba:str
  if(old&&(rank[m.status]??-1)<=(rank[old.status]??-1))continue;
  const content={text:m.text,type:m.type,providerParticipant:m.participant,origin:m.direction==='INBOUND'?'customer':'provider_status'};
  const result=await db.query(`INSERT INTO "WhatsAppMessage" (scope,"conversationId","providerMessageId",direction,content,status,"occurredAt") VALUES ($1,$2,$3,$4,$5::jsonb,$6,$7) ON CONFLICT(scope,"providerMessageId") DO UPDATE SET status=EXCLUDED.status RETURNING id`,[scope,conv.id,m.id,m.direction,JSON.stringify(content),m.status,m.timestamp]);
- await emit(db,scope,`message:${m.id}:${m.status}`,m.direction==='INBOUND'?'message.received':'message.status',{conversation_id:conv.id,message_id:String(result.rows[0].id),provider_message_id:m.id,status:m.status});
+ const controlled=old?.content?.controlled_test===true?old.content:null;
+ if(controlled&&m.direction==='OUTBOUND'){
+  // Preserve monotonic provider receipts in the controlled record; never requeue an outbound send.
+  await db.query(`UPDATE "WhatsAppControlledDispatch" SET status=$3,result=result||jsonb_build_object('status',$3::text,'provider_message_id',$4::text,'reason','PROVIDER_RECEIPT') WHERE scope=$1 AND operation_key=$2 AND provider_message_id=$4`,[scope,controlled.operation_key,m.status,m.id]);
+ }
+ await emit(db,scope,`message:${m.id}:${m.status}`,m.direction==='INBOUND'?'message.received':'message.status',{conversation_id:conv.id,message_id:String(result.rows[0].id),provider_message_id:m.id,status:m.status,...(controlled?{controlled_test:true,operation_key:controlled.operation_key,booking_id:controlled.booking_id,mode:controlled.mode,reason:'PROVIDER_RECEIPT',provider_posts:controlled.mode==='LIVE'?1:0,simulated_posts:controlled.mode==='SIMULATED'?1:0}:{})});
  }
 }
 export async function handoff(db:PoolClient,scope:string,id:string,command:{id:string;mode:'AUTOMATED'|'OPERATOR';revision:number},actor:string){

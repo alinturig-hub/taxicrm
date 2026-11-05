@@ -3,19 +3,15 @@ import {windowOpen,templateFingerprint,type ProviderTemplate,type SimulatedOutco
 import {readFile} from 'node:fs/promises';
 import {hash} from 'bcryptjs';
 import {randomUUID} from 'node:crypto';
-import type {Pool,PoolClient} from 'pg';
+import type {Pool} from 'pg';
 import {authenticate,failure} from './service-http';
 import {sharedPool,stable,emit,handoff} from './shared';
 import {fullStageGuard} from './notifications-full-stage-guard';
-import {parseIntent,parseState,parseResult,type IntentV2,type GatewayState,type ResultV2,sourceFields} from './notifications-v2-contract';
+import {parseIntent,parseResult,type IntentV2,type GatewayState,type ResultV2} from './notifications-v2-contract';
 import {readNacContext} from './notifications-v2-http';
-export async function fullGatewayState(db:PoolClient,scope:string,intent:IntentV2):Promise<GatewayState>{
- const conv=(await db.query('SELECT * FROM "WhatsAppConversation" WHERE scope=$1 AND participant=$2',[scope,intent.recipient])).rows[0];if(!conv)throw Error('STAGE_CONVERSATION_MISSING');
- const grant=(await db.query('SELECT * FROM "WhatsAppRecipientGrant" WHERE scope=$1 AND recipient=$2',[scope,intent.recipient])).rows[0],booking=(await db.query('SELECT * FROM "Booking" WHERE "externalId"=$1',[intent.booking_id.slice(8)])).rows[0];
- const inbound=(await db.query(`SELECT max("occurredAt") AS at FROM "WhatsAppMessage" WHERE scope=$1 AND "conversationId"=$2 AND direction='INBOUND' AND status='RECEIVED' AND content->>'origin'='customer' AND content->>'type' IN ('text','image','audio','video','document','interactive','button','location') AND "occurredAt"<=now()`,[scope,conv.id])).rows[0].at;
- const valid=Boolean(grant&&booking?.normalCustomerId&&grant.customerId===booking.normalCustomerId&&new Date(grant.validUntil).getTime()>Date.now()&&new Date(grant.verifiedAt).getTime()<=Date.now());
- return parseState({conversation_id:conv.id,conversation_revision:conv.revision,operator:conv.mode==='OPERATOR',last_eligible_inbound_at:inbound?new Date(inbound).toISOString():null,recipient_verified:valid,service_allowed:valid&&grant.serviceAllowed,suppressed:Boolean(grant?.suppressed),provider_status:'NONE',definitively_unavailable:false,seen:false,highest_booking_revision:intent.revision,capabilities:{text:true,named:true,dynamic_buttons:true,media:false,sms:false,parameter_sources:sourceFields}});
-}
+export {fullGatewayState} from './notifications-state';
+import {fullGatewayState} from './notifications-state';
+
 async function readStageContext(intent:IntentV2,state:GatewayState){
  const target=new URL(process.env.NOTIFICATIONS_NAC_ORIGIN||'');
  if(process.env.NOTIFICATIONS_STAGE_LOCAL_TEST==='true'&&target.hostname==='127.0.0.1'&&target.protocol==='http:'){
