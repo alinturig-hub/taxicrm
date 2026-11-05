@@ -69,3 +69,10 @@ export async function dispatchPending(pool:Pool=sharedPool(),env:NodeJS.ProcessE
  const rows=(await pool.query(`SELECT id FROM "WhatsAppServiceIntent" WHERE scope=$1 AND status='HELD' AND "expiresAt">now() AND "nextAttemptAt"<=now() ORDER BY "nextAttemptAt","createdAt",id LIMIT 10`,[scope])).rows;let processed=0;
  let index=0;const run=async()=>{for(;;){const r=rows[index++];if(!r)return;const db=await pool.connect();try{await dispatchIntent(r.id,scope,db,env,fetcher);processed++;}finally{db.release();}}};await Promise.all([run(),run()]);return {enabled:true,processed};
 }
+
+/** v2 is integrated into this single sender module for simulation only; no live v2 entrypoint. */
+export async function dispatchOperationalSimulation(input:Parameters<typeof import('./operational-adapters').operationalPayload>,env:NodeJS.ProcessEnv=process.env,scenario:Parameters<typeof import('./operational-adapters').simulateProvider>[1]='accepted'){
+ if(env.STAGING_NO_SEND!=='true'||env.META_WHATSAPP_SENDING_ENABLED==='true'||env.WHATSAPP_JOURNEY_SENDING_ENABLED==='true')throw Error('OPERATIONAL_SIMULATION_ONLY');
+ const {operationalPayload,simulateProvider}=await import('./operational-adapters');
+ return simulateProvider(operationalPayload(...input),scenario);
+}

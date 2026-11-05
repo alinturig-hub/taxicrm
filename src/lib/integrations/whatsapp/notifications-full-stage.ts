@@ -1,3 +1,5 @@
+import {dispatchOperationalSimulation} from './dispatch';
+import {windowOpen,templateFingerprint,type ProviderTemplate,type SimulatedOutcome} from './operational-adapters';
 import {readFile} from 'node:fs/promises';
 import {hash} from 'bcryptjs';
 import {randomUUID} from 'node:crypto';
@@ -42,9 +44,17 @@ export async function simulateFullDelivery(pool:Pool,scope:string,input:unknown,
    result={schema_version:'2.0',mode:'DRY_RUN',idempotency_key:intent.idempotency_key,booking_id:intent.booking_id,rule:intent.rule,conversation_id:state.conversation_id,conversation_revision:state.conversation_revision,checked_at:new Date().toISOString(),result:'blocked',reason:'CONTEXT_VALIDATION_UNAVAILABLE',channel:'none',provider_status:'NONE',provider_called:false};
   }
   // A visible staging-only phase marker enables deterministic real-HTTP concurrency tests.
+  await db.query("INSERT INTO notification_stage_control(key,value) VALUES('initial_content_mode',$1::jsonb) ON CONFLICT(key) DO UPDATE SET value=excluded.value",[JSON.stringify(result.content_mode||null)]);
   await db.query(`UPDATE notification_stage_control SET value='"SIMULATION_PENDING"' WHERE key='phase'`);
-  const delay=Number((await db.query("SELECT value FROM notification_stage_control WHERE key='delay_ms'")).rows[0].value);if(delay>0)await db.query('SELECT pg_sleep($1)',[Math.min(delay,2000)/1000]);
+  const delay=Number((await db.query("SELECT value FROM notification_stage_control WHERE key='delay_ms'")).rows[0].value);if(delay>0)await db.query('SELECT pg_sleep($1)',[Math.min(delay,5000)/1000]);
   await dependencies.beforeCommit?.();
+  // Time alone can close the window without changing any database revision.
+  // Ask the canonical rule engine again; never serialize stale free text as a template.
+  if(!contextFailed&&result.result==='ready'&&result.content_mode==='text'&&!windowOpen(state,Date.now())){
+   try{const fresh=await fullGatewayState(db,scope,intent);envelope=await (dependencies.context?dependencies.context(intent,fresh):readStageContext(intent,fresh)) as typeof envelope;
+    if(!/^\d+$/.test(envelope.revision))throw Error('INVALID_STAGE_REVISION');result=parseResult(envelope.decision,intent,fresh,Date.now());
+   }catch{contextFailed=true}
+  }
   await db.query('BEGIN');try{
    const marker=(await db.query('SELECT revision::text FROM notification_stage_marker WHERE id=true FOR UPDATE')).rows[0].revision;
    const current=await fullGatewayState(db,scope,intent),booking=(await db.query('SELECT * FROM "Booking" WHERE "externalId"=$1',[intent.booking_id.slice(8)])).rows[0];
@@ -55,10 +65,25 @@ export async function simulateFullDelivery(pool:Pool,scope:string,input:unknown,
    else if(contextFailed)result=block('CONTEXT_VALIDATION_UNAVAILABLE');
    else if(marker!==envelope.revision||stable(state)!==stable(current))result=block('CANONICAL_SNAPSHOT_CHANGED');
    else if(Date.parse(intent.expires_at)<=Date.now())result=block('NOTIFICATION_EXPIRED');
-   await db.query('INSERT INTO notification_stage_delivery(scope,operation_key,result,conversation_id) VALUES($1,$2,$3::jsonb,$4)',[scope,intent.idempotency_key,JSON.stringify(result),conv.id]);
+   let simulation:SimulatedOutcome|undefined;
    if(result.result==='ready'){
+    try{
+     let approved:{template:ProviderTemplate;fingerprint:string}|undefined;
+     if(result.content_mode==='template'){
+      const t=(await db.query('SELECT definition FROM notification_stage_template WHERE id=$1',[intent.content.template.id])).rows[0]?.definition;
+      if(!t||t.fingerprint!==intent.content.template.fingerprint||t.text===undefined)throw Error('TEMPLATE_MAPPING_MISMATCH');
+      if((t.hasHeader||t.buttons.length)&&!t.providerTemplate)throw Error('UNSUPPORTED_TEMPLATE_COMPONENTS');
+      const template:ProviderTemplate=t.providerTemplate||{id:t.id,name:t.name,language:t.language,status:t.status,category:t.category,parameter_format:t.format,components:[{type:'BODY',text:t.text}]};
+      if(template.status!==t.status||template.category!==t.category||template.parameter_format!==t.format)throw Error('TEMPLATE_MAPPING_MISMATCH');
+      approved={template,fingerprint:t.providerTemplate?t.providerFingerprint:templateFingerprint(template)};
+     }
+     simulation=await dispatchOperationalSimulation([intent,result,current,Date.now(),approved]);
+    }catch(e){const code=e instanceof Error?e.message:'';result=block(['WHATSAPP_WINDOW_CLOSING','TEMPLATE_MAPPING_MISMATCH','TEMPLATE_NOT_APPROVED','TEMPLATE_RENDER_MISMATCH','HEADER_ADAPTER_UNAVAILABLE','UNSUPPORTED_TEMPLATE_COMPONENTS','BUTTON_BEHAVIOUR_NOT_IMPLEMENTED','NOTIFICATION_EXPIRED'].includes(code)?code:'PAYLOAD_ADAPTER_BLOCKED')}
+   }
+   await db.query('INSERT INTO notification_stage_delivery(scope,operation_key,result,conversation_id) VALUES($1,$2,$3::jsonb,$4)',[scope,intent.idempotency_key,JSON.stringify(result),conv.id]);
+   if(result.result==='ready'&&simulation){
     // SIMULATED is intentionally not ACCEPTED/DELIVERED. No provider receipt is fabricated.
-    await db.query(`INSERT INTO "WhatsAppMessage"(scope,"conversationId","providerMessageId",direction,content,status,"occurredAt") VALUES($1,$2,$3,'OUTBOUND',$4::jsonb,'SIMULATED',now())`,[scope,conv.id,'simulated:'+randomUUID(),JSON.stringify({text:result.rendered_text,origin:'operational_notification',transport:'SIMULATED',booking_id:intent.booking_id.slice(8),event_type:intent.event_type,rule:result.rule,channel:result.channel,content_mode:result.content_mode,synthetic:true})]);
+    await db.query(`INSERT INTO "WhatsAppMessage"(scope,"conversationId","providerMessageId",direction,content,status,"occurredAt") VALUES($1,$2,$3,'OUTBOUND',$4::jsonb,'SIMULATED',now())`,[scope,conv.id,simulation.providerMessageId||'simulated:'+randomUUID(),JSON.stringify({provider_payload:simulation.payload,simulated_provider_status:simulation.status,text:result.rendered_text,origin:'operational_notification',transport:'SIMULATED',booking_id:intent.booking_id.slice(8),event_type:intent.event_type,rule:result.rule,channel:result.channel,content_mode:result.content_mode,synthetic:true})]);
    }
    await emit(db,scope,'stage:'+intent.idempotency_key,'notification.simulated',{booking_id:intent.booking_id.slice(8),origin:'operational_notification',mode:'DRY_RUN',result});
    // This is shared local audit history, never a callback queued for a production consumer.
@@ -86,8 +111,8 @@ export async function fullControlPOST(request:Request){try{
    const applied=(await db.query('SELECT clock_timestamp() AS at')).rows[0].at;await db.query('COMMIT');return Response.json({...result,applied_at:new Date(applied).toISOString()});
   }catch(e){await db.query('ROLLBACK');throw e}finally{db.release()}
  }
- if(input.action==='delay'){const delay=Number(input.ms);if(!Number.isFinite(delay)||delay<0||delay>2000)throw Error('INVALID_STAGE_DELAY');await pool.query("UPDATE notification_stage_control SET value=$1::jsonb WHERE key='delay_ms'",[JSON.stringify(delay)]);await pool.query(`UPDATE notification_stage_control SET value='"IDLE"' WHERE key='phase'`);return Response.json({delay_ms:delay})}
+ if(input.action==='delay'){const delay=Number(input.ms);if(!Number.isFinite(delay)||delay<0||delay>5000)throw Error('INVALID_STAGE_DELAY');await pool.query("UPDATE notification_stage_control SET value=$1::jsonb WHERE key='delay_ms'",[JSON.stringify(delay)]);await pool.query(`UPDATE notification_stage_control SET value='"IDLE"' WHERE key='phase'`);return Response.json({delay_ms:delay})}
  if(input.action==='locks')return Response.json({waiting:Number((await pool.query("SELECT count(*) AS n FROM pg_stat_activity WHERE datname=current_database() AND wait_event='advisory'")).rows[0].n)});
- if(input.action==='phase')return Response.json((await pool.query("SELECT value AS phase FROM notification_stage_control WHERE key='phase'")).rows[0]);
+ if(input.action==='phase')return Response.json((await pool.query("SELECT (SELECT value FROM notification_stage_control WHERE key='phase') AS phase,(SELECT value FROM notification_stage_control WHERE key='initial_content_mode') AS content_mode")).rows[0]);
  throw Error('INVALID_STAGE_ACTION');
  }catch(e){return failure(e)}}
