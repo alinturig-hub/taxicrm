@@ -1,0 +1,13 @@
+# Owner-only transport smoke test runner — not executed
+
+An internal CLI and library prepare a bounded owner-only test without adding a web endpoint, worker or deployment. The packet contains the exact recipient, sender scope, database host/name/role, approved template snapshot/fingerprint, exact payload/hash, stable operation key and expiry. Actual owner phone and final packet are stored privately outside Git. Tests use a reserved synthetic number.
+
+Execution requires the exact packet hash and confirmed recipient in explicit one-shot environment gates, and all general sending flags must remain false. After approval, only the one HTTP call receives a local in-memory transport flag copy; no process/global environment variable or application configuration is changed. No canonical booking or general recipient grant is created. The owner's approval authorizes this individual transport test only.
+
+The runner rechecks template approval/fingerprint, database identity, known suppression/service denial and operator takeover; takes the existing conversation advisory barrier; atomically commits one durable outbox claim before HTTP; verifies the exact request body at the HTTP boundary; and makes at most one provider POST. Existing operations always stop. The result is ACCEPTED, REJECTED or UNKNOWN. It never retries or invokes SMS. A post-acceptance persistence failure retains the durable claim and blocks reexecution. Common WhatsAppMessage history is written only after acceptance; no synthetic booking event or new callback family is emitted.
+
+The CLI defaults to inspect-only. --execute alone is insufficient: packet approval gates are still required. Pool connection, statements and lock waits are bounded. Token values and database passwords are never logged. No new migration is needed; missing expected tables or denied runtime privileges fail closed.
+
+Verification: four isolated PGlite tests passed, covering missing approval/tampered destination/global-worker guards, committed claim before provider POST, one-post limit across rerun, common history, timeout/no retry, persistence failure/no resend, expired approval, template drift and suppression. Provider HTTP was mocked. PGlite does not prove real PostgreSQL advisory-lock races; the runner reuses the barrier and claim mechanism reviewed/tested separately for dispatch. Targeted lint and repository TypeScript passed after local Prisma client generation.
+
+Pending: owner approval of the exact final private packet and a reviewed execution environment. This document does not authorize execution or copying provider credentials into staging. No real message, live DB mutation, Meta template change, production deployment, runtime flag change or migration was performed while preparing it.
