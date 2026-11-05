@@ -188,6 +188,13 @@ export const navigationGroups: NavigationGroup[] = [
         "configuration.view",
       ),
       item(
+        "WhatsApp flows",
+        "/dashboard/marketing/whatsapp/flows",
+        "automation",
+        "Build conversation drafts and test paths with synthetic data.",
+        "automation.view",
+      ),
+      item(
         "Audience segments",
         "/dashboard/marketing/segments",
         "customers",

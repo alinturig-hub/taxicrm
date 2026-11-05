@@ -1,0 +1,30 @@
+{
+  "passed": true,
+  "cases": [
+    "consent branch skips marketing without permission",
+    "interactive answer routes to simulated message and tag",
+    "operator takeover blocks the simulated run",
+    "closed 24-hour window blocks the question",
+    "local draft survives reload",
+    "JSON backup contains a draft, no execution mode",
+    "unsafe import is rejected without replacing the draft",
+    "virtual wait resumes without scheduling a timer",
+    "palette add, inspector edit, drag, connect and run a new graph",
+    "deleting a block removes its connections",
+    "operator handoff ends the path",
+    "view-only mode disables editing",
+    "mobile layout has no horizontal overflow"
+  ],
+  "console_errors": 0,
+  "http_mutations": 0,
+  "provider_posts": 0,
+  "component_harness": "isolated browser bundle, no application server/authentication/database",
+  "model_and_navigation_tests": 11,
+  "typecheck": "passed",
+  "targeted_lint": "passed",
+  "production_build": "passed with synthetic configuration",
+  "production_changes": false,
+  "storage": "browser localStorage scoped by workspace and authenticated user; explicit save; JSON backup",
+  "live_send_capability": false,
+  "booking_adapters_connected": false
+}

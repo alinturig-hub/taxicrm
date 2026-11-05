@@ -59,3 +59,9 @@ test("module search and cards respect custom permission grants and existing SMS 
     ).length,
   );
 });
+
+test("WhatsApp flows use automation permission and their own navigation destination",()=>{
+ assert.equal(activeNavigation('/dashboard/marketing/whatsapp/flows')?.item.label,'WhatsApp flows');
+ assert.equal(searchNavigation('WhatsApp flows',visibleNavigation(['customers.view'],'OPERATOR')).length,0);
+ assert.equal(searchNavigation('WhatsApp flows',visibleNavigation(['automation.view'],'OPERATOR')).length,1);
+});
