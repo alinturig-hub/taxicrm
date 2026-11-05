@@ -1,6 +1,6 @@
 {
   "file": "controlled-booking-confirmed-install.sql",
-  "sha256": "37cc74f3765048d900d693150cc150adc2c7d12804be210e544d67cf7cecc9d9",
+  "sha256": "c7e4c978174ed5f2d0cc4ebf24397209a50c8702d78c44a4f811f412d2970552",
   "sources": [
     {
       "file": "scripts/migrations/20261104_notifications_dry_run.sql",
@@ -19,5 +19,8 @@
       "sha256": "e529279c4509fae7d90dc079d191e38f4f49b574269ebac1b5c1c0377417c2a2"
     }
   ],
-  "state": "PREPARED_NOT_APPROVED_NOT_EXECUTED_IN_PRODUCTION"
+  "state": "PREPARED_V2_NOT_APPROVED_NOT_EXECUTED_IN_PRODUCTION",
+  "version": 2,
+  "supersedes_sha256": "37cc74f3765048d900d693150cc150adc2c7d12804be210e544d67cf7cecc9d9",
+  "additional_delta": "Normalize table ACLs only on the five newly created tables and their new sequence before the unchanged reviewed grants. Global defaults and pre-existing objects remain untouched."
 }

@@ -1,13 +1,21 @@
 {
+  "version": 2,
   "passed": true,
   "cases": [
-    "atomic install: five tables/six triggers; sentinel booking and migration ledger unchanged",
-    "repeat install rejected without changes",
-    "unfinished historical migration blocks installation",
-    "unexpected existing relation blocks installation",
-    "unexpected default DELETE ACL rolls back all new tables/function/triggers"
+    "install without extra defaults succeeds",
+    "observed live table and sequence defaults normalized only on new objects; old ACLs/defaults/data/history preserved",
+    "effective CRM rule editing and immutable intent updates blocked; fence and NAC sequence privileges retained",
+    "cabby read-only defaults and unrelated future default behavior preserved",
+    "repeat install rejected",
+    "unfinished migration rejected",
+    "existing object rejected",
+    "unexpected inherited group DELETE still fails closed and rolls back all new objects"
   ],
   "production_changes": false,
   "provider_posts": 0,
-  "database": "disposable isolated postgres:17-bookworm"
+  "database": "disposable isolated postgres:17-bookworm",
+  "live_defaults_reproduced": {
+    "table": "taxicrm_shared_app=arwd/postgres,cabby_ro=r/postgres",
+    "sequence": "taxicrm_shared_app=rU/postgres"
+  }
 }

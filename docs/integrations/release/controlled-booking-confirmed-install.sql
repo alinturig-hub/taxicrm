@@ -111,6 +111,15 @@ CREATE TABLE "WhatsAppControlledDispatch"(
  created_at timestamptz NOT NULL DEFAULT now(),PRIMARY KEY(scope,operation_key)
 );
 
+-- v2: postgres default ACLs grant CRUD on new tables to TaxiCRM in the live database.
+-- Normalize ONLY the five relations and sequence created above in this transaction.
+-- Preserve global/schema default ACLs, cabby_ro SELECT and ALL pre-existing objects/ACLs.
+REVOKE ALL PRIVILEGES ON TABLE public.notification_rules, public.notification_rule_revisions,
+ public.notification_decisions, public.notification_controlled_events, public."WhatsAppControlledDispatch"
+ FROM taxicrm_shared_app, needacabplus_shared_app, PUBLIC;
+REVOKE ALL PRIVILEGES ON SEQUENCE public.notification_decisions_id_seq
+ FROM taxicrm_shared_app, needacabplus_shared_app, PUBLIC;
+
 -- Reviewed source: docs/integrations/release/controlled_booking_confirmed_grants.sql
 -- REVIEW ONLY. Apply once to the approved shared database after both table migrations.
 -- Additive ACL delta; does not create roles, change logins/owners, grant DELETE or touch bookings.
@@ -181,6 +190,21 @@ BEGIN
    END IF;
   END LOOP;
  END LOOP;
+ -- Effective privileges must remain narrow after direct defaults are removed.
+ FOREACH name IN ARRAY ARRAY['notification_rules','notification_rule_revisions','notification_decisions'] LOOP
+  IF has_table_privilege('taxicrm_shared_app',to_regclass(format('public.%I',name)),'INSERT')
+  OR has_any_column_privilege('taxicrm_shared_app',to_regclass(format('public.%I',name)),'UPDATE') THEN
+   RAISE EXCEPTION 'Unexpected CRM rule/decision write privilege: %',name;
+  END IF;
+ END LOOP;
+ IF has_table_privilege('taxicrm_shared_app','public.notification_controlled_events','UPDATE')
+ OR has_column_privilege('taxicrm_shared_app','public.notification_controlled_events','intent','UPDATE')
+ OR has_column_privilege('taxicrm_shared_app','public."WhatsAppControlledDispatch"','intent','UPDATE')
+ OR has_column_privilege('needacabplus_shared_app','public.notification_controlled_events','intent','UPDATE')
+ OR has_any_column_privilege('needacabplus_shared_app','public.notification_rule_revisions','UPDATE')
+ OR has_any_column_privilege('needacabplus_shared_app','public.notification_decisions','UPDATE') THEN
+  RAISE EXCEPTION 'Unexpected permission to modify immutable operation or audit data';
+ END IF;
  IF (SELECT count(*) FROM pg_trigger t JOIN pg_proc p ON p.oid=t.tgfoid
      WHERE NOT t.tgisinternal AND p.oid='public.controlled_booking_fence()'::regprocedure)<>6 THEN
   RAISE EXCEPTION 'Expected exactly six controlled triggers';
