@@ -1,3 +1,4 @@
+import {isBookingTemplate} from "@/lib/integrations/whatsapp/template-purpose";
 import { editTemplate } from "@/lib/integrations/whatsapp/template-edit";
 import { providerCapabilities } from "@/lib/integrations/whatsapp/providers";
 import { NextResponse } from "next/server";
@@ -22,6 +23,7 @@ export async function POST(request: Request) {
     const access = await whatsappAccess(true); whatsappOrigin(request);
     const body = await whatsappBody(request);
     if (body.action === "preview" && Object.keys(body).every(k => ["action", "draft"].includes(k))) return NextResponse.json(templatePreview(body.draft), { headers: privateHeaders });
+    if (["edit","submit"].includes(String(body.action)) && isBookingTemplate(templatePreview(body.draft).payload.name)) throw new WhatsAppError("OPERATIONAL_TEMPLATE_MANAGED_BY_NAC",409);
     if (body.action === "edit" && body.confirmSubmission === true && Object.keys(body).every(k => ["action", "draft", "confirmSubmission", "templateId"].includes(k))) {
       release = reserveWhatsAppList(access.user.id);
       return NextResponse.json(await editTemplate(body.templateId, body.draft), { headers: privateHeaders });
