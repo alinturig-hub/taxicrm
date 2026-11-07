@@ -1,0 +1,7 @@
+# NeedACab Plus operator replies
+
+The internal signed service endpoint supports operator takeover, release and free-text replies. TaxiCRM remains the sole Meta transport and records accepted replies in the shared history. The endpoint defaults to disabled: takeover and release require `WHATSAPP_OPERATOR_CONTROLS_ENABLED=true`; replies additionally require `WHATSAPP_OPERATOR_REPLY_ENABLED=true` and `META_WHATSAPP_SENDING_ENABLED=true`. Do not enable these flags without a reviewed rollout.
+
+A reply requires a current operator revision, a valid recipient, no suppression, and a customer inbound message within the WhatsApp service window. Approved-template sending is outside this change. A durable command claim prevents repeating the same command; a SENDING or UNKNOWN reply blocks subsequent replies to the conversation. Such outcomes need manual reconciliation with Meta and the shared history; this change does not provide reconciliation tooling or automatic retry. The conversation lock is held while the bounded provider request is in progress, serializing takeover/release and policy changes; this can delay those operations for the provider timeout.
+
+The existing service identity records the actor as `service:needacabplus-admin`; individual operator attribution is not yet available. No schema or grants change is included. Test integrations only with the dedicated loopback PostgreSQL fixture and a stubbed provider; never point them to production.
