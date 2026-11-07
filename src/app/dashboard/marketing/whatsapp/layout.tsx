@@ -6,7 +6,6 @@ export default async function Layout({ children }: { children: React.ReactNode }
   const has = (p: string) => access.permissions.some(value => value === p);
   const canConfigure = has("configuration.view") && has("integrations.view");
   const tabs = [
-    ...(canConfigure ? [{ label: "Inbox", href: "/dashboard/marketing/whatsapp/inbox" }] : []),
     ...(has("customers.view") ? [{ label: "Campaigns", href: "/dashboard/marketing/whatsapp" }] : []),
     ...(canConfigure ? [{ label: "Templates", href: "/dashboard/marketing/whatsapp/templates" }] : []),
     ...(has("automation.view") ? [{ label: "Flows", href: "/dashboard/marketing/whatsapp/flows" }] : []),
