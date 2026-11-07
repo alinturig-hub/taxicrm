@@ -26,7 +26,7 @@ test('binary reader rejects empty and oversized uploads before provider calls',a
  await assert.rejects(templateMediaBody(new Request('https://crm.example',{method:'POST',body:new Uint8Array(16*1024*1024+1)})),/BODY_TOO_LARGE/);
 });
 test('capabilities expose no credentials and require every server switch',async()=>{
- const env={META_WHATSAPP_ENABLED:'true',META_WHATSAPP_APP_ID:'123456',META_WHATSAPP_WABA_ID:'123456',META_WHATSAPP_GRAPH_VERSION:'v23.0',META_WHATSAPP_ACCESS_TOKEN:'synthetic-token-for-tests-only',META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED:'true'};
+ const env={NODE_ENV:'test' as const,META_WHATSAPP_ENABLED:'true',META_WHATSAPP_APP_ID:'123456',META_WHATSAPP_WABA_ID:'123456',META_WHATSAPP_GRAPH_VERSION:'v23.0',META_WHATSAPP_ACCESS_TOKEN:'synthetic-token-for-tests-only',META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED:'true'};
  assert.deepEqual(await templateWorkspaceRequest({action:'capabilities'},undefined,{manage:true,env}),{manage:true,inPlaceEdit:false});
  assert.deepEqual(await templateWorkspaceRequest({action:'capabilities'},undefined,{manage:false,env}),{manage:false,inPlaceEdit:false});
  assert.deepEqual(await templateWorkspaceRequest({action:'capabilities'},undefined,{manage:true,env:{...env,META_WHATSAPP_TEMPLATE_SUBMISSION_ENABLED:'false'}}),{manage:false,inPlaceEdit:false});
