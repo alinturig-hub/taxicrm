@@ -65,3 +65,9 @@ test("WhatsApp flows use automation permission and their own navigation destinat
  assert.equal(searchNavigation('WhatsApp flows',visibleNavigation(['customers.view'],'OPERATOR')).length,0);
  assert.equal(searchNavigation('WhatsApp flows',visibleNavigation(['automation.view'],'OPERATOR')).length,1);
 });
+
+test("customer conversations are not offered in CRM navigation while marketing remains available",()=>{
+ const groups=visibleNavigation(['customers.view','integrations.view','configuration.view'],'OPERATOR');
+ assert.equal(searchNavigation('WhatsApp inbox',groups).length,0);
+ assert.ok(searchNavigation('WhatsApp campaigns',groups).some(result=>result.href==='/dashboard/marketing/whatsapp'));
+});
