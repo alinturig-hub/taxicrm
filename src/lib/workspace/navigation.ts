@@ -167,17 +167,10 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
-        "WhatsApp inbox",
-        "/dashboard/marketing/whatsapp/inbox",
-        "webhooks",
-        "Read received messages and delivery status notifications.",
-        "integrations.view",
-      ),
-      item(
         "WhatsApp campaigns",
         "/dashboard/marketing/whatsapp",
         "automation",
-        "Plan WhatsApp campaigns, customer journeys and replies with Meta or Com.Bot.",
+        "Plan WhatsApp marketing campaigns and customer journeys.",
         "customers.view",
       ),
       item(
