@@ -1,6 +1,7 @@
 import {createHash,randomUUID} from 'node:crypto';
 import {Pool,PoolClient} from 'pg';
 import {projectInbox} from './inbox-projection';
+import {ownerTestGuard} from './operator-owner-test';
 let pool:Pool|undefined;
 export function sharedPool(){return pool??=new Pool({connectionString:process.env.DATABASE_URL,max:4});}
 export function sharedScope(env:NodeJS.ProcessEnv=process.env){
@@ -40,15 +41,16 @@ export async function materialize(db:PoolClient,scope:string,raw:string,waba:str
  await emit(db,scope,`message:${m.id}:${m.status}`,m.direction==='INBOUND'?'message.received':'message.status',{conversation_id:conv.id,message_id:String(result.rows[0].id),provider_message_id:m.id,status:m.status,...(controlled?{controlled_test:true,operation_key:controlled.operation_key,booking_id:controlled.booking_id,mode:controlled.mode,reason:'PROVIDER_RECEIPT',provider_posts:controlled.mode==='LIVE'?1:0,simulated_posts:controlled.mode==='SIMULATED'?1:0}:{})});
  }
 }
-export async function handoff(db:PoolClient,scope:string,id:string,command:{id:string;mode:'AUTOMATED'|'OPERATOR';revision:number},actor:string){
+export async function handoff(db:PoolClient,scope:string,id:string,command:{id:string;mode:'AUTOMATED'|'OPERATOR';revision:number},actor:string,guard?:(participant:unknown)=>void){
  const h=hash({conversation:id,...command,actor});
+ const enforce=(participant:unknown)=>{if(process.env.WHATSAPP_OPERATOR_OWNER_TEST_MODE&&process.env.WHATSAPP_OPERATOR_OWNER_TEST_MODE!=='false')ownerTestGuard(process.env,participant,command.mode==='OPERATOR'?'takeover':'release');guard?.(participant)};
  // Serializes repeated commands even when the first command has not committed yet.
  await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':'+command.id]);
  const previous=(await db.query(`SELECT * FROM "WhatsAppHandoffCommand" WHERE scope=$1 AND id=$2`,[scope,command.id])).rows[0];
- if(previous){if(previous.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');return previous.result;}
+ if(previous){if(previous.requestHash!==h)throw Error('IDEMPOTENCY_CONFLICT');if(guard||(process.env.WHATSAPP_OPERATOR_OWNER_TEST_MODE&&process.env.WHATSAPP_OPERATOR_OWNER_TEST_MODE!=='false')){const existing=(await db.query(`SELECT participant FROM "WhatsAppConversation" WHERE scope=$1 AND id=$2`,[scope,id])).rows[0];if(!existing)throw Error('NOT_FOUND');enforce(existing.participant)}return previous.result;}
  await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1,0))',[scope+':conversation:'+id]);
  const conv=(await db.query(`SELECT * FROM "WhatsAppConversation" WHERE scope=$1 AND id=$2 FOR UPDATE`,[scope,id])).rows[0];
- if(!conv)throw Error('NOT_FOUND');if(conv.revision!==command.revision)throw Error('REVISION_CONFLICT');
+ if(!conv)throw Error('NOT_FOUND');enforce(conv.participant);if(conv.revision!==command.revision)throw Error('REVISION_CONFLICT');
  const result=(await db.query(`UPDATE "WhatsAppConversation" SET mode=$3,revision=revision+1,"assignedUserId"=$4,"updatedAt"=now() WHERE scope=$1 AND id=$2 RETURNING id,mode,revision,"assignedUserId"`,[scope,id,command.mode,command.mode==='OPERATOR'?actor:null])).rows[0];
  // Never flush stale held intents after takeover/release.
  await db.query(`UPDATE "WhatsAppServiceIntent" SET status='CANCELLED' WHERE scope=$1 AND "conversationId"=$2 AND status='HELD'`,[scope,id]);

@@ -1,8 +1,10 @@
 import type {Pool,PoolClient} from 'pg';
+import {createHash} from 'node:crypto';
 import {sharedPool,sharedScope,emit} from './shared';
 import {enqueueOutbound,claimOutbound} from './outbox';
 import {sendMetaPayload} from './meta-send';
 import {WhatsAppError} from './settings';
+import {ownerTestGuard} from './operator-owner-test';
 const idPattern=/^[a-zA-Z0-9_-]{16,100}$/;
 export type ReplyCommand={command_id:string;revision:number;text:string};
 export function parseReply(value:unknown):ReplyCommand{
@@ -25,14 +27,14 @@ export async function operatorReply(id:string,input:unknown,opts:{pool?:Pool;sco
  if(env.WHATSAPP_OPERATOR_REPLY_ENABLED!=='true'||env.META_WHATSAPP_SENDING_ENABLED!=='true')throw Error('OPERATOR_REPLY_DISABLED');
  const scope=opts.scope||sharedScope(env),pool=opts.pool||sharedPool(),db=await pool.connect();let claimedId='';
  try{
-  await db.query('BEGIN');let c=await lock(db,scope,id);const snapshot={origin:'operator_reply',conversationId:id,text:command.text};
-  const existing=(await db.query(`SELECT id FROM "WhatsAppOutboundMessage" WHERE "connectionKey"=$1 AND "operationKey"=$2`,[scope,command.command_id])).rows[0];
+  await db.query('BEGIN');let c=await lock(db,scope,id);const test=ownerTestGuard(env,c.participant,'reply');if(test&&createHash('sha256').update(command.text).digest('hex')!==test.approvedBodySha256)throw Error('OWNER_TEST_BODY_MISMATCH');const operationKey=test?.operationKey||command.command_id;const snapshot={origin:'operator_reply',conversationId:id,text:command.text};
+  const existing=(await db.query(`SELECT id FROM "WhatsAppOutboundMessage" WHERE "connectionKey"=$1 AND "operationKey"=$2`,[scope,operationKey])).rows[0];
   if(!existing){await policy(db,scope,c,command.revision);const unresolved=(await db.query(`SELECT id FROM "WhatsAppOutboundMessage" WHERE "connectionKey"=$1 AND "templateSnapshot"->>'origin'='operator_reply' AND "templateSnapshot"->>'conversationId'=$2 AND status IN ('SENDING','UNKNOWN') LIMIT 1`,[scope,id])).rows[0];if(unresolved)throw Error('PREVIOUS_REPLY_UNRESOLVED');}
-  const row=await enqueueOutbound(db,{connectionKey:scope,operationKey:command.command_id,actorUserId:'service:needacabplus-admin',recipient:c.participant,templateSnapshot:snapshot,purpose:'SERVICE',eligibilityEvidence:{mode:'MANUAL_REPLY'}});
+  const row=await enqueueOutbound(db,{connectionKey:scope,operationKey,actorUserId:'service:needacabplus-admin',recipient:c.participant,templateSnapshot:snapshot,purpose:'SERVICE',eligibilityEvidence:{mode:'MANUAL_REPLY'}});
   const claimed=await claimOutbound(db,scope,row.id);if(!claimed){await db.query('COMMIT');return {id:row.id,status:row.status,reused:true};}
   claimedId=row.id;await db.query('COMMIT');
   await db.query('BEGIN');c=await lock(db,scope,id);let deadline:number;
-  try{deadline=await policy(db,scope,c,command.revision)}catch(e){await db.query(`UPDATE "WhatsAppOutboundMessage" SET status='CANCELLED',"finishedAt"=now() WHERE "connectionKey"=$1 AND id=$2 AND status='SENDING'`,[scope,claimedId]);await db.query('COMMIT');return {id:claimedId,status:'CANCELLED',reason:e instanceof Error?e.message:'POLICY_CHANGED',reused:false};}
+  try{const test=ownerTestGuard(env,c.participant,'reply');if(test&&createHash('sha256').update(command.text).digest('hex')!==test.approvedBodySha256)throw Error('OWNER_TEST_BODY_MISMATCH');deadline=await policy(db,scope,c,command.revision)}catch(e){await db.query(`UPDATE "WhatsAppOutboundMessage" SET status='CANCELLED',"finishedAt"=now() WHERE "connectionKey"=$1 AND id=$2 AND status='SENDING'`,[scope,claimedId]);await db.query('COMMIT');return {id:claimedId,status:'CANCELLED',reason:e instanceof Error?e.message:'POLICY_CHANGED',reused:false};}
   let outcome:{providerMessageId:string;status:'ACCEPTED'};
   try{outcome=await sendMetaPayload({messaging_product:'whatsapp',to:c.participant.slice(1),type:'text',text:{preview_url:false,body:command.text}},env,opts.fetcher,{textWindowExpiresAt:deadline});}
   catch(e){const code=e instanceof WhatsAppError?e.code:'';const status=['META_ACCESS_DENIED','META_RATE_LIMITED','META_SEND_REJECTED'].includes(code)?'REJECTED':code==='WHATSAPP_WINDOW_CLOSING'?'CANCELLED':'UNKNOWN';await db.query(`UPDATE "WhatsAppOutboundMessage" SET status=$3,"finishedAt"=now() WHERE "connectionKey"=$1 AND id=$2 AND status='SENDING'`,[scope,claimedId,status]);await db.query('COMMIT');return {id:claimedId,status,reused:false};}
