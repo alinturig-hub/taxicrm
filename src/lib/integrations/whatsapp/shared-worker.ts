@@ -3,14 +3,23 @@ import {seedServiceBindings} from './service-defaults';
 import {sharedPool,sharedScope,transaction,materialize} from './shared';
 import {signedHeaders} from './service-auth';
 /** Bounded batch; database claims make concurrent worker runs safe. No Meta transport here. */
-export async function processSharedReceipts(){
- if(process.env.WHATSAPP_SHARED_ENABLED!=='true')return {processed:0};const scope=sharedScope();await transaction(db=>seedServiceBindings(db,scope));let processed=0;
+async function processReceiptBatch(scope:string){
+ let processed=0;
  for(let i=0;i<100;i++){let receiptId:string|undefined;try{
  const done=await transaction(async db=>{const row=(await db.query(`SELECT id,"rawBody" FROM "WhatsAppWebhookInbox" WHERE "connectionKey"=$1 AND status='RECEIVED' AND "attemptCount"<5 ORDER BY "receivedAt",id FOR UPDATE SKIP LOCKED LIMIT 1`,['META:'+process.env.META_WHATSAPP_WABA_ID])).rows[0];if(!row)return false;receiptId=row.id;
  await materialize(db,scope,row.rawBody,process.env.META_WHATSAPP_WABA_ID!,process.env.META_WHATSAPP_PHONE_NUMBER_ID!);
  await db.query(`UPDATE "WhatsAppWebhookInbox" SET status='PROCESSED',"processedAt"=now(),"attemptCount"="attemptCount"+1 WHERE id=$1`,[row.id]);return true;});if(!done)break;processed++;
  }catch(error){if(!receiptId)throw error;await sharedPool().query(`UPDATE "WhatsAppWebhookInbox" SET "attemptCount"="attemptCount"+1,status=CASE WHEN "attemptCount">=4 THEN 'FAILED' ELSE status END WHERE id=$1 AND status='RECEIVED'`,[receiptId]);}}
 
+ return {processed};
+}
+/** Fast path only materializes durable receipts; it never dispatches or runs housekeeping. */
+export async function processFastReceipts(){
+ if(process.env.WHATSAPP_SHARED_ENABLED!=='true'||process.env.WHATSAPP_RECEIPT_FAST_ENABLED!=='true')return {processed:0};
+ return processReceiptBatch(sharedScope());
+}
+export async function processSharedReceipts(){
+ if(process.env.WHATSAPP_SHARED_ENABLED!=='true')return {processed:0};const scope=sharedScope();await transaction(db=>seedServiceBindings(db,scope));const {processed}=await processReceiptBatch(scope);
  await sharedPool().query(`UPDATE "WhatsAppServiceIntent" SET status='EXPIRED' WHERE scope=$1 AND status='HELD' AND "expiresAt"<now()`,[scope]);
  await sharedPool().query(`DELETE FROM "WhatsAppServiceNonce" WHERE "createdAt"<now()-interval '1 day'`);return {processed};
 }

@@ -703,3 +703,13 @@ if(process.env.WHATSAPP_SHARED_ENABLED==='true'&&process.env.WHATSAPP_WORKER_SEC
  }catch{console.error('WHATSAPP_SHARED_JOB_UNAVAILABLE');}finally{whatsappBusy=false;}};
  setInterval(pollWhatsApp,60000).unref();setTimeout(pollWhatsApp,15000).unref();
 }
+
+// Optional receipt-only fast path; the existing dispatch/housekeeping schedule is unchanged.
+if(process.env.WHATSAPP_SHARED_ENABLED==='true'&&process.env.WHATSAPP_RECEIPT_FAST_ENABLED==='true'&&process.env.WHATSAPP_WORKER_SECRET?.length>=32){
+ let receiptDelay=2000;
+ const pollReceipts=async()=>{let ok=false;try{
+  const response=await fetch(`http://127.0.0.1:${port}/api/internal/whatsapp/v1/worker/receipts`,{method:'POST',headers:{'x-whatsapp-worker-secret':process.env.WHATSAPP_WORKER_SECRET},signal:AbortSignal.timeout(15000)});
+  ok=response.ok;if(!ok)console.error('WHATSAPP_FAST_RECEIPTS_UNAVAILABLE',response.status);
+ }catch{console.error('WHATSAPP_FAST_RECEIPTS_UNAVAILABLE')}finally{receiptDelay=ok?2000:Math.min(receiptDelay*2,30000);setTimeout(pollReceipts,receiptDelay).unref()}};
+ setTimeout(pollReceipts,2000).unref();
+}

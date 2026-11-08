@@ -1,0 +1,7 @@
+# Fast WhatsApp receipt processing
+
+The existing webhook still authenticates Meta and durably stores each receipt before acknowledging it. An optional, authenticated receipt-only worker consumes the same persisted rows about every two seconds using the existing transaction, row lock and materialization logic. It does not call the dispatcher, deliver events, perform housekeeping or enable outbound messaging. The existing one-minute worker continues handling its original dispatch, event delivery and housekeeping duties and can safely compete for receipts using `FOR UPDATE SKIP LOCKED`.
+
+The fast worker requires `WHATSAPP_SHARED_ENABLED=true`, a configured existing worker secret and `WHATSAPP_RECEIPT_FAST_ENABLED=true`; it is disabled by default. It retries with a capped 30-second delay on failure and the original one-minute path remains a fallback. Faster processing still depends on Meta webhook delivery, database load and network availability; it is not an instantaneous delivery guarantee.
+
+The NeedACab Plus inbox independently refreshes the selected conversation approximately every three seconds while visible. Each signed gateway read stores a replay-protection nonce; concurrent open tabs increase request and database load. Verify nonce cleanup, the existing worker's health, effective runtime table/sequence permissions and performance before enabling broadly. No production migrations or grants are included. Enabling the fast receipt flag must not change `META_WHATSAPP_SENDING_ENABLED`, journey dispatch or other send flags.
