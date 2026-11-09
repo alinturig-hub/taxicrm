@@ -4,6 +4,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -121,6 +122,7 @@ export default function CustomersDashboard({
     useState(false);
   const [error, setError] =
     useState<string | null>(null);
+  const [loadFailed, setLoadFailed] = useState(false);
   const [message, setMessage] =
     useState<string | null>(null);
 
@@ -134,6 +136,7 @@ export default function CustomersDashboard({
     selectedCustomerId,
     setSelectedCustomerId,
   ] = useState<string | null>(null);
+  const customerRequest = useRef<AbortController | null>(null);
 
   // Debounce the search input so we don't hammer the API on
   // every keystroke.
@@ -153,9 +156,13 @@ export default function CustomersDashboard({
   }, [debouncedSearch, selectedTag, tab, payment]);
 
   const loadCustomers = useCallback(async () => {
+    customerRequest.current?.abort();
+    const controller = new AbortController();
+    customerRequest.current = controller;
     try {
       setLoading(true);
       setError(null);
+      setLoadFailed(false);
 
       const params = new URLSearchParams();
       params.set("page", String(page));
@@ -172,11 +179,14 @@ export default function CustomersDashboard({
         `/api/dashboard/customers?${params.toString()}`,
         {
           cache: "no-store",
+          signal: controller.signal,
         },
       );
 
       const payload =
         (await response.json()) as CustomersResponse;
+
+      if (controller.signal.aborted) return;
 
       if (!response.ok || !payload.success) {
         throw new Error(
@@ -201,18 +211,21 @@ export default function CustomersDashboard({
         payload.pagination?.totalPages ?? 1,
       );
     } catch (error) {
+      if (controller.signal.aborted) return;
+      setLoadFailed(true);
       setError(
         error instanceof Error
           ? error.message
           : "Unable to load customers.",
       );
     } finally {
-      setLoading(false);
+      if (!controller.signal.aborted) setLoading(false);
     }
   }, [page, debouncedSearch, selectedTag, payment]);
 
   useEffect(() => {
     void loadCustomers();
+    return () => customerRequest.current?.abort();
   }, [loadCustomers]);
 
   async function syncCustomers() {
@@ -330,7 +343,7 @@ export default function CustomersDashboard({
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-3">
+      {!loadFailed && !loading && (tab !== "NORMAL" || search.trim() === debouncedSearch) && <div className="grid gap-4 sm:grid-cols-3">
         <Metric
           label="Business accounts"
           value={accountCustomers.length}
@@ -345,7 +358,7 @@ export default function CustomersDashboard({
             accountCustomers.length + totalNormal
           }
         />
-      </div>
+      </div>}
 
       <div className="rounded-2xl border border-slate-800 bg-slate-900">
         <div className="border-b border-slate-800 p-4 sm:p-5">
@@ -419,7 +432,7 @@ export default function CustomersDashboard({
           </div>
         ) : null}
 
-        {loading ? (
+        {loadFailed ? null : loading || (tab === "NORMAL" && search.trim() !== debouncedSearch) ? (
           <div className="p-8 text-center text-sm text-slate-500">
             Loading customers…
           </div>
@@ -438,7 +451,7 @@ export default function CustomersDashboard({
           />
         )}
 
-        {tab === "NORMAL" && !loading ? (
+        {tab === "NORMAL" && !loading && !loadFailed && search.trim() === debouncedSearch ? (
           <div className="flex items-center justify-between border-t border-slate-800 p-4">
             <p className="text-sm text-slate-500">
               Page {page} of {Math.max(totalPages, 1)} ·{" "}

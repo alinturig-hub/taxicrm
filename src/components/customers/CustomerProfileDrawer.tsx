@@ -5,6 +5,7 @@ import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 
 import {
   useEffect,
+  useRef,
   useState,
 } from "react";
 
@@ -732,11 +733,27 @@ export default function CustomerProfileDrawer({
     useState<string | null>(null);
   const [tab, setTab] =
     useState<Tab>("OVERVIEW");
+  const dialogRef = useRef<HTMLElement | null>(null);
+  const closeRef = useRef<HTMLButtonElement | null>(null);
+
+  useEffect(() => {
+    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    closeRef.current?.focus();
+    return () => { if (previousFocus?.isConnected) previousFocus.focus(); };
+  }, []);
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
         onClose();
+      } else if (event.key === "Tab" && dialogRef.current) {
+        const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>(
+          'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        )).filter(element => element.getClientRects().length > 0);
+        const first = focusable[0], last = focusable[focusable.length - 1];
+        if (!first || !last) { event.preventDefault(); dialogRef.current.focus(); }
+        else if (event.shiftKey && (document.activeElement === first || !dialogRef.current.contains(document.activeElement))) { event.preventDefault(); last.focus(); }
+        else if (!event.shiftKey && (document.activeElement === last || !dialogRef.current.contains(document.activeElement))) { event.preventDefault(); first.focus(); }
       }
     }
 
@@ -815,14 +832,14 @@ export default function CustomerProfileDrawer({
         onClick={onClose}
       />
 
-      <aside className="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden border-l border-slate-700 bg-slate-950 shadow-2xl">
+      <aside ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby="customer-profile-heading" tabIndex={-1} className="relative z-10 flex h-full w-full max-w-6xl flex-col overflow-hidden border-l border-slate-700 bg-slate-950 shadow-2xl">
         <header className="border-b border-slate-800 bg-slate-900/80 px-5 py-5 sm:px-7">
           <div className="flex items-start justify-between gap-5">
             <div>
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-blue-400">
                 Customer Intelligence
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-white">
+              <h2 id="customer-profile-heading" className="mt-2 text-2xl font-bold text-white">
                 {customer?.name ??
                   (loading
                     ? "Loading profile…"
@@ -839,7 +856,9 @@ export default function CustomerProfileDrawer({
             </div>
 
             <button
+              ref={closeRef}
               type="button"
+              aria-label="Close customer profile"
               onClick={onClose}
               className="flex h-10 w-10 items-center justify-center rounded-xl border border-slate-700 text-xl text-slate-300 transition hover:bg-slate-800 hover:text-white"
             >

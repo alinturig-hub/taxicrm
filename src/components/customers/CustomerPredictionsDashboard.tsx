@@ -141,6 +141,8 @@ export default function CustomerPredictionsDashboard({
     useState<7 | 14 | 30>(7);
   const [data, setData] =
     useState<DashboardData | null>(null);
+  const [dataDays, setDataDays] = useState<7 | 14 | 30 | null>(null);
+  const [retry, setRetry] = useState(0);
   const [loading, setLoading] =
     useState(true);
   const [error, setError] =
@@ -177,6 +179,7 @@ export default function CustomerPredictionsDashboard({
 
         if (active) {
           setData(payload);
+          setDataDays(days);
         }
       } catch (loadError) {
         if (active) {
@@ -196,7 +199,7 @@ export default function CustomerPredictionsDashboard({
     return () => {
       active = false;
     };
-  }, [days]);
+  }, [days, retry]);
 
   if (loading && !data) {
     return (
@@ -208,8 +211,9 @@ export default function CustomerPredictionsDashboard({
 
   if (error && !data) {
     return (
-      <div className="m-5 rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-red-300">
+      <div role="alert" className="m-5 rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-red-300">
         {error}
+        <button type="button" className="ml-3 underline" onClick={() => setRetry(value => value + 1)}>Try again</button>
       </div>
     );
   }
@@ -241,6 +245,7 @@ export default function CustomerPredictionsDashboard({
               <button
                 key={value}
                 type="button"
+                aria-pressed={days === value}
                 onClick={() =>
                   setDays(value)
                 }
@@ -257,6 +262,12 @@ export default function CustomerPredictionsDashboard({
           )}
         </div>
       </div>
+
+      {dataDays !== null && <p className="text-sm text-slate-400">Loaded evaluation period: {dataDays} days. Current signals use their own time windows.</p>}
+      {loading && data && <p role="status" className="text-sm text-slate-300">Loading {days}-day results. Showing the last successful {dataDays}-day results.</p>}
+      {error && data && <div role="alert" className="rounded-xl border border-red-500/30 bg-red-950/20 p-4 text-sm text-red-300">{error} Showing the last successful {dataDays}-day results.
+        <button type="button" className="ml-3 underline" onClick={() => setRetry(value => value + 1)}>Try again</button>
+      </div>}
 
       <section className="overflow-hidden rounded-2xl border border-blue-500/30 bg-gradient-to-br from-blue-950/40 via-slate-950 to-slate-950">
         <div className="border-b border-slate-800 px-5 py-5">

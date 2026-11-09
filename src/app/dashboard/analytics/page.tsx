@@ -9,7 +9,7 @@ export default async function AnalyticsPage() {
       access.permissions.includes(p),
     )
   )
-    redirect("/dashboard/today");
+    redirect("/dashboard/workspace");
   return (
     <>
     <a href="/dashboard/analytics/contribution" className="mx-4 mt-4 inline-block text-sm text-brand">Customer &amp; account contribution →</a>

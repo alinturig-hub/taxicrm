@@ -22,10 +22,10 @@ export default function DashboardRealtimeHeader() {
   const [now, setNow] = useState<Date | null>(null);
   const [lastRefresh, setLastRefresh] =
     useState<Date | null>(null);
+  const [connection, setConnection] = useState<"connecting" | "live" | "offline">("connecting");
 
   useEffect(() => {
     setNow(new Date());
-    setLastRefresh(new Date());
 
     const clockInterval = window.setInterval(() => {
       setNow(new Date());
@@ -56,6 +56,10 @@ export default function DashboardRealtimeHeader() {
         `${protocol}//${window.location.host}/ws/fleet`,
       );
 
+      socket.addEventListener("open", () => {
+        if (!disposed) setConnection("live");
+      });
+
       socket.addEventListener("message", (event) => {
         try {
           const message = JSON.parse(
@@ -77,6 +81,7 @@ export default function DashboardRealtimeHeader() {
 
       socket.addEventListener("close", () => {
         if (!disposed) {
+          setConnection("offline");
           reconnectTimer = setTimeout(
             connect,
             2000,
@@ -129,10 +134,10 @@ export default function DashboardRealtimeHeader() {
 
       <div className="rounded-2xl border border-blue-500/20 bg-blue-500/[0.06] px-5 py-4">
         <div className="flex items-center gap-2">
-          <span className="h-2.5 w-2.5 animate-pulse rounded-full bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.7)]" />
+          <span aria-hidden="true" className={`h-2.5 w-2.5 rounded-full ${connection === "live" ? "bg-emerald-400" : "bg-amber-400"}`} />
 
-          <p className="text-xs font-bold uppercase tracking-[0.18em] text-emerald-300">
-            Live
+          <p role="status" className="text-xs font-bold uppercase tracking-[0.18em] text-app-primary">
+            {connection === "live" ? "Live connection" : connection === "connecting" ? "Connecting" : "Reconnecting"}
           </p>
         </div>
 
@@ -145,9 +150,9 @@ export default function DashboardRealtimeHeader() {
         </p>
 
         <p className="mt-2 text-[11px] text-slate-500">
-          Dashboard updates instantly from live webhook events
+          {connection === "live" ? "Updates are requested when live events arrive." : "Automatic refresh is requested every 60 seconds while reconnecting."}
           {lastRefresh
-            ? ` · Last refresh ${lastRefresh.toLocaleTimeString(
+            ? ` · Last refresh requested ${lastRefresh.toLocaleTimeString(
                 "en-GB",
                 {
                   hour: "2-digit",
