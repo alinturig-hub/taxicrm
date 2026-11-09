@@ -2,6 +2,9 @@
 import type { customerObservations } from "@/lib/customers/customer-observations";
 
 import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
+import RetentionProgressCard from "@/components/customers/RetentionProgressCard";
+import CustomerOutcomeHistory from "@/components/customers/CustomerOutcomeHistory";
+import CustomerOutcomePatterns from "@/components/customers/CustomerOutcomePatterns";
 
 import {
   useEffect,
@@ -91,6 +94,17 @@ type CustomerBehaviourTag = {
 
 type ProfileResponse = {
   success: boolean;
+  outcomePatterns?: import("@/components/customers/CustomerOutcomePatterns").OutcomePatterns | null;
+  retentionProgress?: {
+    observedAt: string;
+    firstCompletedAt: string | null;
+    completedWithin7Days: number;
+    completedWithin14Days: number;
+    reached5Within7Days: boolean | null;
+    reached5Within14Days: boolean | null;
+    undatedCompleted: number;
+    evidenceIncomplete: boolean;
+  } | null;
   message?: string;
   customer?: {
     id: string;
@@ -1049,6 +1063,9 @@ export default function CustomerProfileDrawer({
               {tab === "OVERVIEW" ? (
                 <Overview
                   profile={profile}
+                  retentionProgress={data?.retentionProgress}
+                  outcomePatterns={data?.outcomePatterns}
+                  customerId={customerId}
                   dataQuality={
                     data?.profileDataQuality
                   }
@@ -1137,6 +1154,9 @@ export default function CustomerProfileDrawer({
 
 function Overview({
   profile,
+  retentionProgress,
+  outcomePatterns,
+  customerId,
   dataQuality,
   relationship,
   weather,
@@ -1144,6 +1164,9 @@ function Overview({
   profile: NonNullable<
     ProfileResponse["profile"]
   >;
+  retentionProgress?: ProfileResponse["retentionProgress"];
+  outcomePatterns?: ProfileResponse["outcomePatterns"];
+  customerId: string;
   dataQuality?: ProfileResponse["profileDataQuality"];
   relationship?: ProfileResponse["relationshipQuality"];
   weather?: ProfileResponse["observation"];
@@ -1151,8 +1174,12 @@ function Overview({
   const { overview, classification } = profile;
   const observations = profile.observations;
 
+
   return (
     <div className="space-y-6">
+      {retentionProgress && <RetentionProgressCard progress={retentionProgress} />}
+      {outcomePatterns && <CustomerOutcomePatterns patterns={outcomePatterns} />}
+      <CustomerOutcomeHistory key={customerId} customerId={customerId} />
       {observations && <section className="rounded-2xl border border-app-border p-5"><h3 className="font-semibold">Observed completed-trip activity</h3><p className="mt-2 text-sm text-app-muted">{observations.completedWithPickup} completed pickups · Last 30 days: {observations.recent30Days} · Previous 30 days: {observations.previous30Days}</p><p className="mt-2 text-sm text-app-muted">Median positive interval: {observations.medianIntervalHours === null ? "Insufficient data" : `${observations.medianIntervalHours.toFixed(1)} hours`} · Since last completed pickup: {observations.daysSinceLastCompletedPickup === null ? "Unknown" : `${observations.daysSinceLastCompletedPickup.toFixed(1)} days`}</p><p className="mt-2 text-xs text-app-muted">{observations.status === "INSUFFICIENT_HISTORY" ? "Insufficient history for a stable pattern." : "Descriptive history available."} {observations.method}</p><p className="mt-2 text-xs text-app-muted">Excluded: {observations.missingPickup} missing/invalid pickup times, {observations.futurePickup} future pickups, {observations.duplicateReferences} repeated source references. This booking contact may represent multiple passengers.</p></section>}
 
 

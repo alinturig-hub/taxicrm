@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { ADMINISTRATION_PERMISSIONS, requireAdministrationPermission } from "@/lib/administration-access";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { buildCustomerProfileDataQuality } from "@/lib/customers/customer-profile-data-quality";
 import {
@@ -22,6 +23,8 @@ import { buildCustomerWeatherIntelligence } from "@/lib/customers/customer-weath
 import { buildCustomerContextualIntelligence } from "@/lib/customers/customer-contextual-intelligence";
 import { buildCustomerMind } from "@/lib/customers/customer-mind";
 import { prisma } from "@/lib/prisma";
+import { retentionForCustomerProfile } from "@/lib/customers/retention-activation";
+import { outcomePatternsForProfile } from "@/lib/customers/customer-outcome-patterns";
 import { ensureHourlyWeatherCurrent } from "@/lib/weather/sync-hourly-weather";
 
 export const runtime = "nodejs";
@@ -51,6 +54,17 @@ export async function GET(
     );
   }
 
+  const customerAccess = await requireAdministrationPermission(
+    session.user.email,
+    ADMINISTRATION_PERMISSIONS.CUSTOMERS_VIEW,
+  );
+  if (!customerAccess) {
+    return NextResponse.json(
+      { success: false, error: "FORBIDDEN", message: "You do not have permission to view this customer profile." },
+      { status: 403 },
+    );
+  }
+
   try {
     const customer =
       await prisma.normalCustomer.findUnique({
@@ -76,12 +90,16 @@ export async function GET(
               },
             ],
             select: {
+              id: true,
               externalId: true,
               provider: true,
               status: true,
               bookedAtTime: true,
               pickupDueTime: true,
+              dispatchedAt: true,
               completedAt: true,
+              cancelledAt: true,
+              noFareAt: true,
               price: true,
               cost: true,
               fare: true,
@@ -132,6 +150,13 @@ export async function GET(
 
     const profile =
       buildCustomerProfile(customer.bookings);
+
+    const retentionProgress = retentionForCustomerProfile(
+      customer.bookings,
+      profile.classification.identityType,
+      new Date(),
+    );
+    const outcomePatterns = outcomePatternsForProfile(customer.bookings, profile.classification.identityType, new Date());
 
     const nextBookingPrediction =
       buildNextBookingPrediction(
@@ -524,6 +549,8 @@ export async function GET(
       },
       mind,
       profile,
+      retentionProgress,
+      outcomePatterns,
       profileDataQuality,
       profileHistory,
       nextBookingPrediction,

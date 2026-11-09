@@ -2,6 +2,7 @@ import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
 import { authOptions } from "@/lib/auth";
+import { ADMINISTRATION_PERMISSIONS, requireAdministrationPermission } from "@/lib/administration-access";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -22,6 +23,17 @@ export async function GET(request: Request) {
       {
         status: 401,
       },
+    );
+  }
+
+  const customerAccess = await requireAdministrationPermission(
+    session.user.email,
+    ADMINISTRATION_PERMISSIONS.CUSTOMERS_VIEW,
+  );
+  if (!customerAccess) {
+    return NextResponse.json(
+      { success: false, error: "FORBIDDEN", message: "You do not have permission to view customers." },
+      { status: 403 },
     );
   }
 
