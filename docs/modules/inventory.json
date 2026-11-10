@@ -1,0 +1,1259 @@
+{
+  "baseline": "c4fea3f85089e2d04afb34473ee0c73b9e52890b",
+  "scope": "Descriptive ownership; runtime enable/disable is not implemented by this map",
+  "modules": {
+    "core": {
+      "label": "Core",
+      "description": "Authentication, users, roles, audit and shared coordination.",
+      "stage": "shared"
+    },
+    "workspace": {
+      "label": "My workspace",
+      "description": "Personal layout and aggregation of published module cards.",
+      "stage": "orchestration-extracted"
+    },
+    "integrations": {
+      "label": "Integration registry",
+      "description": "Source selection, connection registry and the shared event journal.",
+      "stage": "provider-extracted"
+    },
+    "needacabplus": {
+      "label": "NeedACab Plus integration",
+      "description": "Existing shared-source connection and fleet adapter.",
+      "stage": "mapped"
+    },
+    "autocab": {
+      "label": "Autocab direct",
+      "description": "Autocab API settings, webhook definitions and direct ingestion adapters.",
+      "stage": "mapped"
+    },
+    "operations": {
+      "label": "Operations",
+      "description": "Existing booking, driver, fleet and zone workspaces.",
+      "stage": "provider-extracted"
+    },
+    "customers": {
+      "label": "Customers",
+      "description": "Contact identity, booking history and customer directory.",
+      "stage": "provider-extracted"
+    },
+    "retention": {
+      "label": "Retention",
+      "description": "Existing completed-trip lifecycle, configurable tags and relationship signals.",
+      "stage": "mapped"
+    },
+    "predictions": {
+      "label": "Predictions",
+      "description": "Existing versioned customer ranking, demand forecasts and evaluation.",
+      "stage": "provider-extracted"
+    },
+    "marketing": {
+      "label": "Marketing",
+      "description": "Campaigns, audiences, vouchers and marketing history.",
+      "stage": "mapped"
+    },
+    "communications": {
+      "label": "Communications transport",
+      "description": "Shared WhatsApp transport, receipt processing and notification infrastructure.",
+      "stage": "mapped"
+    },
+    "financial": {
+      "label": "Financial",
+      "description": "Price, Cost, margins, account rules and driver-rent configuration.",
+      "stage": "provider-extracted"
+    },
+    "analytics": {
+      "label": "Analytics",
+      "description": "Existing analytical exploration and query services.",
+      "stage": "mapped"
+    },
+    "reports": {
+      "label": "Reports",
+      "description": "Existing detailed contribution/performance reports; no new report engine.",
+      "stage": "mapped"
+    },
+    "businessOverview": {
+      "label": "Business overview",
+      "description": "Existing executive business views and their summaries.",
+      "stage": "mapped"
+    },
+    "insights": {
+      "label": "Insights",
+      "description": "Existing recorded business/customer insights.",
+      "stage": "mapped"
+    },
+    "ai": {
+      "label": "AI",
+      "description": "Existing Copilot chat; separate owner-agent draft is not activated here.",
+      "stage": "mapped"
+    },
+    "places": {
+      "label": "Places intelligence",
+      "description": "Existing enrichment, category review and Geoapify configuration.",
+      "stage": "mapped"
+    },
+    "automation": {
+      "label": "Automation",
+      "description": "Existing rule definitions and simulations.",
+      "stage": "mapped"
+    },
+    "context": {
+      "label": "Contextual events",
+      "description": "Existing city/calendar context and bank-holiday settings.",
+      "stage": "mapped"
+    }
+  },
+  "entries": [
+    {
+      "file": "src/app/api/auth/[...nextauth]/route.ts",
+      "path": "/api/auth/[...nextauth]",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/auth/change-password/route.ts",
+      "path": "/api/auth/change-password",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/bookings/[id]/route.ts",
+      "path": "/api/bookings/[id]",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/bookings/[id]/timeline/route.ts",
+      "path": "/api/bookings/[id]/timeline",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/bookings/dispatch-difficulty/route.ts",
+      "path": "/api/bookings/dispatch-difficulty",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/bookings/rejections/ranking/route.ts",
+      "path": "/api/bookings/rejections/ranking",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/bookings/route.ts",
+      "path": "/api/bookings",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/place-review/route.ts",
+      "path": "/api/dashboard/administration/place-review",
+      "kind": "api",
+      "moduleId": "places"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/roles/[id]/route.ts",
+      "path": "/api/dashboard/administration/roles/[id]",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/roles/route.ts",
+      "path": "/api/dashboard/administration/roles",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/users/[id]/reset-password/route.ts",
+      "path": "/api/dashboard/administration/users/[id]/reset-password",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/users/[id]/route.ts",
+      "path": "/api/dashboard/administration/users/[id]",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/administration/users/route.ts",
+      "path": "/api/dashboard/administration/users",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/ai/automation/[id]/simulate/route.ts",
+      "path": "/api/dashboard/ai/automation/[id]/simulate",
+      "kind": "api",
+      "moduleId": "automation"
+    },
+    {
+      "file": "src/app/api/dashboard/ai/automation/route.ts",
+      "path": "/api/dashboard/ai/automation",
+      "kind": "api",
+      "moduleId": "automation"
+    },
+    {
+      "file": "src/app/api/dashboard/ai/copilot/route.ts",
+      "path": "/api/dashboard/ai/copilot",
+      "kind": "api",
+      "moduleId": "ai"
+    },
+    {
+      "file": "src/app/api/dashboard/ai/insights/route.ts",
+      "path": "/api/dashboard/ai/insights",
+      "kind": "api",
+      "moduleId": "insights"
+    },
+    {
+      "file": "src/app/api/dashboard/analytics/contribution/route.ts",
+      "path": "/api/dashboard/analytics/contribution",
+      "kind": "api",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/api/dashboard/analytics/route.ts",
+      "path": "/api/dashboard/analytics",
+      "kind": "api",
+      "moduleId": "analytics"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/events/[id]/route.ts",
+      "path": "/api/dashboard/autocab/events/[id]",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/events/route.ts",
+      "path": "/api/dashboard/autocab/events",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/providers/[id]/route.ts",
+      "path": "/api/dashboard/autocab/providers/[id]",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/providers/route.ts",
+      "path": "/api/dashboard/autocab/providers",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/webhooks/[id]/route.ts",
+      "path": "/api/dashboard/autocab/webhooks/[id]",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/autocab/webhooks/route.ts",
+      "path": "/api/dashboard/autocab/webhooks",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/accounts/route.ts",
+      "path": "/api/dashboard/configuration/accounts",
+      "kind": "api",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/api-endpoints/[id]/records/route.ts",
+      "path": "/api/dashboard/configuration/api-endpoints/[id]/records",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/api-endpoints/[id]/route.ts",
+      "path": "/api/dashboard/configuration/api-endpoints/[id]",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/api-endpoints/[id]/sync/route.ts",
+      "path": "/api/dashboard/configuration/api-endpoints/[id]/sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/api-endpoints/route.ts",
+      "path": "/api/dashboard/configuration/api-endpoints",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/contextual-events/[id]/route.ts",
+      "path": "/api/dashboard/configuration/contextual-events/[id]",
+      "kind": "api",
+      "moduleId": "context"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/contextual-events/bank-holidays/route.ts",
+      "path": "/api/dashboard/configuration/contextual-events/bank-holidays",
+      "kind": "api",
+      "moduleId": "context"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/contextual-events/route.ts",
+      "path": "/api/dashboard/configuration/contextual-events",
+      "kind": "api",
+      "moduleId": "context"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/driver-rent/route.ts",
+      "path": "/api/dashboard/configuration/driver-rent",
+      "kind": "api",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/integrations-disable/route.ts",
+      "path": "/api/dashboard/configuration/integrations-disable",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/sms/route.ts",
+      "path": "/api/dashboard/configuration/sms",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/system-health/route.ts",
+      "path": "/api/dashboard/configuration/system-health",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/whatsapp/image/route.ts",
+      "path": "/api/dashboard/configuration/whatsapp/image",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/dashboard/configuration/whatsapp/route.ts",
+      "path": "/api/dashboard/configuration/whatsapp",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/[id]/outcomes/route.ts",
+      "path": "/api/dashboard/customers/[id]/outcomes",
+      "kind": "api",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/[id]/profile/route.ts",
+      "path": "/api/dashboard/customers/[id]/profile",
+      "kind": "api",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/predictions/route.ts",
+      "path": "/api/dashboard/customers/predictions",
+      "kind": "api",
+      "moduleId": "predictions"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/route.ts",
+      "path": "/api/dashboard/customers",
+      "kind": "api",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/tags/recalculate/route.ts",
+      "path": "/api/dashboard/customers/tags/recalculate",
+      "kind": "api",
+      "moduleId": "retention"
+    },
+    {
+      "file": "src/app/api/dashboard/customers/time-tag-rules/route.ts",
+      "path": "/api/dashboard/customers/time-tag-rules",
+      "kind": "api",
+      "moduleId": "retention"
+    },
+    {
+      "file": "src/app/api/dashboard/driver-company-overview/route.ts",
+      "path": "/api/dashboard/driver-company-overview",
+      "kind": "api",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/api/dashboard/drivers/[id]/route.ts",
+      "path": "/api/dashboard/drivers/[id]",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/drivers/route.ts",
+      "path": "/api/dashboard/drivers",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/fleet/route.ts",
+      "path": "/api/dashboard/fleet",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/accounts/sync/route.ts",
+      "path": "/api/dashboard/integrations/autocab/accounts/sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/configuration/route.ts",
+      "path": "/api/dashboard/integrations/autocab/configuration",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/drivers/sync/route.ts",
+      "path": "/api/dashboard/integrations/autocab/drivers/sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/test/route.ts",
+      "path": "/api/dashboard/integrations/autocab/test",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/vehicles/sync/route.ts",
+      "path": "/api/dashboard/integrations/autocab/vehicles/sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/autocab/zones/sync/route.ts",
+      "path": "/api/dashboard/integrations/autocab/zones/sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/connections/route.ts",
+      "path": "/api/dashboard/integrations/connections",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/geoapify/configuration/route.ts",
+      "path": "/api/dashboard/integrations/geoapify/configuration",
+      "kind": "api",
+      "moduleId": "places"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/geoapify/enrich/route.ts",
+      "path": "/api/dashboard/integrations/geoapify/enrich",
+      "kind": "api",
+      "moduleId": "places"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/local/route.ts",
+      "path": "/api/dashboard/integrations/local",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/integrations/route.ts",
+      "path": "/api/dashboard/integrations",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/dashboard/live-operations/route.ts",
+      "path": "/api/dashboard/live-operations",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/marketing/whatsapp/conversations/route.ts",
+      "path": "/api/dashboard/marketing/whatsapp/conversations",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/marketing/whatsapp/history/route.ts",
+      "path": "/api/dashboard/marketing/whatsapp/history",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/marketing/whatsapp/inbox/route.ts",
+      "path": "/api/dashboard/marketing/whatsapp/inbox",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/marketing/whatsapp/send-test/route.ts",
+      "path": "/api/dashboard/marketing/whatsapp/send-test",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/marketing/whatsapp/service-policy/route.ts",
+      "path": "/api/dashboard/marketing/whatsapp/service-policy",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/whatsapp/flows/route.ts",
+      "path": "/api/dashboard/whatsapp/flows",
+      "kind": "api",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/api/dashboard/workspace/preferences/route.ts",
+      "path": "/api/dashboard/workspace/preferences",
+      "kind": "api",
+      "moduleId": "workspace"
+    },
+    {
+      "file": "src/app/api/dashboard/workspace/summary/route.ts",
+      "path": "/api/dashboard/workspace/summary",
+      "kind": "api",
+      "moduleId": "workspace"
+    },
+    {
+      "file": "src/app/api/dashboard/zones/route.ts",
+      "path": "/api/dashboard/zones",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/fleet/live/route.ts",
+      "path": "/api/fleet/live",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/health/route.ts",
+      "path": "/api/health",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/internal/analytics/rebuild/route.ts",
+      "path": "/api/internal/analytics/rebuild",
+      "kind": "api",
+      "moduleId": "analytics"
+    },
+    {
+      "file": "src/app/api/internal/booking-demand-forecast/route.ts",
+      "path": "/api/internal/booking-demand-forecast",
+      "kind": "api",
+      "moduleId": "predictions"
+    },
+    {
+      "file": "src/app/api/internal/booking-fare-backfill/route.ts",
+      "path": "/api/internal/booking-fare-backfill",
+      "kind": "api",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/api/internal/booking-post-commit/route.ts",
+      "path": "/api/internal/booking-post-commit",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/internal/crm-post-commit-worker/route.ts",
+      "path": "/api/internal/crm-post-commit-worker",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/internal/customer-booking-predictions/route.ts",
+      "path": "/api/internal/customer-booking-predictions",
+      "kind": "api",
+      "moduleId": "predictions"
+    },
+    {
+      "file": "src/app/api/internal/customer-intelligence-refresh/route.ts",
+      "path": "/api/internal/customer-intelligence-refresh",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/internal/customer-profile-audit/route.ts",
+      "path": "/api/internal/customer-profile-audit",
+      "kind": "api",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/api/internal/customer-profile-snapshots/route.ts",
+      "path": "/api/internal/customer-profile-snapshots",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/api/internal/customer-rebuild/route.ts",
+      "path": "/api/internal/customer-rebuild",
+      "kind": "api",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/api/internal/driver-registry-sync/route.ts",
+      "path": "/api/internal/driver-registry-sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/internal/financial-audit/route.ts",
+      "path": "/api/internal/financial-audit",
+      "kind": "api",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/api/internal/fleet-registry-sync/route.ts",
+      "path": "/api/internal/fleet-registry-sync",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/internal/freephone-audit/route.ts",
+      "path": "/api/internal/freephone-audit",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/freephone-setup/route.ts",
+      "path": "/api/internal/freephone-setup",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/needacabplus/fleet/route.ts",
+      "path": "/api/internal/needacabplus/fleet",
+      "kind": "api",
+      "moduleId": "needacabplus"
+    },
+    {
+      "file": "src/app/api/internal/notifications/route.ts",
+      "path": "/api/internal/notifications",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/shift-audit/route.ts",
+      "path": "/api/internal/shift-audit",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/internal/webhook-processor/route.ts",
+      "path": "/api/internal/webhook-processor",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/internal/webhook-readiness/route.ts",
+      "path": "/api/internal/webhook-readiness",
+      "kind": "api",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/conversations/[id]/messages/route.ts",
+      "path": "/api/internal/whatsapp/v1/conversations/[id]/messages",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/conversations/[id]/operator/route.ts",
+      "path": "/api/internal/whatsapp/v1/conversations/[id]/operator",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/conversations/route.ts",
+      "path": "/api/internal/whatsapp/v1/conversations",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/message-intents/[id]/route.ts",
+      "path": "/api/internal/whatsapp/v1/message-intents/[id]",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/message-intents/route.ts",
+      "path": "/api/internal/whatsapp/v1/message-intents",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/template-media/route.ts",
+      "path": "/api/internal/whatsapp/v1/template-media",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/template-workspace/route.ts",
+      "path": "/api/internal/whatsapp/v1/template-workspace",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/worker/receipts/route.ts",
+      "path": "/api/internal/whatsapp/v1/worker/receipts",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v1/worker/route.ts",
+      "path": "/api/internal/whatsapp/v1/worker",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v2/controlled-booking-confirmed/route.ts",
+      "path": "/api/internal/whatsapp/v2/controlled-booking-confirmed",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v2/notification-preview/route.ts",
+      "path": "/api/internal/whatsapp/v2/notification-preview",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/internal/whatsapp/v2/staging-control/route.ts",
+      "path": "/api/internal/whatsapp/v2/staging-control",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/api/refusal-map/[bookingId]/route.ts",
+      "path": "/api/refusal-map/[bookingId]",
+      "kind": "api",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/api/refusal-map/driver/[callsign]/route.ts",
+      "path": "/api/refusal-map/driver/[callsign]",
+      "kind": "api",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/api/webhooks/autocab/[event]/route.ts",
+      "path": "/api/webhooks/autocab/[event]",
+      "kind": "api",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/api/webhooks/whatsapp/meta/route.ts",
+      "path": "/api/webhooks/whatsapp/meta",
+      "kind": "api",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/change-password/page.tsx",
+      "path": "/change-password",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/dashboard/administration/place-review/page.tsx",
+      "path": "/dashboard/administration/place-review",
+      "kind": "page",
+      "moduleId": "places"
+    },
+    {
+      "file": "src/app/dashboard/administration/roles/page.tsx",
+      "path": "/dashboard/administration/roles",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/dashboard/administration/users/page.tsx",
+      "path": "/dashboard/administration/users",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/dashboard/ai/automation/page.tsx",
+      "path": "/dashboard/ai/automation",
+      "kind": "page",
+      "moduleId": "automation"
+    },
+    {
+      "file": "src/app/dashboard/ai/copilot/page.tsx",
+      "path": "/dashboard/ai/copilot",
+      "kind": "page",
+      "moduleId": "ai"
+    },
+    {
+      "file": "src/app/dashboard/ai/insights/page.tsx",
+      "path": "/dashboard/ai/insights",
+      "kind": "page",
+      "moduleId": "insights"
+    },
+    {
+      "file": "src/app/dashboard/ai/predictions/page.tsx",
+      "path": "/dashboard/ai/predictions",
+      "kind": "page",
+      "moduleId": "predictions"
+    },
+    {
+      "file": "src/app/dashboard/analytics/contribution/page.tsx",
+      "path": "/dashboard/analytics/contribution",
+      "kind": "page",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/dashboard/analytics/page.tsx",
+      "path": "/dashboard/analytics",
+      "kind": "page",
+      "moduleId": "analytics"
+    },
+    {
+      "file": "src/app/dashboard/bookings/page.tsx",
+      "path": "/dashboard/bookings",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/command-center/page.tsx",
+      "path": "/dashboard/command-center",
+      "kind": "page",
+      "moduleId": "workspace"
+    },
+    {
+      "file": "src/app/dashboard/configuration/accounts/page.tsx",
+      "path": "/dashboard/configuration/accounts",
+      "kind": "page",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/dashboard/configuration/api-endpoints/[id]/page.tsx",
+      "path": "/dashboard/configuration/api-endpoints/[id]",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/configuration/api-endpoints/page.tsx",
+      "path": "/dashboard/configuration/api-endpoints",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/configuration/contextual-events/page.tsx",
+      "path": "/dashboard/configuration/contextual-events",
+      "kind": "page",
+      "moduleId": "context"
+    },
+    {
+      "file": "src/app/dashboard/configuration/driver-rent/page.tsx",
+      "path": "/dashboard/configuration/driver-rent",
+      "kind": "page",
+      "moduleId": "financial"
+    },
+    {
+      "file": "src/app/dashboard/configuration/geoapify/page.tsx",
+      "path": "/dashboard/configuration/geoapify",
+      "kind": "page",
+      "moduleId": "places"
+    },
+    {
+      "file": "src/app/dashboard/configuration/page.tsx",
+      "path": "/dashboard/configuration",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/dashboard/configuration/sms/page.tsx",
+      "path": "/dashboard/configuration/sms",
+      "kind": "page",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/dashboard/configuration/system-health/page.tsx",
+      "path": "/dashboard/configuration/system-health",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/dashboard/configuration/webhooks/add/page.tsx",
+      "path": "/dashboard/configuration/webhooks/add",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/configuration/webhooks/events/page.tsx",
+      "path": "/dashboard/configuration/webhooks/events",
+      "kind": "page",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/dashboard/configuration/webhooks/page.tsx",
+      "path": "/dashboard/configuration/webhooks",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/configuration/whatsapp/page.tsx",
+      "path": "/dashboard/configuration/whatsapp",
+      "kind": "page",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/dashboard/customers/business-accounts/page.tsx",
+      "path": "/dashboard/customers/business-accounts",
+      "kind": "page",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/dashboard/customers/page.tsx",
+      "path": "/dashboard/customers",
+      "kind": "page",
+      "moduleId": "customers"
+    },
+    {
+      "file": "src/app/dashboard/customers/time-tag-rules/page.tsx",
+      "path": "/dashboard/customers/time-tag-rules",
+      "kind": "page",
+      "moduleId": "retention"
+    },
+    {
+      "file": "src/app/dashboard/drivers/[id]/page.tsx",
+      "path": "/dashboard/drivers/[id]",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/drivers/page.tsx",
+      "path": "/dashboard/drivers",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/fleet/page.tsx",
+      "path": "/dashboard/fleet",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/activity/page.tsx",
+      "path": "/dashboard/integrations/autocab/activity",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/api/page.tsx",
+      "path": "/dashboard/integrations/autocab/api",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/connection/page.tsx",
+      "path": "/dashboard/integrations/autocab/connection",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/page.tsx",
+      "path": "/dashboard/integrations/autocab",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/webhooks/[id]/page.tsx",
+      "path": "/dashboard/integrations/autocab/webhooks/[id]",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/webhooks/new/page.tsx",
+      "path": "/dashboard/integrations/autocab/webhooks/new",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/autocab/webhooks/page.tsx",
+      "path": "/dashboard/integrations/autocab/webhooks",
+      "kind": "page",
+      "moduleId": "autocab"
+    },
+    {
+      "file": "src/app/dashboard/integrations/local/[id]/page.tsx",
+      "path": "/dashboard/integrations/local/[id]",
+      "kind": "page",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/dashboard/integrations/local/page.tsx",
+      "path": "/dashboard/integrations/local",
+      "kind": "page",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/dashboard/integrations/needacabplus/page.tsx",
+      "path": "/dashboard/integrations/needacabplus",
+      "kind": "page",
+      "moduleId": "needacabplus"
+    },
+    {
+      "file": "src/app/dashboard/integrations/overview/page.tsx",
+      "path": "/dashboard/integrations/overview",
+      "kind": "page",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/dashboard/integrations/setup/page.tsx",
+      "path": "/dashboard/integrations/setup",
+      "kind": "page",
+      "moduleId": "integrations"
+    },
+    {
+      "file": "src/app/dashboard/integrations/whatsapp/page.tsx",
+      "path": "/dashboard/integrations/whatsapp",
+      "kind": "page",
+      "moduleId": "communications"
+    },
+    {
+      "file": "src/app/dashboard/intelligence/executive/page.tsx",
+      "path": "/dashboard/intelligence/executive",
+      "kind": "page",
+      "moduleId": "businessOverview"
+    },
+    {
+      "file": "src/app/dashboard/intelligence/hackney/page.tsx",
+      "path": "/dashboard/intelligence/hackney",
+      "kind": "page",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/dashboard/live/page.tsx",
+      "path": "/dashboard/live",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/marketing/opportunities/page.tsx",
+      "path": "/dashboard/marketing/opportunities",
+      "kind": "page",
+      "moduleId": "predictions"
+    },
+    {
+      "file": "src/app/dashboard/marketing/page.tsx",
+      "path": "/dashboard/marketing",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/segments/page.tsx",
+      "path": "/dashboard/marketing/segments",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/vouchers/page.tsx",
+      "path": "/dashboard/marketing/vouchers",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/whatsapp/flows/page.tsx",
+      "path": "/dashboard/marketing/whatsapp/flows",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/whatsapp/inbox/page.tsx",
+      "path": "/dashboard/marketing/whatsapp/inbox",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/whatsapp/page.tsx",
+      "path": "/dashboard/marketing/whatsapp",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/marketing/whatsapp/templates/page.tsx",
+      "path": "/dashboard/marketing/whatsapp/templates",
+      "kind": "page",
+      "moduleId": "marketing"
+    },
+    {
+      "file": "src/app/dashboard/operations/page.tsx",
+      "path": "/dashboard/operations",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/dashboard/page.tsx",
+      "path": "/dashboard",
+      "kind": "page",
+      "moduleId": "businessOverview"
+    },
+    {
+      "file": "src/app/dashboard/workspace/page.tsx",
+      "path": "/dashboard/workspace",
+      "kind": "page",
+      "moduleId": "workspace"
+    },
+    {
+      "file": "src/app/dashboard/zones/page.tsx",
+      "path": "/dashboard/zones",
+      "kind": "page",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/login/page.tsx",
+      "path": "/login",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/page.tsx",
+      "path": "/",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/privacy/page.tsx",
+      "path": "/privacy",
+      "kind": "page",
+      "moduleId": "core"
+    },
+    {
+      "file": "src/app/refusal-map/[bookingId]/page.tsx",
+      "path": "/refusal-map/[bookingId]",
+      "kind": "page",
+      "moduleId": "reports"
+    },
+    {
+      "file": "src/app/refusal-map/driver/[callsign]/page.tsx",
+      "path": "/refusal-map/driver/[callsign]",
+      "kind": "page",
+      "moduleId": "reports"
+    }
+  ],
+  "sharedCoordinators": {
+    "/api/internal/crm-post-commit-worker": [
+      "customers",
+      "predictions",
+      "places",
+      "businessOverview"
+    ],
+    "/api/internal/booking-post-commit": [
+      "customers",
+      "predictions",
+      "places",
+      "businessOverview"
+    ],
+    "/api/internal/customer-intelligence-refresh": [
+      "customers",
+      "retention",
+      "predictions",
+      "places"
+    ],
+    "/api/internal/customer-profile-snapshots": [
+      "customers",
+      "retention",
+      "predictions"
+    ]
+  },
+  "workerOwnership": [
+    {
+      "entrypoint": "/api/internal/driver-registry-sync",
+      "owner": "autocab",
+      "participants": [],
+      "existingControls": [
+        "AUTOCAB_REST_INGEST_DISABLED"
+      ]
+    },
+    {
+      "entrypoint": "/api/internal/customer-intelligence-refresh",
+      "owner": "core",
+      "participants": [
+        "customers",
+        "retention",
+        "predictions",
+        "places"
+      ],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/internal/notifications",
+      "owner": "communications",
+      "participants": [],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/internal/webhook-processor",
+      "owner": "autocab",
+      "participants": [],
+      "existingControls": [
+        "AUTOCAB_WEBHOOK_PROCESSING_PAUSED",
+        "BOOKING_WEBHOOK_WRITER"
+      ]
+    },
+    {
+      "entrypoint": "/api/internal/crm-post-commit-worker",
+      "owner": "core",
+      "participants": [
+        "customers",
+        "predictions",
+        "places",
+        "businessOverview"
+      ],
+      "existingControls": [
+        "CRM_POST_COMMIT_WORKER_ENABLED"
+      ]
+    },
+    {
+      "entrypoint": "/api/internal/customer-profile-snapshots",
+      "owner": "core",
+      "participants": [
+        "customers",
+        "retention",
+        "predictions"
+      ],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/internal/booking-demand-forecast",
+      "owner": "predictions",
+      "participants": [],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/internal/customer-booking-predictions",
+      "owner": "predictions",
+      "participants": [],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/dashboard/integrations/geoapify/enrich",
+      "owner": "places",
+      "participants": [],
+      "existingControls": []
+    },
+    {
+      "entrypoint": "/api/internal/whatsapp/v1/worker",
+      "owner": "communications",
+      "participants": [],
+      "existingControls": [
+        "WHATSAPP_SHARED_ENABLED"
+      ]
+    },
+    {
+      "entrypoint": "/api/internal/whatsapp/v1/worker/receipts",
+      "owner": "communications",
+      "participants": [],
+      "existingControls": [
+        "WHATSAPP_SHARED_ENABLED",
+        "WHATSAPP_RECEIPT_FAST_ENABLED"
+      ]
+    }
+  ]
+}
