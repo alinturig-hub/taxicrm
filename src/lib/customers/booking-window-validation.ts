@@ -9,6 +9,8 @@ export type ValidationCustomer = {
   key: string;
   safeForPersonalisation: boolean;
   bookedAt: string[];
+  /** First database availability, aligned with bookedAt. Omit only for synthetic/assumed histories. */
+  availableAt?: string[];
 };
 
 export type ValidationInput = {
@@ -90,18 +92,29 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
   const keys = new Set<string>();
   let duplicateActionsRemoved = 0;
   let excludedUnsafeProfiles = 0;
-  const timelines: number[][] = [];
+  let profilesWithAvailability = 0;
+  let lateImportedActions = 0;
+  const timelines: Array<Array<{ time: number; available: number }>> = [];
   for (const customer of input.customers) {
     if (!customer.key || keys.has(customer.key)) throw new Error("Customer keys must be unique and nonempty");
     keys.add(customer.key);
     if (typeof customer.safeForPersonalisation !== "boolean") throw new Error("Explicit profile safety is required");
     const actions = customer.bookedAt.map(instant);
+    if (customer.availableAt && customer.availableAt.length !== actions.length) throw new Error("Availability must align with actions");
+    const availability = customer.availableAt?.map(instant) ?? actions;
     if (actions.some((value) => value < historyStart || value > end)) throw new Error("Action outside verified coverage");
     if (!customer.safeForPersonalisation) {
       excludedUnsafeProfiles++;
       continue;
     }
-    const unique = Array.from(new Set(actions)).sort((a, b) => a - b);
+    if (customer.availableAt) profilesWithAvailability++;
+    const firstAvailable = new Map<number, number>();
+    actions.forEach((time, index) => {
+      const available = availability[index];
+      firstAvailable.set(time, Math.min(firstAvailable.get(time) ?? available, available));
+    });
+    const unique = Array.from(firstAvailable, ([time, available]) => ({ time, available })).sort((a, b) => a.time - b.time);
+    lateImportedActions += unique.filter((row) => row.available > row.time + 24 * HOUR).length;
     duplicateActionsRemoved += actions.length - unique.length;
     timelines.push(unique);
   }
@@ -118,7 +131,7 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
     if (checkpoints > maximumForecasts) throw new Error("Evaluation limit exceeded; narrow the interval");
     const atCheckpoint = buckets.map(() => ({ model: [] as Evaluation[], frequency: [] as Evaluation[] }));
     for (const timeline of timelines) {
-      const history = timeline.filter((time) => time <= cutoff);
+      const history = timeline.filter((row) => row.time <= cutoff && row.available <= cutoff).map((row) => row.time);
       const available = buckets.some((bucket) => cutoff + bucket.horizonHours * HOUR <= end);
       if (!available) {
         buckets.forEach((bucket) => bucket.censored++);
@@ -138,7 +151,7 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
           bucket.slotsOutsideHorizon++;
         }
         // Label is future-only: (cutoff, windowEnd], including no-return negatives.
-        const positive = timeline.some((time) => time > cutoff && time <= windowEnd);
+        const positive = timeline.some((row) => row.time > cutoff && row.time <= windowEnd);
         atCheckpoint[index].model.push({ score: horizon.score, positive });
         const recent = history.filter((time) => time > cutoff - 28 * 24 * HOUR).length;
         const exposureHours = Math.min(28 * 24, (cutoff - historyStart) / HOUR);
@@ -171,6 +184,9 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
     eligibleProfiles: timelines.length,
     excludedUnsafeProfiles,
     duplicateActionsRemoved,
+    profilesWithAvailability,
+    profilesWithAssumedAvailability: timelines.length - profilesWithAvailability,
+    lateImportedActions,
     horizons: buckets.map((bucket) => ({
       horizonHours: bucket.horizonHours,
       censoredSnapshots: bucket.censored,

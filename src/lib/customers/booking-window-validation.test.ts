@@ -118,3 +118,23 @@ test("excludes the previously out-of-horizon matching slot", () => {
   assert.equal(forecast.horizons[0].strongestSlot.startAt, null);
   assert.equal(forecast.horizons[0].weeklySlotScore, 0);
 });
+
+test("backfilled rows cannot become training history before their first database availability", () => {
+  const input = base();
+  input.customers[0].availableAt = [...history];
+  input.customers[0].availableAt[4] = "2026-10-07T00:00:00Z";
+  const result = validateBookingWindows(input);
+  assert.equal(result.horizons[2].learningSnapshots, 1);
+  assert.equal(result.horizons[2].model.samples, 0);
+  assert.equal(result.profilesWithAvailability, 1);
+  assert.equal(result.lateImportedActions, 1);
+});
+
+test("duplicate actions use the earliest availability and mismatched availability is rejected", () => {
+  const input = base();
+  input.customers[0].bookedAt.push(history[4]);
+  input.customers[0].availableAt = [...history, "2026-10-07T00:00:00Z"];
+  assert.equal(h24(input).model.samples, 1);
+  input.customers[0].availableAt.pop();
+  assert.throws(() => validateBookingWindows(input), /align/);
+});

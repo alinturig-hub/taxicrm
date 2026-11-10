@@ -109,6 +109,13 @@ recorded rather than verified. No existing historical evidence was erased.
 
 ## Real-data stage — prepared, not executed
 
+**Update after the owner's execution:** the source inventory completed read-only
+on 10 November at 07:28:29 UTC. It confirmed 2,757,545 canonical rows and V1-only
+prediction history. See [source evidence and the bounded pilot](source-preflight-2026-11-10.md).
+Historical model performance has still not been evaluated. The next step uses
+the reviewed standalone pilot through the owner's existing SSH session, without
+providing DB credentials to this executor or exporting customer data into chat.
+
 `scripts/prediction-validation-preflight.sql` inventories the canonical source in
 a bounded read-only transaction and requires `cabby_ro` on database `postgres`.
 Use only the documented shared primary `q9fahphg3lydu18inysgmerq`. The SQL returns
