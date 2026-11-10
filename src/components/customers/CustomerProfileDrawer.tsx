@@ -5,6 +5,7 @@ import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 import RetentionProgressCard from "@/components/customers/RetentionProgressCard";
 import CustomerOutcomeHistory from "@/components/customers/CustomerOutcomeHistory";
 import CustomerOutcomePatterns from "@/components/customers/CustomerOutcomePatterns";
+import { boundedPredictionDisplay } from "@/lib/customers/prediction-window-display";
 
 import {
   useEffect,
@@ -40,20 +41,13 @@ function formatPredictionWindow(
     | Date
     | null
     | undefined,
+  forecastStart: string | null | undefined,
+  forecastEnd: string | null | undefined,
 ) {
-  if (!startAt || !endAt) {
-    return null;
-  }
-
-  const start = new Date(startAt);
-  const end = new Date(endAt);
-
-  if (
-    !Number.isFinite(start.getTime()) ||
-    !Number.isFinite(end.getTime())
-  ) {
-    return null;
-  }
+  const bounded = boundedPredictionDisplay(startAt, endAt, forecastStart, forecastEnd);
+  if (!bounded) return null;
+  const start = new Date(bounded.startAt);
+  const end = new Date(bounded.endAt);
 
   return [
     londonPredictionFormatter.format(
@@ -932,9 +926,9 @@ export default function CustomerProfileDrawer({
                     .primaryLevel ?? "LOW"}{" "}
                   ·{" "}
                   {data.bookingWindow
-                    .primaryObservedBenchmarkRate ??
+                    .primaryScore ??
                     0}
-                  %
+                  /100
                   {(() => {
                     const primary =
                       data.bookingWindow.horizons.find(
@@ -949,6 +943,8 @@ export default function CustomerProfileDrawer({
                           .startAt,
                         primary?.strongestSlot
                           .endAt,
+                        primary?.windowStartAt,
+                        primary?.windowEndAt,
                       );
 
                     return interval
@@ -1671,13 +1667,24 @@ function PredictionTab({
             .likelyWindowStartAt,
           latestStoredPrediction
             .likelyWindowEndAt,
+          latestStoredPrediction.windowStartAt,
+          latestStoredPrediction.windowEndAt,
         )
       : null;
+
+  const strongestHorizon = bookingWindow?.horizons.filter((horizon) =>
+    horizon.strongestSlot.startAt === bookingWindow.strongestUpcomingWindow?.startAt &&
+    horizon.strongestSlot.endAt === bookingWindow.strongestUpcomingWindow?.endAt,
+  ).sort((first, second) => second.score - first.score || first.horizonHours - second.horizonHours)[0];
+  const displayedStrongest = boundedPredictionDisplay(
+    bookingWindow?.strongestUpcomingWindow?.startAt, bookingWindow?.strongestUpcomingWindow?.endAt,
+    strongestHorizon?.windowStartAt, strongestHorizon?.windowEndAt,
+  );
 
   return (
     <div className="space-y-6">
       {latestStoredPrediction ? (
-        <Section title="Verified 24-hour prediction">
+        <Section title="Recorded 24-hour prediction">
           <div className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -1689,7 +1696,7 @@ function PredictionTab({
                 </p>
                 <p className="mt-2 text-sm text-slate-300">
                   {latestStoredPrediction.observedRate}%
-                  observed 24-hour benchmark
+                  historical 24-hour benchmark · not revalidated
                 </p>
               </div>
 
@@ -1735,7 +1742,7 @@ function PredictionTab({
                     latestStoredPrediction
                       .evidenceConfidence
                   }
-                  % evidence
+                  /100 evidence strength
                 </Badge>
               </div>
             </div>
@@ -1973,17 +1980,17 @@ function PredictionTab({
                         0}
                       /100
                     </Badge>
-                    <Badge tone="green">
+                    <Badge tone="slate">
                       {bookingWindow
                         .primaryObservedBenchmarkRate ??
                         0}
-                      % observed benchmark
+                      % historical benchmark · unverified
                     </Badge>
                     <Badge tone="slate">
                       {bookingWindow
                         .primaryEvidenceConfidence ??
                         0}
-                      % evidence confidence
+                      /100 evidence strength
                     </Badge>
                   </div>
                 </div>
@@ -1994,10 +2001,10 @@ function PredictionTab({
                       <Metric
                         key={horizon.horizonHours}
                         label={`Next ${horizon.horizonHours} hours`}
-                        value={`${horizon.observedBenchmarkRate}%`}
-                        detail={`${horizon.level} · score ${horizon.score}/100 · ${horizon.calibrationSamples.toLocaleString(
+                        value={`${horizon.score}/100`}
+                        detail={`${horizon.level} · historical benchmark ${horizon.observedBenchmarkRate}% (${horizon.calibrationSamples.toLocaleString(
                           "en-GB",
-                        )} validation samples`}
+                        )} samples), not revalidated`}
                       />
                     ),
                   )}
@@ -2006,23 +2013,18 @@ function PredictionTab({
                 <div className="mt-5 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Strongest upcoming three-hour window
+                      Strongest matching time window
                     </p>
                     <p className="mt-3 font-semibold text-white">
-                      {bookingWindow
-                        .strongestUpcomingWindow
-                        ?.startAt
+                      {displayedStrongest
                         ? `${dateTime(
-                            bookingWindow
-                              .strongestUpcomingWindow
-                              .startAt,
+                            displayedStrongest.startAt,
                           )} – ${dateTime(
-                            bookingWindow
-                              .strongestUpcomingWindow
-                              .endAt,
+                            displayedStrongest.endAt,
                           )}`
-                        : "Still learning"}
+                        : "No matching time window in the forecast"}
                     </p>
+                    <p className="mt-2 text-xs text-slate-400">Displayed times are limited to the forecast period. Scores and recorded outcomes are unchanged.</p>
                     <p className="mt-2 text-sm leading-6 text-slate-400">
                       {bookingWindow
                         .strongestUpcomingWindow

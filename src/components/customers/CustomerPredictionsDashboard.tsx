@@ -1,4 +1,5 @@
 "use client";
+import { boundedPredictionDisplay } from "@/lib/customers/prediction-window-display";
 
 import {
   useEffect,
@@ -7,6 +8,7 @@ import {
 
 type DashboardData = {
   success: boolean;
+  horizonHours?: number;
   message?: string;
   demandForecast?: {
     id: string;
@@ -102,7 +104,17 @@ const dateFormatter =
 function timeSlot(
   startAt: string | null,
   endAt: string | null,
+  forecastEnd?: string,
+  horizonHours = 24,
 ) {
+  if (forecastEnd) {
+    const boundary = Date.parse(forecastEnd);
+    if (!Number.isFinite(boundary) || !Number.isFinite(horizonHours) || horizonHours <= 0) return "No matching window";
+    const bounded = boundedPredictionDisplay(startAt, endAt, new Date(boundary - horizonHours * 3_600_000), forecastEnd);
+    if (!bounded) return "No matching window";
+    startAt = bounded.startAt;
+    endAt = bounded.endAt;
+  }
   if (!startAt || !endAt) {
     return "No reliable slot";
   }
@@ -609,7 +621,8 @@ export default function CustomerPredictionsDashboard({
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             Privacy-safe individual profiles,
-            ordered by observed likelihood.
+            ranked by the existing prediction signals. Historical benchmarks
+            have not been revalidated and are not individual probabilities.
           </p>
         </div>
 
@@ -620,7 +633,7 @@ export default function CustomerPredictionsDashboard({
                 {[
                   "Customer",
                   "Signal",
-                  "Observed",
+                  "Historical benchmark",
                   "Likely time",
                   "Ends",
                   "Evidence",
@@ -682,6 +695,8 @@ export default function CustomerPredictionsDashboard({
                           .likelyWindowStartAt,
                         prediction
                           .likelyWindowEndAt,
+                        prediction.windowEndAt,
+                        data?.horizonHours ?? 24,
                       )}
                     </td>
                     <td className="px-5 py-4">
