@@ -1,3 +1,5 @@
+import { evaluateTimeTag } from "./configurable-time-tag";
+import { defaultTimeTagRules, type SavedTimeTagRule } from "./time-tag-rules";
 const WINDOW_DAYS = 14;
 const DAY_MS = 86_400_000;
 
@@ -34,7 +36,7 @@ export type CustomerBehaviourTag = {
   evidenceCount: number;
   eligibleCount: number;
   percentage: number;
-  windowDays: 14;
+  windowDays: number;
   lastObservedAt: string | null;
   explanation: string;
 };
@@ -280,6 +282,7 @@ function routeKey(
 export function buildCustomerBehaviourTags(
   bookings: TagBooking[],
   now = new Date(),
+  timeRules: SavedTimeTagRule[] = defaultTimeTagRules,
 ) {
   const windowStart =
     now.getTime() -
@@ -492,55 +495,13 @@ export function buildCustomerBehaviourTags(
         null,
     );
 
-  addTag({
-    id: "EARLY_MORNING_USER",
-    label: "Early Morning User",
-    category: "TIME",
-    matches:
-      timedJourneys.filter(
-        (booking) => {
-          const time =
-            londonTime(booking);
+  for (const rule of timeRules.filter(rule => rule.enabled)) {
+    const rows = bookings.map((booking,index)=>({id:String(index),status:booking.status,pickupDueTime:booking.pickupDueTime}));
+    const result=evaluateTimeTag(rule,rows,now);
+    if(!result.qualifies || result.percent===null) continue;
 
-          return Boolean(
-            time &&
-              time.hour >= 4 &&
-              time.hour < 8,
-          );
-        },
-      ),
-    eligibleCount:
-      timedJourneys.length,
-    explanation:
-      (count, share) =>
-        `${count} completed journeys started between 04:00 and 08:00 London time (${share}%).`,
-  });
-
-  addTag({
-    id: "LATE_EVENING_USER",
-    label: "Late Evening User",
-    category: "TIME",
-    matches:
-      timedJourneys.filter(
-        (booking) => {
-          const time =
-            londonTime(booking);
-
-          return Boolean(
-            time &&
-              (
-                time.hour >= 22 ||
-                time.hour < 4
-              ),
-          );
-        },
-      ),
-    eligibleCount:
-      timedJourneys.length,
-    explanation:
-      (count, share) =>
-        `${count} completed journeys started between 22:00 and 04:00 London time (${share}%).`,
-  });
+    tags.push({id:rule.id,label:rule.name,category:"TIME",confidence:confidence(result.matched,result.percent),evidenceCount:result.matched,eligibleCount:result.eligible,percentage:result.percent,windowDays:rule.windowDays,lastObservedAt:result.lastMatchedAt,explanation:`${result.matched} of ${result.eligible} completed journeys started between ${rule.start} and ${rule.end} London time (${result.percent}%) in ${rule.windowDays} days. Minimum ${rule.minimumMatches} journeys and ${rule.minimumPercent}%. Missing pickup times are excluded.`});
+  }
 
   addTag({
     id: "WEEKEND_USER",
