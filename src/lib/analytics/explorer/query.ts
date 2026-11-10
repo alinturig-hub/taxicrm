@@ -85,8 +85,9 @@ function totals(row: Row): Totals {
 export async function getAnalytics(
   range: Range,
   includeDrivers: boolean,
+  database: typeof prisma = prisma,
 ): Promise<AnalyticsData> {
-  return prisma.$transaction(
+  return database.$transaction(
     async (tx) => {
       await tx.$executeRawUnsafe("SET TRANSACTION READ ONLY");
       await tx.$executeRawUnsafe("SET LOCAL statement_timeout='12s'");
