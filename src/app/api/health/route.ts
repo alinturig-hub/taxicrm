@@ -1,3 +1,4 @@
+import { RELEASE_ID } from "@/modules/core/release";
 import { NextResponse } from "next/server";
 
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ export async function GET() {
     return NextResponse.json(
       {
         status: "healthy",
+        release: RELEASE_ID,
         database: "connected",
         checkedAt:
           new Date().toISOString(),
@@ -29,6 +31,7 @@ export async function GET() {
     return NextResponse.json(
       {
         status: "unhealthy",
+        release: RELEASE_ID,
         database: "unavailable",
         checkedAt:
           new Date().toISOString(),

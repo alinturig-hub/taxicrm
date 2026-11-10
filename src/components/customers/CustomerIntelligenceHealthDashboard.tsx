@@ -1,4 +1,6 @@
 "use client";
+import CoreHealthWithoutPredictions from "./CoreHealthWithoutPredictions";
+import type { coreHealthWithoutPredictions } from "@/modules/core/intelligence-health";
 
 import {
   useCallback,
@@ -44,6 +46,8 @@ type DemandAlert = {
 };
 
 type HealthResponse = {
+  predictionsEnabled?: boolean;
+  core?: Awaited<ReturnType<typeof coreHealthWithoutPredictions>>;
   success: boolean;
   containsPersonalData: boolean;
   generatedAt: string;
@@ -418,6 +422,8 @@ export default function CustomerIntelligenceHealthDashboard() {
       </div>
     );
   }
+
+  if (health.predictionsEnabled === false && health.core) return <CoreHealthWithoutPredictions core={health.core} error={error} reload={() => { void loadHealth(); }} />;
 
   const recentJobRuns =
     Array.isArray(

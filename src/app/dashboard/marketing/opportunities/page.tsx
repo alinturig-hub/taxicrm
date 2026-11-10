@@ -1,3 +1,4 @@
+import { modulePageBlock } from "@/modules/core/activation/page";
 import CustomerOpportunities from "@/components/marketing/CustomerOpportunities";
 import { workspaceAccess } from "@/lib/workspace/access";
 import { redirect } from "next/navigation";
@@ -5,6 +6,8 @@ export const dynamic = "force-dynamic";
 export default async function OpportunitiesPage() {
   const { access } = await workspaceAccess();
   if (!access.permissions.includes("intelligence.view")) redirect("/dashboard");
+  const moduleBlock = await modulePageBlock("predictions");
+  if (moduleBlock) return moduleBlock;
   return (
     <div className="space-y-6">
       <header>

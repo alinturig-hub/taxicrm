@@ -1,4 +1,5 @@
-import { prisma } from "@/lib/prisma";
+import { predictionUnit } from "@/modules/predictions/lifecycle";
+import { predictionPrisma as prisma } from "@/modules/predictions/lifecycle";
 
 import {
   minutesBetween,
@@ -11,6 +12,7 @@ export async function backfillCustomerPredictionEvidence({
 }: {
   limit?: number;
 } = {}) {
+  return predictionUnit(async () => {
   const safeLimit = Math.min(
     Math.max(Math.trunc(limit), 1),
     500,
@@ -164,4 +166,5 @@ export async function backfillCustomerPredictionEvidence({
       predictions.length === safeLimit,
     containsPersonalData: false,
   };
+  });
 }

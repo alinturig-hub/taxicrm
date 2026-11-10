@@ -1,3 +1,5 @@
+import { predictionAvailability } from "@/modules/predictions/lifecycle";
+import { disabledNeed } from "@/modules/predictions/disabled-need";
 import { loadTimeTagRules } from "@/lib/customers/time-tag-store";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -165,20 +167,22 @@ export async function GET(
     );
     const outcomePatterns = outcomePatternsForProfile(customer.bookings, profile.classification.identityType, new Date());
 
+    const predictionMode = await predictionAvailability();
+    const predictionsEnabled = predictionMode.status === "ENABLED";
     const nextBookingPrediction =
-      buildNextBookingPrediction(
+      predictionsEnabled ? buildNextBookingPrediction(
         customer.bookings,
-      );
+      ) : null;
 
     const bookingWindow =
-      buildCustomerBookingWindow(
+      predictionsEnabled ? buildCustomerBookingWindow(
         customer.bookings,
         {
           profileSafeForPersonalisation:
             profile.classification
               .profileSafeForPersonalisation,
         },
-      );
+      ) : null;
 
     const customerRhythm =
       buildCustomerRhythm(
@@ -212,7 +216,7 @@ export async function GET(
       );
 
     const needPropensity =
-      buildCustomerNeedPropensity({
+      nextBookingPrediction ? buildCustomerNeedPropensity({
         profileSafeForPersonalisation:
           profile.classification
             .profileSafeForPersonalisation,
@@ -220,7 +224,7 @@ export async function GET(
           nextBookingPrediction,
         rhythm: customerRhythm,
         returnJourney,
-      });
+      }) : disabledNeed();
 
     try {
       await ensureHourlyWeatherCurrent();
@@ -514,7 +518,7 @@ export async function GET(
       };
 
     try {
-      predictionHistory =
+      if (predictionsEnabled) predictionHistory =
         await getCustomerPredictionHistory(
           customer.id,
         );
@@ -530,8 +534,8 @@ export async function GET(
       rhythm: customerRhythm,
       weather: weather,
       contextual: contextualIntelligence,
-      prediction: nextBookingPrediction,
-      need: needPropensity,
+      prediction: predictionsEnabled ? nextBookingPrediction : null,
+      need: predictionsEnabled ? needPropensity : null,
       preferences: {
         preferredBookingStyle:
           operationalPreferences.leadTime
@@ -560,10 +564,8 @@ export async function GET(
       outcomePatterns,
       profileDataQuality,
       profileHistory,
-      nextBookingPrediction,
-      bookingWindow,
-      predictionHistory,
-      needPropensity,
+      moduleAvailability: { predictions: predictionMode.status },
+      ...(predictionsEnabled ? { nextBookingPrediction, bookingWindow, predictionHistory, needPropensity } : {}),
       customerRhythm,
       operationalPreferences,
       relationshipQuality,

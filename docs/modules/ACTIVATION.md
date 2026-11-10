@@ -1,5 +1,7 @@
 # Installation module controls — first isolated capabilities
 
+Current extension: [Predictions control](PREDICTIONS_ACTIVATION.md) adds the fourth guarded capability and version-2 compatibility. The three-capability implementation below describes PR29.
+
 ## Scope
 
 Configuration → Product modules (`/dashboard/configuration/modules`) now offers real installation-wide controls for three existing capabilities:

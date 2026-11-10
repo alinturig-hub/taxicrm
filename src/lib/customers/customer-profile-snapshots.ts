@@ -1,3 +1,4 @@
+import { loadModuleState } from "@/modules/core/activation/store";
 import { prisma } from "@/lib/prisma";
 
 type SnapshotInput = {
@@ -138,7 +139,12 @@ export async function saveCustomerProfileSnapshot(
       input.behaviourChange.direction,
   };
 
-  return prisma.customerProfileSnapshot.upsert({
+  return prisma.$transaction(async tx => {
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(187438601, 1)::text`;
+  const predictionsEnabled = (await loadModuleState(tx)).enabled.predictions;
+  const { needScore, needLevel, needConfidence, ...baseValues } = values;
+  const needValues = predictionsEnabled ? { needScore, needLevel, needConfidence } : { needScore: null, needLevel: "DISABLED", needConfidence: 0 };
+  return tx.customerProfileSnapshot.upsert({
     where: {
       normalCustomerId_snapshotDate: {
         normalCustomerId:
@@ -150,9 +156,10 @@ export async function saveCustomerProfileSnapshot(
       normalCustomerId:
         input.customerId,
       snapshotDate,
-      ...values,
+      ...baseValues, ...needValues,
     },
-    update: values,
+    update: { ...baseValues, ...(predictionsEnabled ? needValues : {}) },
+  });
   });
 }
 
@@ -160,6 +167,7 @@ export async function getCustomerProfileHistory(
   customerId: string,
   limit = 30,
 ) {
+  const predictionsEnabled = (await loadModuleState()).enabled.predictions;
   const snapshots =
     await prisma.customerProfileSnapshot.findMany({
       where: {
@@ -209,10 +217,10 @@ export async function getCustomerProfileHistory(
       profileSafe:
         snapshot.profileSafe,
       lifecycle: snapshot.lifecycle,
-      needScore: snapshot.needScore,
-      needLevel: snapshot.needLevel,
+      needScore: predictionsEnabled ? snapshot.needScore : null,
+      needLevel: predictionsEnabled ? snapshot.needLevel : "DISABLED",
       needConfidence:
-        snapshot.needConfidence,
+        predictionsEnabled ? snapshot.needConfidence : 0,
       relationshipScore:
         snapshot.relationshipScore,
       relationshipLevel:

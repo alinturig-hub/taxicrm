@@ -1,13 +1,15 @@
+import { retainDisabledCards } from "@/modules/my-workspace/availability";
 import { NextRequest, NextResponse } from "next/server";
 import { workspaceApiAccess } from "@/lib/workspace/home/api-access";
-import { allowedCards, parseConfig } from "@/lib/workspace/home/config";
+import { parseConfig } from "@/lib/workspace/home/config";
 import { loadWorkspacePreference, saveWorkspacePreference } from "@/lib/workspace/home/preferences";
 export const dynamic = "force-dynamic";
 const json = (data: unknown, status = 200) => NextResponse.json(data, { status, headers: { "Cache-Control": "private, no-store" } });
 export async function GET(request: NextRequest) { const ctx = await workspaceApiAccess(); if (!ctx)
     return json({ error: "FORBIDDEN" }, 403); if (request.nextUrl.search)
     return json({ error: "Invalid request" }, 400); try {
-    return json(await loadWorkspacePreference(ctx.access.user.id, ctx.can));
+    const pref = await loadWorkspacePreference(ctx.access.user.id, ctx.can);
+    return json({ ...pref, config: { ...pref.config, widgets: pref.config.widgets.filter(id => ctx.allowed.includes(id)) } });
 }
 catch {
     return json({ error: "Saved layout is temporarily unavailable. Try again." }, 503);
@@ -30,13 +32,15 @@ export async function PUT(request: NextRequest) {
         if (!input || typeof input !== "object" || Array.isArray(input) || Object.keys(input).some(k => !["revision", "config"].includes(k)) || !Number.isInteger(input.revision) || input.revision < 0 || input.revision > 2147483646)
             throw Error("Invalid layout version.");
         revision = input.revision;
-        config = parseConfig(input.config, allowedCards(ctx.can));
+        config = parseConfig(input.config, ctx.allowed);
     }
     catch (e) {
         return json({ error: e instanceof Error ? e.message : "Invalid layout" }, 400);
     }
     try {
-        const row = await saveWorkspacePreference(ctx.access.user.id, revision, config);
+        const previous = await loadWorkspacePreference(ctx.access.user.id, ctx.can);
+        const stored = { ...config, widgets: retainDisabledCards(previous.config.widgets, config.widgets, ctx.allowed) };
+        const row = await saveWorkspacePreference(ctx.access.user.id, revision, stored);
         return json({ revision: row.revision, config });
     }
     catch (e) {

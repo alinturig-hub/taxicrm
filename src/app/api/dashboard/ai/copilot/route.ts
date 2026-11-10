@@ -1,3 +1,6 @@
+import { coreHealthWithoutPredictions } from "@/modules/core/intelligence-health";
+import { loadModuleState } from "@/modules/core/activation/store";
+import { predictionEpochWhere } from "@/modules/predictions/lifecycle";
 import { moduleApiBlock } from "@/modules/core/activation/access";
 import { getServerSession } from "next-auth";
 import {
@@ -173,9 +176,11 @@ function numberEvidence(
 async function demandAnswer(
   now: Date,
 ) {
+  const moduleState = await loadModuleState();
   const forecast =
     await prisma.bookingDemandForecast.findFirst({
       where: {
+        AND: [predictionEpochWhere(moduleState)],
         modelVersion:
           "BOOKING_DEMAND_V1",
         targetType:
@@ -319,9 +324,11 @@ async function demandAnswer(
 }
 
 async function warningAnswer() {
+  const moduleState = await loadModuleState();
   const alert =
     await prisma.bookingDemandAlert.findFirst({
       where: {
+        ...(moduleState.predictionEpoch ? { detectedAt: { gte: new Date(moduleState.predictionEpoch) } } : {}),
         status: "OPEN",
       },
       orderBy: [
@@ -460,6 +467,7 @@ async function warningAnswer() {
 async function accuracyAnswer(
   now: Date,
 ) {
+  const moduleState = await loadModuleState();
   const periodStart =
     new Date(
       now.getTime() -
@@ -469,6 +477,7 @@ async function accuracyAnswer(
   const outcomes =
     await prisma.customerBookingPrediction.findMany({
       where: {
+        AND: [predictionEpochWhere(moduleState)],
         modelVersion:
           BOOKING_PREDICTION_MODEL_VERSION,
         horizonHours: 24,
@@ -847,6 +856,11 @@ async function liveOperationsAnswer(
 }
 
 async function healthAnswer() {
+  if (!(await loadModuleState()).enabled.predictions) {
+    const core = await coreHealthWithoutPredictions();
+    return { headline: "Predictions are paused", summary: "Forecast health and accuracy are not evaluated while Predictions is disabled. Customer snapshots and place processing remain independent.", metrics: [{ label: "Customer profiles", value: core.customers }, { label: "Saved snapshots", value: core.snapshots }], evidence: ["Prediction services were not queried."], sources: [{ label: "System health", href: "/dashboard/configuration/system-health" }], suggestions: [] };
+  }
+
   const jobKeys = [
     "CUSTOMER_BOOKING_PREDICTIONS",
     "BOOKING_DEMAND_FORECAST",
@@ -1201,6 +1215,11 @@ export async function POST(
 
     const now =
       new Date();
+
+    if (["DEMAND", "WARNING", "ACCURACY"].includes(intent)) {
+      const predictionBlock = await moduleApiBlock("predictions");
+      if (predictionBlock) return predictionBlock;
+    }
 
     if (intent === "AUTOMATION") {
       const automationBlock = await moduleApiBlock("automation");

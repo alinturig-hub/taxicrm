@@ -1,3 +1,4 @@
+import { modulePageBlock } from "@/modules/core/activation/page";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -26,5 +27,7 @@ export default async function AIInsightsPage() {
     redirect("/dashboard");
   }
 
+  const moduleBlock = await modulePageBlock("predictions");
+  if (moduleBlock) return moduleBlock;
   return <AIInsightsWorkspace />;
 }

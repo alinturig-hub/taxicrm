@@ -89,6 +89,7 @@ type CustomerBehaviourTag = {
 };
 
 type ProfileResponse = {
+  moduleAvailability?: { predictions: "ENABLED" | "DISABLED" | "UNAVAILABLE" };
   success: boolean;
   outcomePatterns?: import("@/components/customers/CustomerOutcomePatterns").OutcomePatterns | null;
   retentionProgress?: {
@@ -745,6 +746,7 @@ export default function CustomerProfileDrawer({
     useState<string | null>(null);
   const [tab, setTab] =
     useState<Tab>("OVERVIEW");
+  useEffect(() => { if (data?.moduleAvailability && data.moduleAvailability.predictions !== "ENABLED" && tab === "PREDICTION") setTab("OVERVIEW"); }, [data?.moduleAvailability, tab]);
   const dialogRef = useRef<HTMLElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
 
@@ -1019,6 +1021,8 @@ export default function CustomerProfileDrawer({
           ) : null}
         </header>
 
+        {data?.moduleAvailability && data.moduleAvailability.predictions !== "ENABLED" && <p role="status" className="mx-4 my-3 rounded-lg border border-slate-700 p-3 text-sm">Predictions {data.moduleAvailability.predictions === "DISABLED" ? "are disabled" : "are unavailable"}. History, retention and customer observations remain available.</p>}
+
         {profile ? (
           <nav className="flex gap-1 overflow-x-auto border-b border-slate-800 bg-slate-900 px-4 py-3 sm:px-7">
             {(
@@ -1031,7 +1035,7 @@ export default function CustomerProfileDrawer({
                 ["HISTORY", "Profile History"],
                 ["OPPORTUNITIES", "Opportunities"],
               ] as Array<[Tab, string]>
-            ).map(([value, label]) => (
+            ).filter(([value]) => value !== "PREDICTION" || !data?.moduleAvailability || data.moduleAvailability.predictions === "ENABLED").map(([value, label]) => (
               <button
                 key={value}
                 type="button"

@@ -1,6 +1,6 @@
 # TaxiCRM module boundaries — existing product first
 
-Current follow-up: [installation activation controls](ACTIVATION.md) adds guarded controls for AI, Reports and Automation. The foundation description below records the preceding extraction; the other modules still require isolation before switching.
+Current follow-up: [installation activation controls](ACTIVATION.md) and [Predictions control](PREDICTIONS_ACTIVATION.md) add guarded controls for AI, Reports, Automation simulations and Predictions. The foundation description below records the preceding extraction; the other modules still require isolation before switching.
 
 ## Agreed product model
 
@@ -28,7 +28,7 @@ The registry verifies that each metric has one provider and the expected owner. 
 
 ## Inventory and ownership
 
-Run `node_modules/.bin/tsx scripts/modules/inventory.ts` from the project root. `inventory.json` records 174 current app pages/routes (109 APIs, 65 pages) after the activation settings page/API, plus shared coordinators and 11 existing worker entrypoints, against baseline 4a6f7b06c44d6fbb26122aefa71d9e09455c7fb5. An unmapped route fails rather than silently becoming Core. Longest explicit prefix wins; existing URLs can remain compatibility adapters after migration.
+Run `node_modules/.bin/tsx scripts/modules/inventory.ts` from the project root. `inventory.json` records 174 current app pages/routes (109 APIs, 65 pages) after the activation settings page/API, plus shared coordinators and 11 existing worker entrypoints, against baseline f259b3a1a6c986f6b82fe22c795e7d44d7a97970. An unmapped route fails rather than silently becoming Core. Longest explicit prefix wins; existing URLs can remain compatibility adapters after migration.
 
 | Responsibility | Existing implementation to reuse | Boundary to finish |
 | --- | --- | --- |

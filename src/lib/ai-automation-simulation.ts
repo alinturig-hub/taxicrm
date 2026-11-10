@@ -1,3 +1,4 @@
+import { predictionUnit } from "@/modules/predictions/lifecycle";
 import {
   randomUUID,
 } from "node:crypto";
@@ -467,11 +468,11 @@ export async function simulateAutomationRule({
   const simulation =
     rule.key ===
     "BOOKING_PREDICTION_MAINTENANCE"
-      ? await simulatePredictionMaintenance({
+      ? await predictionUnit(() => simulatePredictionMaintenance({
           now,
           batchSize:
             rule.defaultBatchSize,
-        })
+        }))
       : rule.key ===
           "CUSTOMER_PROFILE_SNAPSHOTS"
         ? await simulateProfileSnapshots({
@@ -481,9 +482,9 @@ export async function simulateAutomationRule({
           })
         : rule.key ===
             "BOOKING_DEMAND_FORECAST"
-          ? await simulateDemandForecast({
+          ? await predictionUnit(() => simulateDemandForecast({
               now,
-            })
+            }))
           : rule.key ===
               "HISTORICAL_GEOAPIFY_BACKFILL"
             ? await simulateHistoricalGeoapify({

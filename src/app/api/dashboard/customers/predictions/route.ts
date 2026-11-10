@@ -1,3 +1,6 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
+import { loadModuleState } from "@/modules/core/activation/store";
+import { predictionEpochWhere } from "@/modules/predictions/lifecycle";
 import { getServerSession } from "next-auth";
 import {
   NextRequest,
@@ -92,7 +95,10 @@ export async function GET(
     );
   }
 
+  const moduleBlock = await moduleApiBlock("predictions");
+  if (moduleBlock) return moduleBlock;
   try {
+    const moduleState = await loadModuleState();
     const requestedDays = Number(
       request.nextUrl.searchParams.get(
         "days",
@@ -131,7 +137,7 @@ export async function GET(
       evaluatedDemandForecasts,
     ] = await Promise.all([
       prisma.customerBookingPrediction.findMany({
-        where: baseWhere,
+        where: { ...baseWhere, ...(moduleState.predictionEpoch ? { issuedAt: { gte: new Date(Math.max(Date.parse(moduleState.predictionEpoch), periodStart.getTime())) } } : {}) },
         select: {
           status: true,
           level: true,
@@ -146,6 +152,7 @@ export async function GET(
 
       prisma.customerBookingPrediction.findMany({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             MODEL_VERSION,
           horizonHours:
@@ -201,6 +208,7 @@ export async function GET(
       }),
       prisma.bookingDemandForecast.findFirst({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             "BOOKING_DEMAND_V1",
           targetType:
@@ -217,6 +225,7 @@ export async function GET(
 
       prisma.bookingDemandForecast.findMany({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             "BOOKING_DEMAND_V1",
           targetType:

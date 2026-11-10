@@ -1,6 +1,6 @@
 {
-  "baseline": "4a6f7b06c44d6fbb26122aefa71d9e09455c7fb5",
-  "scope": "Ownership inventory; guarded activation for AI, Reports and Automation is documented in ACTIVATION.md",
+  "baseline": "f259b3a1a6c986f6b82fe22c795e7d44d7a97970",
+  "scope": "Ownership inventory; guarded activation for AI, Reports, Automation and Predictions is documented in ACTIVATION.md and PREDICTIONS_ACTIVATION.md",
   "modules": {
     "core": {
       "label": "Core",

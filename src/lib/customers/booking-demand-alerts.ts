@@ -1,6 +1,7 @@
+import { predictionUnit, predictionEpochWhere, predictionScopedKey } from "@/modules/predictions/lifecycle";
 import type { Prisma } from "@/generated/prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { predictionPrisma as prisma } from "@/modules/predictions/lifecycle";
 
 const MODEL_VERSION =
   "BOOKING_DEMAND_V1";
@@ -24,10 +25,10 @@ async function openAlert(
 ) {
   return prisma.bookingDemandAlert.upsert({
     where: {
-      alertKey: input.alertKey,
+      alertKey: predictionScopedKey(input.alertKey),
     },
     create: {
-      alertKey: input.alertKey,
+      alertKey: predictionScopedKey(input.alertKey),
       type: input.type,
       severity: input.severity,
       status: "OPEN",
@@ -59,7 +60,7 @@ async function resolveAlert(
   const result =
     await prisma.bookingDemandAlert.updateMany({
       where: {
-        alertKey,
+        alertKey: predictionScopedKey(alertKey),
         status: "OPEN",
       },
       data: {
@@ -107,6 +108,7 @@ export async function evaluateBookingDemandAlerts({
 }: {
   now?: Date;
 } = {}) {
+  return predictionUnit(async () => {
   const staleBoundary =
     new Date(
       now.getTime() -
@@ -145,6 +147,7 @@ export async function evaluateBookingDemandAlerts({
 
     prisma.bookingDemandForecast.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         modelVersion:
           MODEL_VERSION,
         status: "PENDING",
@@ -167,6 +170,7 @@ export async function evaluateBookingDemandAlerts({
 
     prisma.bookingDemandForecast.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         modelVersion:
           MODEL_VERSION,
         status: {
@@ -274,6 +278,7 @@ export async function evaluateBookingDemandAlerts({
   const legacyAlerts =
     await prisma.bookingDemandAlert.updateMany({
       where: {
+        ...(predictionScopedKey("") ? { alertKey: { endsWith: predictionScopedKey("") } } : {}),
         status: "OPEN",
         type: {
           in: [
@@ -413,6 +418,7 @@ export async function evaluateBookingDemandAlerts({
   const openAlerts =
     await prisma.bookingDemandAlert.count({
       where: {
+        ...(predictionScopedKey("") ? { alertKey: { endsWith: predictionScopedKey("") } } : {}),
         status: "OPEN",
       },
     });
@@ -431,4 +437,5 @@ export async function evaluateBookingDemandAlerts({
     openAlerts,
     containsPersonalData: false,
   };
+  });
 }

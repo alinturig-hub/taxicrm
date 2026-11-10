@@ -1,3 +1,6 @@
+import { predictionEpochWhere } from "@/modules/predictions/lifecycle";
+import { loadModuleState } from "@/modules/core/activation/store";
+import { coreHealthWithoutPredictions } from "@/modules/core/intelligence-health";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -74,6 +77,8 @@ export async function GET() {
   }
 
   try {
+    const moduleState = await loadModuleState();
+    if (!moduleState.enabled.predictions) return NextResponse.json({ success: true, predictionsEnabled: false, core: await coreHealthWithoutPredictions() }, { headers: { "Cache-Control": "no-store" } });
     const now = new Date();
     const todayKey = londonDateKey(now);
     const todayDate =
@@ -141,6 +146,7 @@ export async function GET() {
 
       prisma.customerBookingPrediction.aggregate({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion: MODEL_VERSION,
           horizonHours: HORIZON_HOURS,
         },
@@ -151,6 +157,7 @@ export async function GET() {
 
       prisma.customerBookingPrediction.findMany({
         where: {
+        AND: [predictionEpochWhere(moduleState)],
           modelVersion: MODEL_VERSION,
           horizonHours: HORIZON_HOURS,
           issuedAt: {
@@ -284,6 +291,7 @@ export async function GET() {
     ] = await Promise.all([
       prisma.bookingDemandForecast.findFirst({
         where: {
+        AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             DEMAND_MODEL_VERSION,
           targetType:
@@ -318,6 +326,7 @@ export async function GET() {
 
       prisma.bookingDemandForecast.findMany({
         where: {
+        AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             DEMAND_MODEL_VERSION,
           status: {
@@ -434,6 +443,7 @@ export async function GET() {
     ] = await Promise.all([
       prisma.bookingDemandAlert.findMany({
         where: {
+        ...(moduleState.predictionEpoch ? { detectedAt: { gte: new Date(moduleState.predictionEpoch) } } : {}),
           status: "OPEN",
         },
         orderBy: [
@@ -460,6 +470,7 @@ export async function GET() {
       }),
 
       prisma.bookingDemandAlert.findMany({
+        where: moduleState.predictionEpoch ? { detectedAt: { gte: new Date(moduleState.predictionEpoch) } } : {},
         orderBy: {
           detectedAt: "desc",
         },

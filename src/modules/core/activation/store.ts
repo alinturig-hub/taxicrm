@@ -28,6 +28,10 @@ export async function changeModuleState(input: { revision: number; moduleId: Swi
     if (previous.revision !== input.revision) throw Error("MODULE_VERSION_CONFLICT");
     if (previous.enabled[input.moduleId] === input.enabled) return previous;
     const configuration = nextModuleState(previous, input.moduleId, input.enabled);
+    if (input.moduleId === "predictions" && input.enabled) {
+      const [clock] = await tx.$queryRaw<Array<{ at: Date }>>`SELECT clock_timestamp() AS at`;
+      configuration.predictionEpoch = clock.at.toISOString();
+    }
     await tx.administrationAuditEvent.create({ data: {
       ...identity, id: eventId(configuration.revision), actorUserId,
       evidence: { previousRevision: previous.revision, changedModule: input.moduleId,

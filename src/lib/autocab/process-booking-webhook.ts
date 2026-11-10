@@ -1,3 +1,4 @@
+import { PredictionsDisabled } from "@/modules/predictions/lifecycle";
 import { Prisma } from "@/generated/prisma/client";
 import { isObject, normaliseString } from "@/lib/autocab/booking-mappers";
 import { persistBookingEvent } from "@/lib/autocab/booking-event-persistence";
@@ -32,6 +33,7 @@ async function refreshCustomerPredictionBestEffort(
       triggerBookingId: bookingId,
     });
   } catch (error) {
+    if (error instanceof PredictionsDisabled) return;
     console.error(
       `Automatic customer prediction refresh failed for booking ${bookingId}:`,
       error,

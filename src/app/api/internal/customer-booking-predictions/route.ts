@@ -1,3 +1,5 @@
+import { predictionJobBlock, predictionJobSkipped } from "@/modules/predictions/job-access";
+import { PredictionsDisabled } from "@/modules/predictions/lifecycle";
 import {
   NextRequest,
   NextResponse,
@@ -37,6 +39,9 @@ export async function POST(
       },
     );
   }
+
+  const moduleBlock = await predictionJobBlock();
+  if (moduleBlock) return moduleBlock;
 
   const jobRun =
     await startCustomerIntelligenceJobRun(
@@ -82,6 +87,10 @@ export async function POST(
 
     return NextResponse.json(result);
   } catch (error) {
+    if (error instanceof PredictionsDisabled) {
+      await completeCustomerIntelligenceJobRun(jobRun, { selected: 0, processed: 0, succeeded: 0, failed: 0, hasMore: false, message: "Predictions paused by installation settings." });
+      return predictionJobSkipped();
+    }
     await failCustomerIntelligenceJobRun(
       jobRun,
       error,

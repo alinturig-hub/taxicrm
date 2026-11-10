@@ -1,3 +1,5 @@
+import { predictionAvailability } from "@/modules/predictions/lifecycle";
+import { disabledNeed } from "@/modules/predictions/disabled-need";
 import { refreshCustomerBookingPrediction } from "./customer-booking-predictions";
 import { Prisma } from "@/generated/prisma/client";
 
@@ -204,10 +206,12 @@ export async function generateDailyProfileSnapshots({
           customer.bookings, now,
         );
 
+      const predictionMode = await predictionAvailability();
+      const predictionsEnabled = predictionMode.status === "ENABLED";
       const nextBookingPrediction =
-        buildNextBookingPrediction(
+        predictionsEnabled ? buildNextBookingPrediction(
           customer.bookings,
-        );
+        ) : null;
 
       const customerRhythm =
         buildCustomerRhythm(
@@ -236,7 +240,7 @@ export async function generateDailyProfileSnapshots({
         );
 
       const needPropensity =
-        buildCustomerNeedPropensity({
+        nextBookingPrediction ? buildCustomerNeedPropensity({
           profileSafeForPersonalisation:
             profile.classification
               .profileSafeForPersonalisation,
@@ -244,7 +248,7 @@ export async function generateDailyProfileSnapshots({
             nextBookingPrediction,
           rhythm: customerRhythm,
           returnJourney,
-        });
+        }) : disabledNeed();
 
       const weatherMatchedBookings = countWeatherMatchedBookings(customer.bookings, weatherHours);
 
@@ -271,7 +275,7 @@ export async function generateDailyProfileSnapshots({
         now,
       );
 
-      if (refreshPredictions) await refreshCustomerBookingPrediction(customer.id, { now });
+      if (refreshPredictions && predictionsEnabled) await refreshCustomerBookingPrediction(customer.id, { now });
       saved += 1;
     } catch (error) {
       failed += 1;

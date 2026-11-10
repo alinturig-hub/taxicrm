@@ -62,8 +62,8 @@ export default function ModuleAdministration({ initial }: { initial: ModuleState
         <button type="button" className={button} disabled={busy} onClick={() => { setPending(null); restore.current?.focus(); }}>Cancel</button></div>
     </div>}
     <section aria-label="Other product modules" className="space-y-3"><h2 className="text-xl font-semibold">Other product modules</h2>
-      <p className="text-sm text-slate-400">These existing capabilities remain available. Their shared dependencies are still being separated, so they cannot yet be disabled here. My workspace and Core remain required.</p>
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Object.entries(modules).filter(([id]) => !isSwitchable(id)).map(([id, entry]) => <article key={id} className="rounded-xl border border-app-border p-4"><h3 className="font-medium">{entry.label}</h3><p className="mt-2 text-xs text-slate-400">{["core", "workspace"].includes(id) ? "Required" : "Existing capability · controls pending"}</p></article>)}</div>
+      <p className="text-sm text-slate-400">Other existing capabilities remain available unless a required module is disabled. Their shared dependencies are still being separated, so they cannot yet be disabled here. My workspace and Core remain required.</p>
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{Object.entries(modules).filter(([id]) => !isSwitchable(id)).map(([id, entry]) => <article key={id} className="rounded-xl border border-app-border p-4"><h3 className="font-medium">{entry.label}</h3><p className="mt-2 text-xs text-slate-400">{["core", "workspace"].includes(id) ? "Required" : id === "insights" && state && !state.enabled.predictions ? "Unavailable · requires Predictions" : "Existing capability · controls pending"}</p></article>)}</div>
     </section>
     <p className="text-xs text-slate-400">Changes are saved in the installation administration journal. Other open sessions may display previously loaded content until refreshed; new server requests check the current settings.</p>
   </div>;

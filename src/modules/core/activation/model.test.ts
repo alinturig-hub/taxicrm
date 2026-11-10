@@ -14,12 +14,12 @@ test("defaults preserve current features and a module change never changes unrel
   for (const id of switchableModules) {
     const disabled = nextModuleState(state, id, false);
     assert.equal(disabled.revision, 1); assert.equal(state.enabled[id], true);
-    assert.deepEqual(enabledModuleIds(disabled).sort(), Object.keys(modules).filter(m => m !== id).sort());
+    assert.deepEqual(enabledModuleIds(disabled).sort(), Object.keys(modules).filter(m => m !== id && !(id === "predictions" && m === "insights")).sort());
     assert.equal(nextModuleState(disabled, id, true).enabled[id], true);
   }
 });
 test("strict persisted configuration rejects corrupt, partial, unknown and non-boolean state", () => {
-  for (const value of [null, [], {}, { ...initialModuleState(), schemaVersion: 2 }, { ...initialModuleState(), revision: -1 }, { ...initialModuleState(), revision: 1.2 }, { ...initialModuleState(), enabled: { ai: true } }, { ...initialModuleState(), enabled: { ai: "false", reports: true, automation: true } }, { ...initialModuleState(), extra: true }]) {
+  for (const value of [null, [], {}, { ...initialModuleState(), schemaVersion: 3 }, { ...initialModuleState(), revision: -1 }, { ...initialModuleState(), revision: 1.2 }, { ...initialModuleState(), enabled: { ai: true } }, { ...initialModuleState(), enabled: { ai: "false", reports: true, automation: true } }, { ...initialModuleState(), extra: true }]) {
     assert.throws(() => parseModuleState(value), /MODULE_STATE_INVALID/);
   }
   assert.deepEqual(parseModuleState(initialModuleState()), initialModuleState());
@@ -37,15 +37,18 @@ test("disabled module disappears from navigation and search without adding user 
 function walk(dir: string): string[] { return readdirSync(dir, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(join(dir, e.name)) : [join(dir, e.name)]); }
 test("every switchable page/API has a server guard and no switchable module owns a scheduled worker", () => {
   for (const worker of workerOwnership) {
-    assert.equal((switchableModules as readonly string[]).includes(worker.owner), false);
-    assert.ok(worker.participants.every(id => !(switchableModules as readonly string[]).includes(id)));
+    assert.equal((["ai", "reports", "automation"] as readonly string[]).includes(worker.owner), false);
+    assert.ok(worker.participants.every(id => !(["ai", "reports", "automation"] as readonly string[]).includes(id)));
   }
   for (const file of walk("src/app").filter(f => /\/(page|route)\.tsx?$/.test(f))) {
     const route = file.replace(/^src\/app/, "").replace(/\/(page|route)\.tsx?$/, "") || "/";
     const owner = moduleForRoute(route);
     if (switchableModules.includes(owner as typeof switchableModules[number])) {
+      if (route.startsWith("/api/internal/") && owner === "predictions") { assert.ok(readFileSync(file, "utf8").includes("predictionJobBlock()"), file); continue; }
       const guard = file.endsWith("route.ts") ? "moduleApiBlock" : "modulePageBlock";
       assert.ok(readFileSync(file, "utf8").includes(`${guard}("${owner}")`), file);
     }
   }
 });
+
+test("existing version-one configuration keeps its prior choices and adds Predictions enabled", () => { const state = parseModuleState({schemaVersion:1, revision:7, enabled:{ai:false,reports:true,automation:false}}); assert.equal(state.revision,7); assert.equal(state.schemaVersion,2); assert.equal(state.enabled.ai,false); assert.equal(state.enabled.automation,false); assert.equal(state.enabled.predictions,true); assert.equal(state.predictionEpoch,null); });
