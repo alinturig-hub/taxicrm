@@ -28,4 +28,12 @@ SELECT status, count(*) AS bookings,
 FROM public."Booking"
 GROUP BY status ORDER BY bookings DESC;
 
+-- Version inventory only: no prediction or customer identifiers are returned.
+SELECT "modelVersion", status, count(*) AS predictions,
+       min("issuedAt") AS first_issued_utc,
+       max("issuedAt") AS last_issued_utc
+FROM public."CustomerBookingPrediction"
+GROUP BY "modelVersion", status
+ORDER BY "modelVersion", status;
+
 ROLLBACK;

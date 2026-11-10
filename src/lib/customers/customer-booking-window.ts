@@ -1,3 +1,5 @@
+import { BOOKING_PREDICTION_MODEL_VERSION } from "./booking-prediction-model";
+
 export type BookingWindowBooking = {
   bookedAtTime?: Date | string | null;
   pickupDueTime?: Date | string | null;
@@ -542,7 +544,7 @@ export function buildCustomerBookingWindow(
   if (!profileSafeForPersonalisation) {
     return {
       status: "DISABLED" as const,
-      model: "HAZARD_SLOT_V1",
+      model: BOOKING_PREDICTION_MODEL_VERSION,
       analysedBookings:
         actions.length,
       primaryHorizonHours: 24,
@@ -565,7 +567,7 @@ export function buildCustomerBookingWindow(
   ) {
     return {
       status: "LEARNING" as const,
-      model: "HAZARD_SLOT_V1",
+      model: BOOKING_PREDICTION_MODEL_VERSION,
       analysedBookings:
         actions.length,
       primaryHorizonHours: 24,
@@ -689,7 +691,7 @@ export function buildCustomerBookingWindow(
 
   return {
     status: "READY" as const,
-    model: "HAZARD_SLOT_V1",
+    model: BOOKING_PREDICTION_MODEL_VERSION,
     analysedBookings:
       actions.length,
     primaryHorizonHours: 24,

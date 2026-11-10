@@ -609,7 +609,8 @@ export default function CustomerPredictionsDashboard({
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             Privacy-safe individual profiles,
-            ordered by observed likelihood.
+            ordered by booking score. Historical benchmarks have not been
+            revalidated for the current model and are not individual probabilities.
           </p>
         </div>
 
@@ -620,7 +621,7 @@ export default function CustomerPredictionsDashboard({
                 {[
                   "Customer",
                   "Signal",
-                  "Observed",
+                  "Historical benchmark",
                   "Likely time",
                   "Ends",
                   "Evidence",

@@ -1,4 +1,5 @@
 import { buildCustomerBookingWindow } from "./customer-booking-window";
+import { BOOKING_PREDICTION_MODEL_VERSION, BOOKING_WINDOW_IMPLEMENTATION_REVISION } from "./booking-prediction-model";
 
 const HOUR = 3_600_000;
 const HORIZONS = [6, 12, 24, 48] as const;
@@ -158,8 +159,8 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
   }
   return {
     dataKind: input.dataKind,
-    model: "HAZARD_SLOT_V1",
-    implementationRevision: "BOUNDED_LONDON_SLOTS_2026_11_10",
+    model: BOOKING_PREDICTION_MODEL_VERSION,
+    implementationRevision: BOOKING_WINDOW_IMPLEMENTATION_REVISION,
     target: "NEW_BOOKING_ACTION" as const,
     historyAvailableFrom: input.historyAvailableFrom,
     evaluationStart: input.evaluationStart,

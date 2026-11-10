@@ -5,6 +5,7 @@ import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 import RetentionProgressCard from "@/components/customers/RetentionProgressCard";
 import CustomerOutcomeHistory from "@/components/customers/CustomerOutcomeHistory";
 import CustomerOutcomePatterns from "@/components/customers/CustomerOutcomePatterns";
+import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 import {
   useEffect,
@@ -1661,8 +1662,13 @@ function PredictionTab({
 }) {
   const { classification } = profile;
 
-  const latestStoredPrediction =
-    predictionHistory?.predictions[0];
+  const currentPredictions = predictionHistory?.predictions.filter(
+    (item) => item.modelVersion === BOOKING_PREDICTION_MODEL_VERSION,
+  ) ?? [];
+  const legacyPredictions = predictionHistory?.predictions.filter(
+    (item) => item.modelVersion !== BOOKING_PREDICTION_MODEL_VERSION,
+  ) ?? [];
+  const latestStoredPrediction = currentPredictions[0];
 
   const likelyInterval =
     latestStoredPrediction
@@ -1745,7 +1751,7 @@ function PredictionTab({
                 label="Likely time"
                 value={
                   likelyInterval ??
-                  "No reliable 3-hour slot"
+                  "No matching time window"
                 }
               />
               <Metric
@@ -1777,7 +1783,7 @@ function PredictionTab({
                 }
               />
               <Metric
-                label="3-hour slot accuracy"
+                label="Time-window accuracy"
                 value={
                   predictionHistory?.accuracy
                     .timeSlotHitRate === null ||
@@ -1823,12 +1829,35 @@ function PredictionTab({
             </div>
 
             <p className="mt-4 text-xs leading-5 text-slate-500">
+              These results cover the current model only. Earlier model records
+              are preserved separately below.{" "}
               Pending means the 24-hour window has not
               finished. Correct means a booking was
               recorded inside it. Missed means the window
               ended without a booking.
             </p>
           </div>
+        </Section>
+      ) : null}
+
+      {legacyPredictions.length > 0 ? (
+        <Section title="Earlier model history">
+          <p className="mb-3 text-sm text-slate-400">
+            Preserved for reference and excluded from current-model accuracy.
+            {currentPredictions.length === 0 ? " The current model has no recorded predictions yet." : ""}
+          </p>
+          <details className="rounded-xl border border-slate-800 p-4">
+            <summary className="cursor-pointer font-medium text-slate-200">
+              View {legacyPredictions.length} earlier prediction records
+            </summary>
+            <ul className="mt-3 space-y-2 text-sm text-slate-400">
+              {legacyPredictions.map((item) => (
+                <li key={item.id}>
+                  {dateTime(item.issuedAt)} · {item.modelVersion} · {item.status} · score {item.score}/100
+                </li>
+              ))}
+            </ul>
+          </details>
         </Section>
       ) : null}
 

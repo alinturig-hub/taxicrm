@@ -33,13 +33,15 @@ activation was changed. No dependencies were added.
 From the repository root:
 
 ```bash
-node_modules/.bin/tsx --test src/lib/customers/customer-booking-window.test.ts src/lib/customers/booking-window-validation.test.ts src/lib/customers/configurable-time-tag.test.ts
+node_modules/.bin/tsx --test src/lib/customers/customer-booking-window.test.ts src/lib/customers/booking-window-validation.test.ts src/lib/customers/customer-profiler.test.ts
 node_modules/.bin/tsx scripts/validate-booking-windows.ts docs/prediction-validation/synthetic-input.json
 node_modules/.bin/tsc --noEmit --pretty false
 node_modules/.bin/next lint --file src/lib/customers/customer-booking-window.ts --file src/lib/customers/customer-booking-window.test.ts --file src/lib/customers/booking-window-validation.ts --file src/lib/customers/booking-window-validation.test.ts --file scripts/validate-booking-windows.ts --file src/components/customers/CustomerProfileDrawer.tsx
 ```
 
-22 tests, TypeScript and targeted lint passed. A CLI invalid-file check also
+25 model/evaluator/profiler tests, TypeScript, targeted lint and the production
+Next.js build passed. The separate editable-tag prototype has three additional
+passing tests; it is not part of this release. A CLI invalid-file check also
 passed: exit 1, fixed error message, no partial JSON or input disclosure.
 These checks cover the offline evaluator, corrected model and existing local tag
 rules. A Chromium/Playwright check also loaded the actual profile drawer against
@@ -47,6 +49,15 @@ synthetic fetch responses, switched to Prediction and verified score labels,
 historical benchmark caveats, the renamed time-window heading and unchanged
 retention/outcome interactions. This is isolated component interaction testing,
 not an authenticated live browser test or a real customer accuracy measurement.
+
+An additional authenticated test used a real NextAuth login and the built Next.js
+app connected only to isolated PostgreSQL. The predictions API returned V2-only
+outcomes (one hit and one miss, 50%) despite an additional V1 hit, and returned
+only the V2 pending opportunity. The profile API retained both V1 records while
+returning V2-only accuracy and a V2 live calculation. Opening that opportunity in
+the browser reached the profile and its expandable earlier-model history. This
+test used synthetic users/bookings and an outbound-fetch guard; the production
+server and its scheduled workers were not started or contacted.
 
 The synthetic fixture contains 20 explicitly fictional profiles: regular,
 weekly, irregular, no-longer-returning and sparse histories, plus an excluded
@@ -132,14 +143,67 @@ corrected search can change weekly scores, particularly where the old search
 omitted a current partial slot or included one beyond the forecast. Calibration
 constants were deliberately not refitted using synthetic data.
 
-Before release, coordinate a distinct persisted model version across writers,
-readers and evidence jobs, or explicitly version this correction in that pipeline,
-so old and corrected observations are not silently mixed. The current local
-report records the implementation revision separately; existing production model
-version identifiers and historical records have not been migrated by this work.
+Version separation is now implemented locally as `HAZARD_SLOT_V2`. A shared
+constant is used by the scorer, prediction writer, validation report, predictions
+dashboard API, AI insights, Copilot accuracy reader and system-health reader.
+Active keys and input fingerprints include that version. Existing V1 rows are
+not renamed, deleted or recalculated.
+
+Per-customer history reads a bounded set of records independently for each
+version (default 30 per version, maximum 100 per version); only V2 contributes
+to its current accuracy. The profile prefers the current record and offers
+earlier records in a separate expandable history. With only V1 history, the
+profile says that the current model has no recorded predictions rather than
+presenting legacy hits as V2 performance. Outcome resolution and scheduled
+expiry continue to close pending records under their original version, with
+evidence linked to each original prediction ID.
+
+Five scenarios passed against isolated PostgreSQL using the real Prisma client
+and prediction service: coexistence without overwriting V1, idempotent V2 issuance,
+version-specific accuracy with both histories preserved, resolution on a new
+booking, and scheduled expiry of both versions. No live migration is needed
+because the existing version, active-key and fingerprint fields support this.
+
+The committed integration test is opt-in via `PREDICTION_QA_DATABASE_URL`; before
+importing the application client it rejects non-loopback targets, any database
+other than `prediction_qa`, or any user other than `qa_prediction`. A normal unit
+run skips this DB test when the isolated URL is absent. Never point tests at the
+shared primary. The temporary local QA container is stopped after verification.
+
+Pending-opportunity ordering now uses the score rather than an unvalidated legacy
+benchmark. Copilot, evidence and profile labels describe time windows without
+assuming every London slot spans exactly three elapsed hours. Historical
+benchmark columns remain available with their limitations stated. V2 calibration
+has not been learned from synthetic fixtures or invented.
+
 Then run the agreed real-data evaluation and show measured results, including
 cases where the baseline is better or evidence is sparse. Live accuracy, confidence
 intervals and production rollout remain pending.
+
+### Release sequence
+
+1. Complete the read-only source inventory and historical coverage review from
+   the documented shared primary; choose the bounded evaluation cohort without
+   selecting on future returns. This is still blocked by analytical access.
+2. Run the chronological historical evaluation and review coverage, baseline
+   comparison and uncertainty. Retain the synthetic checks as mechanics evidence.
+3. Review and publish a commit from this development branch, then deploy that
+   exact commit to the existing TaxiCRM application. The main server owns the
+   scheduled prediction-maintenance endpoint; no second ingestion writer or new
+   production worker is introduced. Refresh scheduling and batch sizes remain
+   unchanged; do not run an unapproved mass refresh to populate V2 instantly.
+4. Confirm the deployment image and health, authorized profile access, V2 writes
+   on normal processing, and V1 history visibility. Empty V2 accuracy initially
+   means learning, not an error or inherited V1 accuracy. Sending flags remain
+   unchanged. Inspect other preview deployments separately; do not assume their
+   versions match production.
+5. If application rollback is needed, roll back the image; preserve both versions'
+   rows and evidence. V1 and V2 active keys are separate. A rollback must not
+   rewrite V2 rows as V1 or combine their performance statistics.
+
+Production application `gbwo4xfa46m5n1klnqxr8afl` was observed healthy via Coolify;
+its monitored branch `codex/taxicrm` still pointed to the live-base commit
+`9b6dc77c41158de21c482425d4f691c49efa06f3` at review time. No deploy was triggered.
 
 ### Current access limit
 
