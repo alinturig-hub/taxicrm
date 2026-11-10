@@ -1,3 +1,4 @@
+import { loadTimeTagRules } from "@/lib/customers/time-tag-store";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -93,14 +94,19 @@ export async function GET(
               id: true,
               externalId: true,
               provider: true,
+              bookingType: true,
+              typeOfBooking: true,
+              dispatchedAt: true,
+              acceptedAt: true,
+              arrivedAt: true,
+              pickedUpAt: true,
+              noFareAt: true,
               status: true,
               bookedAtTime: true,
               createdAt: true,
               pickupDueTime: true,
-              dispatchedAt: true,
               completedAt: true,
               cancelledAt: true,
-              noFareAt: true,
               price: true,
               cost: true,
               fare: true,
@@ -150,7 +156,7 @@ export async function GET(
     }
 
     const profile =
-      buildCustomerProfile(customer.bookings);
+      buildCustomerProfile(customer.bookings, new Date(), (await loadTimeTagRules()).rules);
 
     const retentionProgress = retentionForCustomerProfile(
       customer.bookings,

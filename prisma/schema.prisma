@@ -133,6 +133,7 @@ model User {
   passwordChangedAt  DateTime?
   deactivatedAt      DateTime?
 
+  workspacePreference UserWorkspacePreference?
   roleAssignments AdministrationUserRole[]
   auditEvents     AdministrationAuditEvent[]
 
@@ -1571,4 +1572,23 @@ model WhatsAppFlowRevision {
   flow WhatsAppFlowDraft @relation(fields: [flowId], references: [id], onDelete: Restrict, onUpdate: NoAction)
   @@id([flowId, version])
   @@map("whatsapp_flow_revisions")
+}
+
+// Versioned company rules; no booking copies or customer contact.
+model CustomerTimeTagConfiguration {
+  id String @id @default("default")
+  revision Int @default(1)
+  rules Json
+  updatedById String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model UserWorkspacePreference {
+  userId String @id
+  revision Int @default(1)
+  configuration Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }

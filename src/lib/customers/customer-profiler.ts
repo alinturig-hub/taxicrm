@@ -1,3 +1,5 @@
+import { evaluateBookingKpis, explicitBookingMode, summariseBookingKpis } from "@/lib/performance/booking-kpis";
+import type { SavedTimeTagRule } from "./time-tag-rules";
 import { customerObservations } from "./customer-observations";
 import {
   buildCustomerBehaviourTags,
@@ -21,6 +23,13 @@ export type ProfileBooking = {
   createdAt?: Date | null;
   externalId: string;
   provider?: string;
+  bookingType?: string | null;
+  typeOfBooking?: string | null;
+  dispatchedAt?: Date | null;
+  acceptedAt?: Date | null;
+  arrivedAt?: Date | null;
+  pickedUpAt?: Date | null;
+  noFareAt?: Date | null;
   status: string;
   bookedAtTime: Date | null;
   pickupDueTime: Date | null;
@@ -145,6 +154,7 @@ function median(values: number[]) {
 export function buildCustomerProfile(
   bookings: ProfileBooking[],
   now = new Date(),
+  timeTagRules?: SavedTimeTagRule[],
 ) {
   const allOrderedBookings = [...bookings].sort((first, second) =>
     (profileDate(second)?.getTime() ?? 0) - (profileDate(first)?.getTime() ?? 0),
@@ -431,10 +441,21 @@ export function buildCustomerProfile(
       : buildCustomerBehaviourTags(
           orderedBookings,
           now,
+          timeTagRules,
         );
 
+  const pickupService = summariseBookingKpis(orderedBookings.map(booking => evaluateBookingKpis({
+    provider: booking.provider || "UNVERIFIED_PROVIDER",
+    externalId: booking.externalId, status: booking.status,
+    mode: explicitBookingMode(booking.bookingType, booking.typeOfBooking),
+    requestedAt: booking.bookedAtTime, dueAt: booking.pickupDueTime,
+    dispatchedAt: booking.dispatchedAt, acceptedAt: booking.acceptedAt,
+    arrivedAt: booking.arrivedAt, pobAt: booking.pickedUpAt, noFareAt: booking.noFareAt,
+    // A current driver on the row does not prove historical event ownership.
+  }, now)));
   return {
     observations: customerObservations(bookings, now),
+    pickupService: { ...pickupService, personalisationAllowed: !sharedBookingPoint && orderedBookings.every(booking => !!booking.provider?.trim()) && pickupService.boardingProfileStatus === "OBSERVED_SAMPLE" },
     overview: {
       totalBookings,
       completed: completed.length,

@@ -1,4 +1,5 @@
 "use client";
+import type { summariseBookingKpis } from "@/lib/performance/booking-kpis";
 import type { customerObservations } from "@/lib/customers/customer-observations";
 
 import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
@@ -129,6 +130,7 @@ type ProfileResponse = {
     } | null;
   };
   profile?: {
+    pickupService?: ReturnType<typeof summariseBookingKpis> & { personalisationAllowed: boolean };
     observations?: ReturnType<typeof customerObservations>;
     overview: {
       totalBookings: number;
@@ -2235,6 +2237,48 @@ function Behaviour({
 
   return (
     <div className="space-y-6">
+      {profile.pickupService && (
+        <Section title="Pickup & boarding observations">
+          <p className="text-sm text-slate-300">
+            Source arrival and passenger-on-board events. This measures the
+            boarding process, not passenger fault or readiness.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {([
+              ["Arrival → POB", profile.pickupService.metrics.arrivalToPob],
+              ["Boarding after arrival / scheduled time", profile.pickupService.metrics.boardingAfterDue],
+              ["Request → arrival", profile.pickupService.metrics.requestToArrival],
+              ["Arrival → no fare event", profile.pickupService.metrics.arrivalToNoFare],
+            ] as const).map(([label, metric]) => (
+              <div key={label} className="rounded-xl border border-slate-700 p-4">
+                <h3 className="text-xs text-slate-400">{label}</h3>
+                <p className="mt-2 text-lg font-semibold">
+                  {metric.medianSeconds === null
+                    ? "Data required"
+                    : `${(metric.medianSeconds / 60).toFixed(1)} min median`}
+                </p>
+                <p className="mt-1 text-xs text-slate-400">
+                  {metric.samples} observations · average{" "}
+                  {metric.averageSeconds === null ? "—" : (metric.averageSeconds / 60).toFixed(1)} min · P90{" "}
+                  {metric.p90Seconds === null ? "—" : (metric.p90Seconds / 60).toFixed(1)} min
+                </p>
+              </div>
+            ))}
+          </div>
+          <p className="mt-3 text-xs text-slate-400">
+            {profile.pickupService.arrivalSamples} arrivals classified;{" "}
+            {profile.pickupService.outcomes.unknown} require timing or booking-mode evidence.
+            Early pre-booking waiting is excluded from the adjusted boarding interval.{" "}
+            {profile.pickupService.conflictingBookings} conflicting references withheld.
+            No-POB observations are not treated as zero waits.
+          </p>
+          <p className="mt-2 text-xs text-slate-400">
+            {profile.pickupService.personalisationAllowed
+              ? "Descriptive sample available; no automatic customer lateness tag is applied."
+              : "Insufficient evidence or shared booking point: no individual passenger pattern is assigned."}
+          </p>
+        </Section>
+      )}
       {returnJourney ? (
         <Section title="Return Journey Intelligence">
           <div className="rounded-2xl border border-teal-500/20 bg-teal-500/5 p-5">
