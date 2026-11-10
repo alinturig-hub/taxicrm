@@ -13,6 +13,6 @@ if (missing.length) {
 }
 else {
     mkdirSync("docs/modules", { recursive: true });
-    writeFileSync("docs/modules/inventory.json", JSON.stringify({ baseline: "c4fea3f85089e2d04afb34473ee0c73b9e52890b", scope: "Descriptive ownership; runtime enable/disable is not implemented by this map", modules, entries, sharedCoordinators, workerOwnership }, null, 2) + "\n");
+    writeFileSync("docs/modules/inventory.json", JSON.stringify({ baseline: "4a6f7b06c44d6fbb26122aefa71d9e09455c7fb5", scope: "Ownership inventory; guarded activation for AI, Reports and Automation is documented in ACTIVATION.md", modules, entries, sharedCoordinators, workerOwnership }, null, 2) + "\n");
     console.log(`Mapped ${entries.length} routes/pages across ${Object.keys(modules).length} module boundaries.`);
 }

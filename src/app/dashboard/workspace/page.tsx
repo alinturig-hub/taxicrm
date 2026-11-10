@@ -10,7 +10,7 @@ export default async function WorkspacePage({ searchParams }: {
         period?: string;
     };
 }) {
-    const { access, groups } = await workspaceAccess();
+    const { access, groups, enabledModules } = await workspaceAccess();
     const can = (p: string) => access.isSuperAdmin || access.permissions.includes(p as typeof access.permissions[number]);
     if (!can("dashboard.view"))
         redirect("/dashboard");
@@ -19,5 +19,5 @@ export default async function WorkspacePage({ searchParams }: {
         initial.config = { ...initial.config, period: searchParams.period as WorkspacePeriod };
     const summary = await workspaceSummary(initial.config.widgets, initial.config.period, can);
     const shortcuts = groups.filter(g => ["operations", "customers", "marketing", "intelligence", "integrations", "configuration"].includes(g.id)).flatMap(g => g.items.filter(i => i.href !== "/dashboard/ai/copilot").map(i => ({ label: i.label, href: i.href, technical: ["integrations", "configuration"].includes(g.id) })));
-    return <MyWorkspace userId={access.user.id} name={access.user.name || "team"} allowed={allowedCards(can)} initial={initial} initialSummary={summary} shortcuts={shortcuts} canUseAI={can("intelligence.view")}/>;
+    return <MyWorkspace userId={access.user.id} name={access.user.name || "team"} allowed={allowedCards(can)} initial={initial} initialSummary={summary} shortcuts={shortcuts} canUseAI={can("intelligence.view") && enabledModules.includes("ai")}/>;
 }

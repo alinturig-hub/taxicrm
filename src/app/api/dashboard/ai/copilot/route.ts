@@ -1,3 +1,4 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
 import { getServerSession } from "next-auth";
 import {
   NextRequest,
@@ -1074,6 +1075,9 @@ export async function POST(
     );
   }
 
+  const moduleBlock = await moduleApiBlock("ai");
+  if (moduleBlock) return moduleBlock;
+
   try {
     const body =
       (await request.json().catch(
@@ -1197,6 +1201,11 @@ export async function POST(
 
     const now =
       new Date();
+
+    if (intent === "AUTOMATION") {
+      const automationBlock = await moduleApiBlock("automation");
+      if (automationBlock) return automationBlock;
+    }
 
     const groundedAnswer =
       analyticsPlan

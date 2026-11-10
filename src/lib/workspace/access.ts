@@ -1,3 +1,4 @@
+import { pageEnabledModules } from "@/modules/core/activation/navigation";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -7,9 +8,11 @@ export async function workspaceAccess() {
   const session = await getServerSession(authOptions);
   const access = await getAdministrationAccess(session?.user?.email);
   if (!access) redirect("/login");
+  const enabledModules = await pageEnabledModules();
   return {
     access,
-    groups: visibleNavigation(access.permissions, access.user.legacyRole),
+    enabledModules,
+    groups: visibleNavigation(access.permissions, access.user.legacyRole, enabledModules),
   };
 }
 export async function workspaceGroup(id: string) {

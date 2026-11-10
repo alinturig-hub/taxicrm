@@ -1,3 +1,4 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
 import { reserveContribution, ContributionBusyError } from "@/lib/analytics/contribution/limit";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -24,6 +25,9 @@ export async function GET(request: Request) {
       { error: "Booking, customer, report and revenue access are required." },
       { status: 403 },
     );
+  const moduleBlock = await moduleApiBlock("reports");
+  if (moduleBlock) return moduleBlock;
+
   let range;
   try {
     range = parseRange(new URL(request.url).searchParams);

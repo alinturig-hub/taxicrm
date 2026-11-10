@@ -1,4 +1,5 @@
 "use client";
+import type { ModuleId } from "@/modules/core/registry";
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
@@ -22,17 +23,19 @@ export default function DashboardShell({
   userEmail,
   permissions,
   role,
+  enabledModules,
 }: {
   children: ReactNode;
   userEmail?: string | null;
   permissions: string[];
   role: string;
+  enabledModules: ModuleId[];
 }) {
   const pathname = usePathname();
 
   const navigationGroups = useMemo(
-    () => visibleNavigation(permissions, role),
-    [permissions, role],
+    () => visibleNavigation(permissions, role, enabledModules),
+    [permissions, role, enabledModules],
   );
   const active = activeNavigation(pathname, navigationGroups);
   const [theme, setTheme] = useState<"light" | "dark">("light");

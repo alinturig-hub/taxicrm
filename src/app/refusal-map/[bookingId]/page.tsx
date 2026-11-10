@@ -1,3 +1,4 @@
+import { modulePageBlock } from "@/modules/core/activation/page";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { authOptions } from "@/lib/auth";
@@ -15,6 +16,9 @@ export default async function RefusalMapPage({
   if (!session) {
     redirect("/login");
   }
+
+  const moduleBlock = await modulePageBlock("reports");
+  if (moduleBlock) return moduleBlock;
 
   const { bookingId } = await params;
   const detail = await getRefusalDetail(bookingId);

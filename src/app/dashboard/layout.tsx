@@ -1,3 +1,4 @@
+import { pageEnabledModules } from "@/modules/core/activation/navigation";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -32,6 +33,7 @@ export default async function DashboardLayout({
       userEmail={session.user.email}
       permissions={access.permissions}
       role={access.user.legacyRole}
+      enabledModules={await pageEnabledModules()}
     >
       {children}
     </DashboardShell>

@@ -1,3 +1,4 @@
+import { pageEnabledModules } from "@/modules/core/activation/navigation";
 import Link from "next/link";
 import { getHackneyMetrics } from "@/lib/analytics/hackney";
 
@@ -111,6 +112,7 @@ function DispatchMetric({
 }
 
 export default async function ExecutiveDashboardView() {
+  const enabledModules = await pageEnabledModules();
   const todayKey =
     londonDateKey(new Date())
       .toISOString()
@@ -256,9 +258,9 @@ export default async function ExecutiveDashboardView() {
           <p className="mt-2 text-sm text-slate-400">
             FlaggedBooking jobs, including those without recorded fares.
           </p>
-          <Link href="/dashboard/intelligence/hackney" className="mt-3 inline-block text-sm font-semibold text-blue-400">
+          {enabledModules.includes("reports") && <Link href="/dashboard/intelligence/hackney" className="mt-3 inline-block text-sm font-semibold text-blue-400">
             View Hackney Driver Performance →
-          </Link>
+          </Link>}
           <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <DispatchMetric
               label="Total Hackney Jobs"

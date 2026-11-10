@@ -1,3 +1,4 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
@@ -13,6 +14,9 @@ export async function GET(
   if (!session) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
+
+  const moduleBlock = await moduleApiBlock("reports");
+  if (moduleBlock) return moduleBlock;
 
   const { bookingId } = await context.params;
 
