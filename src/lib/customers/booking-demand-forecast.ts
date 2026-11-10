@@ -1,6 +1,7 @@
+import { predictionUnit, predictionEpochWhere, predictionScopedKey } from "@/modules/predictions/lifecycle";
 import type { Prisma } from "@/generated/prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { predictionPrisma as prisma } from "@/modules/predictions/lifecycle";
 
 const MODEL_VERSION =
   "BOOKING_DEMAND_V1";
@@ -291,15 +292,16 @@ export async function createBookingDemandForecast({
 }: {
   now?: Date;
 } = {}) {
+  return predictionUnit(async () => {
   const cycle =
     cycleStart(now);
 
-  const forecastKey = [
+  const forecastKey = predictionScopedKey([
     MODEL_VERSION,
     TARGET_TYPE,
     HORIZON_HOURS,
     cycle.toISOString(),
-  ].join(":");
+  ].join(":"));
 
   const existing =
     await prisma.bookingDemandForecast.findUnique({
@@ -538,6 +540,7 @@ export async function createBookingDemandForecast({
     created: true,
     forecast,
   };
+  });
 }
 
 export async function evaluateExpiredDemandForecasts({
@@ -547,6 +550,7 @@ export async function evaluateExpiredDemandForecasts({
   now?: Date;
   limit?: number;
 } = {}) {
+  return predictionUnit(async () => {
   const safeLimit = Math.min(
     Math.max(
       Math.trunc(limit),
@@ -558,6 +562,7 @@ export async function evaluateExpiredDemandForecasts({
   const expired =
     await prisma.bookingDemandForecast.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         status: "PENDING",
         windowEndAt: {
           lte: now,
@@ -679,6 +684,7 @@ export async function evaluateExpiredDemandForecasts({
     hasMore:
       expired.length === safeLimit,
   };
+  });
 }
 
 export async function maintainBookingDemandForecast({
@@ -686,6 +692,7 @@ export async function maintainBookingDemandForecast({
 }: {
   now?: Date;
 } = {}) {
+  return predictionUnit(async () => {
   const evaluation =
     await evaluateExpiredDemandForecasts({
       now,
@@ -705,4 +712,5 @@ export async function maintainBookingDemandForecast({
       current.forecast,
     containsPersonalData: false,
   };
+  });
 }

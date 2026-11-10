@@ -1,3 +1,5 @@
+import { loadModuleState } from "@/modules/core/activation/store";
+import { predictionUnit, predictionEpochWhere, predictionScopedKey, PredictionsDisabled } from "@/modules/predictions/lifecycle";
 import { createHash } from "node:crypto";
 
 import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
@@ -9,7 +11,7 @@ import {
   recordPredictionEvidence,
 } from "@/lib/customers/customer-prediction-evidence";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
-import { prisma } from "@/lib/prisma";
+import { predictionPrisma as prisma } from "@/modules/predictions/lifecycle";
 
 const PRIMARY_HORIZON_HOURS = 24;
 
@@ -173,6 +175,7 @@ async function resolvePredictionOutcomes(
       const matchingPredictions =
         await prisma.customerBookingPrediction.findMany({
           where: {
+        AND: [predictionEpochWhere()],
             normalCustomerId: customerId,
             status: "PENDING",
             issuedAt: {
@@ -293,6 +296,7 @@ async function resolvePredictionOutcomes(
   const expiredPredictions =
     await prisma.customerBookingPrediction.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         normalCustomerId:
           customerId,
         status: "PENDING",
@@ -322,6 +326,7 @@ export async function refreshCustomerBookingPrediction(
     triggerBookingId?: string;
   } = {},
 ) {
+  return predictionUnit(async () => {
   await prisma.customerIntelligenceState.upsert({
     where: {
       normalCustomerId: customerId,
@@ -456,11 +461,11 @@ export async function refreshCustomerBookingPrediction(
         likelyEndAt,
       );
 
-    const activeKey = [
+    const activeKey = predictionScopedKey([
       customerId,
       MODEL_VERSION,
       PRIMARY_HORIZON_HOURS,
-    ].join(":");
+    ].join(":"));
 
     const predictionResult =
       await prisma.$transaction(
@@ -597,6 +602,7 @@ export async function refreshCustomerBookingPrediction(
 
     throw error;
   }
+  });
 }
 
 export async function evaluateExpiredBookingPredictions(
@@ -608,6 +614,7 @@ export async function evaluateExpiredBookingPredictions(
     limit?: number;
   } = {},
 ) {
+  return predictionUnit(async () => {
   const safeLimit = Math.min(
     Math.max(Math.trunc(limit), 1),
     500,
@@ -616,6 +623,7 @@ export async function evaluateExpiredBookingPredictions(
   const expired =
     await prisma.customerBookingPrediction.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         status: "PENDING",
         windowEndAt: {
           lt: now,
@@ -672,15 +680,18 @@ export async function evaluateExpiredBookingPredictions(
     hasMore:
       expired.length === safeLimit,
   };
+  });
 }
 
 export async function getCustomerPredictionHistory(
   customerId: string,
   limit = 30,
 ) {
+  return predictionUnit(async () => {
   const findVersion = (current: boolean) =>
     prisma.customerBookingPrediction.findMany({
       where: {
+        AND: [predictionEpochWhere()],
         normalCustomerId: customerId,
         modelVersion: current ? MODEL_VERSION : { not: MODEL_VERSION },
         horizonHours:
@@ -843,6 +854,7 @@ export async function getCustomerPredictionHistory(
           : null,
     },
   };
+  });
 }
 
 
@@ -859,6 +871,9 @@ export async function runCustomerPredictionMaintenance(
     minimumBookings?: number;
   } = {},
 ) {
+  const moduleState = await loadModuleState();
+  if (!moduleState.enabled.predictions) throw new PredictionsDisabled();
+  const activationEpoch = moduleState.predictionEpoch ? new Date(moduleState.predictionEpoch) : null;
   const safeLimit = Math.min(
     Math.max(Math.trunc(limit), 1),
     100,
@@ -922,6 +937,7 @@ export async function runCustomerPredictionMaintenance(
           )
           OR state."nextRefreshAt" IS NULL
           OR state."nextRefreshAt" <= ${now}
+          OR (${activationEpoch}::timestamp IS NOT NULL AND state."lastCalculatedAt" < ${activationEpoch}::timestamp)
         )
       ORDER BY
         CASE
@@ -945,6 +961,7 @@ export async function runCustomerPredictionMaintenance(
   let learning = 0;
   let disabled = 0;
   let failed = 0;
+  let paused = false;
 
   for (const candidate of candidates) {
     try {
@@ -968,6 +985,7 @@ export async function runCustomerPredictionMaintenance(
         disabled += 1;
       }
     } catch (error) {
+      if (error instanceof PredictionsDisabled) { paused = true; break; }
       failed += 1;
 
       console.error(
@@ -990,7 +1008,8 @@ export async function runCustomerPredictionMaintenance(
     disabled,
     failed,
     hasMore:
-      expired.hasMore ||
-      candidates.length === safeLimit,
+      !paused && (expired.hasMore ||
+      candidates.length === safeLimit),
+    paused,
   };
 }

@@ -1,3 +1,4 @@
+import { PredictionsDisabled } from "@/modules/predictions/lifecycle";
 import { moduleApiBlock } from "@/modules/core/activation/access";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
@@ -62,6 +63,7 @@ export async function POST(
       result,
     );
   } catch (error) {
+    if (error instanceof PredictionsDisabled) return NextResponse.json({ error: "MODULE_DISABLED", moduleId: "predictions" }, { status: 403 });
     const message =
       automationSimulationError(
         error,

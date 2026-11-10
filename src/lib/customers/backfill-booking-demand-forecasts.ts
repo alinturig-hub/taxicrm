@@ -1,6 +1,7 @@
+import { predictionUnit } from "@/modules/predictions/lifecycle";
 import type { Prisma } from "@/generated/prisma/client";
 
-import { prisma } from "@/lib/prisma";
+import { predictionPrisma as prisma } from "@/modules/predictions/lifecycle";
 
 const MODEL_VERSION =
   "BOOKING_DEMAND_V1";
@@ -205,6 +206,7 @@ function reconcileSlots(
 }
 
 export async function backfillBookingDemandForecasts() {
+  return predictionUnit(async () => {
   const now = new Date();
   const currentDateKey =
     londonParts(now).dateKey;
@@ -577,4 +579,5 @@ export async function backfillBookingDemandForecasts() {
       selected - created,
     containsPersonalData: false,
   };
+  });
 }

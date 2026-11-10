@@ -1,3 +1,6 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
+import { loadModuleState } from "@/modules/core/activation/store";
+import { predictionEpochWhere } from "@/modules/predictions/lifecycle";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -141,7 +144,10 @@ export async function GET() {
     );
   }
 
+  const moduleBlock = await moduleApiBlock("predictions");
+  if (moduleBlock) return moduleBlock;
   try {
+    const moduleState = await loadModuleState();
     const now = new Date();
     const periodStart = new Date(
       now.getTime() -
@@ -156,6 +162,7 @@ export async function GET() {
     ] = await Promise.all([
       prisma.bookingDemandForecast.findFirst({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             DEMAND_MODEL,
           targetType:
@@ -172,6 +179,7 @@ export async function GET() {
 
       prisma.bookingDemandForecast.findMany({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             DEMAND_MODEL,
           targetType:
@@ -197,6 +205,7 @@ export async function GET() {
 
       prisma.customerBookingPrediction.findMany({
         where: {
+          AND: [predictionEpochWhere(moduleState)],
           modelVersion:
             PREDICTION_MODEL,
           horizonHours: 24,
@@ -221,6 +230,7 @@ export async function GET() {
 
       prisma.bookingDemandAlert.findMany({
         where: {
+          ...(moduleState.predictionEpoch ? { detectedAt: { gte: new Date(moduleState.predictionEpoch) } } : {}),
           status: "OPEN",
         },
         orderBy: [
