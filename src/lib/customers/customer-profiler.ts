@@ -18,6 +18,7 @@ type ProfileLocation = {
 };
 
 export type ProfileBooking = {
+  createdAt?: Date | null;
   externalId: string;
   provider?: string;
   status: string;

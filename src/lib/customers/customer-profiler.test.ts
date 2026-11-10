@@ -5,7 +5,7 @@ import { buildCustomerBookingWindow } from "./customer-booking-window";
 import { buildNextBookingPrediction } from "./customer-next-booking";
 const now = new Date("2026-10-26T10:00:00Z");
 function booking(at: string | null, extra: Partial<ProfileBooking> = {}): ProfileBooking {
-  return { externalId: `synthetic-${at}`, status: "COMPLETED", bookedAtTime: at ? new Date(at) : null, pickupDueTime: at ? new Date(at) : null, completedAt: null, price: 12, fare: 99, distance: null, paymentType: null, bookingSource: "SYNTHETIC", locations: [], ...extra };
+  return { createdAt: at ? new Date(at) : null, externalId: `synthetic-${at}`, status: "COMPLETED", bookedAtTime: at ? new Date(at) : null, pickupDueTime: at ? new Date(at) : null, completedAt: null, price: 12, fare: 99, distance: null, paymentType: null, bookingSource: "SYNTHETIC", locations: [], ...extra };
 }
 test("future and undated records stay visible without changing historical recency or readiness", () => {
   const past = booking("2026-10-01T10:00:00Z");
@@ -67,7 +67,7 @@ test("prediction ignores future-created actions but retains lead times for alrea
   assert.equal(baseline.status, "READY");
   const withFuture = buildCustomerBookingWindow([...past, futureCreated], { now });
   assert.deepEqual(withFuture, baseline);
-  const alreadyBooked = booking("2026-10-27T10:00:00Z", { bookedAtTime: new Date("2026-10-25T10:00:00Z") });
+  const alreadyBooked = booking("2026-10-27T10:00:00Z", { createdAt: new Date("2026-10-25T10:00:00Z"), bookedAtTime: new Date("2026-10-25T10:00:00Z") });
   assert.equal(buildCustomerBookingWindow([alreadyBooked], { now }).leadTimeSamples, 1);
   assert.equal(buildCustomerBookingWindow([alreadyBooked], { now }).medianLeadMinutes, 2880);
   assert.deepEqual(buildNextBookingPrediction([...past, futureCreated], now), buildNextBookingPrediction(past, now));

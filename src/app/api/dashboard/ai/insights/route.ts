@@ -7,14 +7,13 @@ import {
 } from "@/lib/administration-access";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { BOOKING_PREDICTION_MODEL_VERSION as PREDICTION_MODEL } from "@/lib/customers/booking-prediction-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const PREDICTION_MODEL =
-  "HAZARD_SLOT_V1";
 const DEMAND_MODEL =
   "BOOKING_DEMAND_V1";
 
