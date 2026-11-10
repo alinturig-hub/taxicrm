@@ -1,0 +1,120 @@
+import assert from "node:assert/strict";
+import { test } from "node:test";
+import { buildCustomerBookingWindow } from "./customer-booking-window";
+import { validateBookingWindows, type ValidationInput } from "./booking-window-validation";
+
+const history = [1, 2, 3, 4, 5].map((day) => `2026-10-0${day}T08:00:00Z`);
+const base = (): ValidationInput => ({
+  dataKind: "SYNTHETIC",
+  historyAvailableFrom: "2026-10-01T00:00:00Z",
+  evaluationStart: "2026-10-06T00:00:00Z",
+  observedThrough: "2026-10-07T00:00:00Z",
+  checkpointHours: 24,
+  customers: [{ key: "synthetic-a", safeForPersonalisation: true, bookedAt: [...history] }],
+});
+const h24 = (input: ValidationInput) => validateBookingWindows(input).horizons.find((horizon) => horizon.horizonHours === 24)!;
+
+test("retains a customer who never returns instead of stopping at their last booking", () => {
+  const result = h24(base());
+  assert.equal(result.model.samples, 1);
+  assert.equal(result.model.positives, 0);
+  assert.equal(result.model.baseRate, 0);
+  assert.equal(result.model.top20Lift, null);
+});
+
+test("censors incomplete horizons against a global observation end", () => {
+  const result = validateBookingWindows(base());
+  assert.equal(result.horizons[2].model.samples, 1);
+  assert.equal(result.horizons[3].model.samples, 0);
+  assert.equal(result.horizons[3].censoredSnapshots, 1);
+});
+
+test("uses (cutoff, horizon end] for labels and never learns from future actions", () => {
+  const negative = base();
+  const positive = base();
+  positive.customers[0].bookedAt.push(positive.observedThrough);
+  const before = h24(negative).model;
+  const after = h24(positive).model;
+  assert.equal(after.positives, 1);
+  assert.deepEqual(before.scoreBands.map((band) => band.samples), after.scoreBands.map((band) => band.samples));
+  const atCutoff = base();
+  atCutoff.customers[0].bookedAt.push(atCutoff.evaluationStart);
+  assert.equal(h24(atCutoff).model.positives, 0);
+});
+
+test("calls the production score without substituting the old backtest score", () => {
+  const input = base();
+  const prediction = buildCustomerBookingWindow(history.map((bookedAtTime) => ({ bookedAtTime })), { now: new Date(input.evaluationStart) });
+  const score = prediction.horizons.find((row) => row.horizonHours === 24)!.score;
+  const report = h24(input).model;
+  assert.equal(report.scoreBands.find((band) => score >= band.minimum && (score < band.maximum || band.maximum === 100))!.samples, 1);
+});
+
+test("handles sparse and unsafe profiles and removes duplicate action timestamps", () => {
+  const input = base();
+  input.customers[0].bookedAt.push(history[0]);
+  input.customers.push({ key: "sparse", safeForPersonalisation: true, bookedAt: history.slice(0, 4) });
+  input.customers.push({ key: "shared", safeForPersonalisation: false, bookedAt: history });
+  const report = validateBookingWindows(input);
+  assert.equal(report.duplicateActionsRemoved, 1);
+  assert.equal(report.excludedUnsafeProfiles, 1);
+  assert.equal(report.horizons[2].learningSnapshots, 1);
+  assert.equal(report.horizons[2].model.samples, 1);
+});
+
+test("rank ties are independent of input order and do not claim artificial lift", () => {
+  const input = base();
+  input.customers = Array.from({ length: 10 }, (_, index) => ({
+    key: `synthetic-${index}`, safeForPersonalisation: true,
+    bookedAt: [...history, ...(index < 2 ? [input.observedThrough] : [])],
+  }));
+  const report = h24(input);
+  assert.equal(report.model.top20Precision, 0.2);
+  assert.equal(report.model.top20Lift, 1);
+  assert.equal(report.frequencyBaseline.top20Lift, 1);
+  input.customers.reverse();
+  assert.deepEqual(h24(input), report);
+});
+
+test("continues evaluating subsequent negative checkpoints after the last event", () => {
+  const input = base();
+  input.observedThrough = "2026-10-10T00:00:00Z";
+  assert.equal(h24(input).model.samples, 4);
+  assert.equal(h24(input).model.positives, 0);
+});
+
+test("rejects unbounded, ambiguous or inconsistent inputs", () => {
+  assert.throws(() => validateBookingWindows({ ...base(), evaluationStart: "2026-10-06T00:00:00" }), /offset/);
+  assert.throws(() => validateBookingWindows({ ...base(), checkpointHours: 0 }), /Checkpoint/);
+  assert.throws(() => validateBookingWindows({ ...base(), observedThrough: "2026-09-01T00:00:00Z" }), /interval/);
+  const future = base(); future.customers[0].bookedAt.push("2027-01-01T00:00:00Z");
+  assert.throws(() => validateBookingWindows(future), /coverage/);
+  const duplicate = base(); duplicate.customers.push(duplicate.customers[0]);
+  assert.throws(() => validateBookingWindows(duplicate), /unique/);
+  assert.throws(() => validateBookingWindows(base(), 0), /limit/);
+  assert.throws(() => validateBookingWindows({ ...base(), observedThrough: "2026-10-10T00:00:00Z" }, 1), /limit exceeded/);
+});
+
+test("aggregated report contains no customer identifiers or action lists", () => {
+  const report = JSON.stringify(validateBookingWindows(base()));
+  assert.equal(report.includes("synthetic-a"), false);
+  assert.equal(report.includes(history[0]), false);
+});
+
+test("excludes the previously out-of-horizon matching slot", () => {
+  const input: ValidationInput = {
+    dataKind: "SYNTHETIC",
+    historyAvailableFrom: "2026-10-01T00:00:00Z",
+    evaluationStart: "2026-11-09T08:30:00Z",
+    observedThrough: "2026-11-09T14:30:00Z",
+    checkpointHours: 24,
+    customers: [{ key: "synthetic-monday", safeForPersonalisation: true, bookedAt: [
+      "2026-10-05T15:00:00Z", "2026-10-12T15:00:00Z", "2026-10-19T15:00:00Z",
+      "2026-10-26T15:00:00Z", "2026-11-02T15:00:00Z",
+    ] }],
+  };
+  assert.equal(validateBookingWindows(input).horizons[0].matchingSlotsOutsideHorizon, 0);
+  const forecast = buildCustomerBookingWindow(input.customers[0].bookedAt.map((bookedAtTime) => ({ bookedAtTime })), { now: new Date(input.evaluationStart) });
+  assert.equal(forecast.horizons[0].strongestSlot.startAt, null);
+  assert.equal(forecast.horizons[0].weeklySlotScore, 0);
+});
