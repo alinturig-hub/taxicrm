@@ -20,6 +20,7 @@ import {
 import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
+import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -467,7 +468,7 @@ async function accuracyAnswer(
     await prisma.customerBookingPrediction.findMany({
       where: {
         modelVersion:
-          "HAZARD_SLOT_V1",
+          BOOKING_PREDICTION_MODEL_VERSION,
         horizonHours: 24,
         issuedAt: {
           gte: periodStart,
@@ -532,7 +533,7 @@ async function accuracyAnswer(
     summary:
       `${outcomes.length.toLocaleString(
         "en-GB",
-      )} customer predictions were evaluated over the last 14 days. The three-hour interval accuracy is ${
+      )} current-model predictions were evaluated over the last 14 days. The time-window accuracy is ${
         slotHitRate === null
           ? "still learning"
           : `${slotHitRate}%`

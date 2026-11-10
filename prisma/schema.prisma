@@ -1090,7 +1090,7 @@ model CustomerBookingPrediction {
 
   score              Decimal @db.Decimal(6, 2)
   level              String
-  observedRate       Decimal @db.Decimal(6, 2)
+  observedRate       Decimal? @db.Decimal(6, 2)
   evidenceConfidence Int
   calibrationSamples Int
 

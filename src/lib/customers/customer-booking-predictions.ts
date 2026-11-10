@@ -2,13 +2,15 @@ import { createHash } from "node:crypto";
 
 import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
 import {
+  BOOKING_PREDICTION_MODEL_VERSION as MODEL_VERSION,
+} from "./booking-prediction-model";
+import {
   minutesBetween,
   recordPredictionEvidence,
 } from "@/lib/customers/customer-prediction-evidence";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { prisma } from "@/lib/prisma";
 
-const MODEL_VERSION = "HAZARD_SLOT_V1";
 const PRIMARY_HORIZON_HOURS = 24;
 
 function fingerprint(
@@ -265,12 +267,12 @@ async function resolvePredictionOutcomes(
                     outcome:
                       "HIT",
                   },
-                  {
+                  ...(timing.likelyWindowHit === null ? [] : [{
                     ...sharedEvidence,
                     eventType:
                       timing.likelyWindowHit
-                        ? "TIME_SLOT_CONFIRMED"
-                        : "TIME_SLOT_MISSED",
+                        ? "TIME_SLOT_CONFIRMED" as const
+                        : "TIME_SLOT_MISSED" as const,
                     timeSlotDistanceMinutes:
                       timing
                         .likelyWindowDistanceMinutes,
@@ -278,7 +280,7 @@ async function resolvePredictionOutcomes(
                       timing.likelyWindowHit
                         ? "HIT"
                         : "MISSED",
-                  },
+                  }]),
                 ],
               );
             }
@@ -358,6 +360,7 @@ export async function refreshCustomerBookingPrediction(
               externalId: true,
               status: true,
               bookedAtTime: true,
+              createdAt: true,
               pickupDueTime: true,
               completedAt: true,
               price: true,
@@ -675,12 +678,11 @@ export async function getCustomerPredictionHistory(
   customerId: string,
   limit = 30,
 ) {
-  const predictions =
-    await prisma.customerBookingPrediction.findMany({
+  const findVersion = (current: boolean) =>
+    prisma.customerBookingPrediction.findMany({
       where: {
         normalCustomerId: customerId,
-        modelVersion:
-          MODEL_VERSION,
+        modelVersion: current ? MODEL_VERSION : { not: MODEL_VERSION },
         horizonHours:
           PRIMARY_HORIZON_HOURS,
       },
@@ -712,7 +714,16 @@ export async function getCustomerPredictionHistory(
       },
     });
 
-  const resolved = predictions.filter(
+  // Bound each version independently, so legacy records cannot displace the
+  // new cohort. Retain previous versions, but calculate accuracy only for the current model.
+  const [currentPredictions, legacyPredictions] = await Promise.all([
+    findVersion(true),
+    findVersion(false),
+  ]);
+  const predictions = [...currentPredictions, ...legacyPredictions].sort(
+    (first, second) => second.issuedAt.getTime() - first.issuedAt.getTime(),
+  );
+  const resolved = currentPredictions.filter(
     (prediction) =>
       prediction.status === "HIT" ||
       prediction.status === "MISSED",
@@ -775,9 +786,7 @@ export async function getCustomerPredictionHistory(
         score: Number(
           prediction.score,
         ),
-        observedRate: Number(
-          prediction.observedRate,
-        ),
+        observedRate: prediction.observedRate === null ? null : Number(prediction.observedRate),
       }),
     ),
     accuracy: {

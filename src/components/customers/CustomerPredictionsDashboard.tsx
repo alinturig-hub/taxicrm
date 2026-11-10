@@ -1,5 +1,6 @@
 "use client";
 import { boundedPredictionDisplay } from "@/lib/customers/prediction-window-display";
+import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 import {
   useEffect,
@@ -8,6 +9,7 @@ import {
 
 type DashboardData = {
   success: boolean;
+  modelVersion?: string;
   horizonHours?: number;
   message?: string;
   demandForecast?: {
@@ -72,7 +74,7 @@ type DashboardData = {
       string | null;
     score: number;
     level: string;
-    observedRate: number;
+    observedRate: number | null;
     evidenceConfidence: number;
   }>;
 };
@@ -247,7 +249,7 @@ export default function CustomerPredictionsDashboard({
           </h2>
           <p className="mt-2 text-sm text-slate-400">
             Live 24-hour signals and verified
-            3-hour timing accuracy.
+            recorded outcomes. Frequency scores do not estimate an exact booking time.
           </p>
         </div>
 
@@ -504,7 +506,7 @@ export default function CustomerPredictionsDashboard({
           )}
         />
         <Metric
-          label="24h accuracy"
+          label="24h observed hit rate"
           value={
             summary?.hitRate == null
               ? "Learning"
@@ -515,8 +517,8 @@ export default function CustomerPredictionsDashboard({
           } evaluated`}
         />
         <Metric
-          label="3h accuracy"
-          value={
+          label="Time-window hit rate"
+          value={data?.modelVersion === BOOKING_PREDICTION_MODEL_VERSION ? "Not estimated" :
             summary?.slotHitRate == null
               ? "Learning"
               : `${summary.slotHitRate}%`
@@ -621,8 +623,8 @@ export default function CustomerPredictionsDashboard({
           </h3>
           <p className="mt-1 text-xs text-slate-500">
             Privacy-safe individual profiles,
-            ranked by the existing prediction signals. Historical benchmarks
-            have not been revalidated and are not individual probabilities.
+            ranked by recent booking activity. Scores are uncalibrated indices,
+            not individual probabilities.
           </p>
         </div>
 
@@ -633,7 +635,7 @@ export default function CustomerPredictionsDashboard({
                 {[
                   "Customer",
                   "Signal",
-                  "Historical benchmark",
+                  "Calibration",
                   "Likely time",
                   "Ends",
                   "Evidence",
@@ -684,13 +686,10 @@ export default function CustomerPredictionsDashboard({
                       </span>
                     </td>
                     <td className="px-5 py-4 font-semibold text-white">
-                      {
-                        prediction.observedRate
-                      }
-                      %
+                      {prediction.observedRate === null ? "Not calibrated" : `${prediction.observedRate}%`}
                     </td>
                     <td className="px-5 py-4">
-                      {timeSlot(
+                      {data?.modelVersion === BOOKING_PREDICTION_MODEL_VERSION ? "No exact time estimate" : timeSlot(
                         prediction
                           .likelyWindowStartAt,
                         prediction
@@ -707,11 +706,7 @@ export default function CustomerPredictionsDashboard({
                       )}
                     </td>
                     <td className="px-5 py-4">
-                      {
-                        prediction
-                          .evidenceConfidence
-                      }
-                      %
+                      {prediction.observedRate === null ? "Not assessed" : `${prediction.evidenceConfidence}/100`}
                     </td>
                   </tr>
                 ),

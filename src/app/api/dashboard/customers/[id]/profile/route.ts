@@ -95,6 +95,7 @@ export async function GET(
               provider: true,
               status: true,
               bookedAtTime: true,
+              createdAt: true,
               pickupDueTime: true,
               dispatchedAt: true,
               completedAt: true,
