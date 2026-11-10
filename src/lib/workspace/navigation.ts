@@ -1,3 +1,5 @@
+import { moduleForRoute } from "@/modules/core/ownership";
+import type { ModuleId } from "@/modules/core/registry";
 export type IconName =
   | "dashboard"
   | "live"
@@ -300,6 +302,7 @@ export const navigationGroups: NavigationGroup[] = [
         "One place for platform settings and administration.",
         "configuration.view",
       ),
+      item("Product modules", "/dashboard/configuration/modules", "system", "Installation-wide feature availability and audited changes.", "configuration.manage"),
       item(
         "SMS & freephone alerts",
         "/dashboard/configuration/sms",
@@ -391,6 +394,7 @@ export const navigationGroups: NavigationGroup[] = [
 export function visibleNavigation(
   permissions: readonly string[],
   role: string,
+  enabledModules?: readonly ModuleId[],
 ) {
   return navigationGroups
     .map((group) => ({
@@ -398,6 +402,7 @@ export function visibleNavigation(
       items: group.items.filter(
         (i) =>
           permissions.includes(i.permission) &&
+          (!enabledModules || enabledModules.includes(moduleForRoute(i.href) ?? "core")) &&
           (!i.legacyRoles || i.legacyRoles.includes(role)),
       ),
     }))

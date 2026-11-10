@@ -1,6 +1,6 @@
 {
-  "baseline": "c4fea3f85089e2d04afb34473ee0c73b9e52890b",
-  "scope": "Descriptive ownership; runtime enable/disable is not implemented by this map",
+  "baseline": "4a6f7b06c44d6fbb26122aefa71d9e09455c7fb5",
+  "scope": "Ownership inventory; guarded activation for AI, Reports and Automation is documented in ACTIVATION.md",
   "modules": {
     "core": {
       "label": "Core",
@@ -315,6 +315,12 @@
       "moduleId": "integrations"
     },
     {
+      "file": "src/app/api/dashboard/configuration/modules/route.ts",
+      "path": "/api/dashboard/configuration/modules",
+      "kind": "api",
+      "moduleId": "core"
+    },
+    {
       "file": "src/app/api/dashboard/configuration/sms/route.ts",
       "path": "/api/dashboard/configuration/sms",
       "kind": "api",
@@ -378,7 +384,7 @@
       "file": "src/app/api/dashboard/driver-company-overview/route.ts",
       "path": "/api/dashboard/driver-company-overview",
       "kind": "api",
-      "moduleId": "reports"
+      "moduleId": "businessOverview"
     },
     {
       "file": "src/app/api/dashboard/drivers/[id]/route.ts",
@@ -859,6 +865,12 @@
       "path": "/dashboard/configuration/geoapify",
       "kind": "page",
       "moduleId": "places"
+    },
+    {
+      "file": "src/app/dashboard/configuration/modules/page.tsx",
+      "path": "/dashboard/configuration/modules",
+      "kind": "page",
+      "moduleId": "core"
     },
     {
       "file": "src/app/dashboard/configuration/page.tsx",

@@ -1,3 +1,4 @@
+import { modulePageBlock } from "@/modules/core/activation/page";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -25,6 +26,9 @@ export default async function AIAutomationPage() {
   if (!access) {
     redirect("/dashboard");
   }
+
+  const moduleBlock = await modulePageBlock("automation");
+  if (moduleBlock) return moduleBlock;
 
   return <AIAutomationWorkspace />;
 }

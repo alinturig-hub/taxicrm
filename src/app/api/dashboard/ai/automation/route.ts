@@ -1,3 +1,4 @@
+import { moduleApiBlock } from "@/modules/core/activation/access";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -34,6 +35,9 @@ export async function GET() {
       },
     );
   }
+
+  const moduleBlock = await moduleApiBlock("automation");
+  if (moduleBlock) return moduleBlock;
 
   try {
     const rules =

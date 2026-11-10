@@ -1,3 +1,4 @@
+import { modulePageBlock } from "@/modules/core/activation/page";
 import Link from "next/link";
 import { getHackneyDriverPerformance } from "@/lib/analytics/hackney";
 import { londonDateKey } from "@/lib/time/london-calendar";
@@ -10,6 +11,9 @@ export default async function HackneyPerformancePage({
 }: {
   searchParams: { from?: string; to?: string };
 }) {
+  const moduleBlock = await modulePageBlock("reports");
+  if (moduleBlock) return moduleBlock;
+
   const year = londonDateKey(new Date()).getUTCFullYear();
   const from = searchParams.from ?? `${year}-01-01`;
   const to = searchParams.to ?? `${year}-12-31`;
