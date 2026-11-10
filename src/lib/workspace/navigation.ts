@@ -130,6 +130,7 @@ export const navigationGroups: NavigationGroup[] = [
     description:
       "Understand the people and account customers behind each booking.",
     items: [
+      item("Time tag rules", "/dashboard/customers/time-tag-rules", "customers", "Set London time windows and qualifying journey rules.", "customers.manage"),
       item(
         "Customers",
         "/dashboard/customers",
