@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { followUpPeriod } from "@/lib/ai/copilot-follow-up";
 
 type Metric = {
   label: string;
@@ -37,6 +38,7 @@ type CopilotResponse = {
     | "GENERAL_GUIDANCE"
     | "RESTRICTED";
   method: string;
+  contextUsed?: boolean;
   answer: CopilotAnswer;
   safeguards: {
     externalModelUsed: boolean;
@@ -62,6 +64,7 @@ type Message =
         | "GENERAL_GUIDANCE"
         | "RESTRICTED";
       method: string;
+      contextUsed?: boolean;
     };
 
 const SUGGESTIONS = [
@@ -124,7 +127,7 @@ export default function AICopilotWorkspace() {
   const [error, setError] =
     useState<string | null>(null);
   const inputRef =
-    useRef<HTMLInputElement | null>(
+    useRef<HTMLTextAreaElement | null>(
       null,
     );
 
@@ -158,6 +161,9 @@ export default function AICopilotWorkspace() {
     setError(null);
 
     try {
+      const last = messages[messages.length - 1];
+      const prior = messages[messages.length - 2];
+      const previousQuestion = followUpPeriod(normalized) && last?.role === "COPILOT" && prior?.role === "USER" && last.answerType === "VERIFIED" ? prior.text : undefined;
       const response = await fetch(
         "/api/dashboard/ai/copilot",
         {
@@ -168,6 +174,7 @@ export default function AICopilotWorkspace() {
           },
           body: JSON.stringify({
             question: normalized,
+            previousQuestion,
           }),
         },
       );
@@ -202,10 +209,12 @@ export default function AICopilotWorkspace() {
               result.answerType,
             method:
               result.method,
+            contextUsed: result.contextUsed,
           },
         ],
       );
     } catch (askError) {
+      setQuestion(normalized);
       setError(
         askError instanceof Error
           ? askError.message
@@ -230,7 +239,7 @@ export default function AICopilotWorkspace() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <section className="rounded-2xl border border-blue-500/20 bg-slate-900/70 p-6 shadow-xl shadow-black/10">
         <div className="flex flex-col justify-between gap-5 lg:flex-row lg:items-end">
           <div>
@@ -238,13 +247,10 @@ export default function AICopilotWorkspace() {
               AI Center
             </p>
             <h1 className="mt-3 text-3xl font-bold tracking-tight text-white">
-              Evidence Copilot
+              TaxiCRM Agent
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              Ask operational or general questions in English or
-              Romanian. Verified answers use governed
-              TaxiCRM records; general guidance is clearly
-              labelled and does not claim live data.
+              Ask about your business in English or Romanian. Answers from TaxiCRM records include their supporting evidence; general guidance is labelled separately.
             </p>
           </div>
 
@@ -256,14 +262,15 @@ export default function AICopilotWorkspace() {
               VERIFIED SOURCES
             </span>
             <span className="rounded-full border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold text-slate-300">
-              GROUNDED LLM + SAFE FALLBACK
+              SOURCES AND EVIDENCE
             </span>
           </div>
         </div>
       </section>
 
-      <section className="rounded-2xl border border-slate-700/70 bg-slate-900/70">
-        <div className="min-h-[420px] space-y-5 p-5 md:p-7">
+      <section aria-label="TaxiCRM Agent conversation" className="rounded-2xl border border-slate-700/70 bg-slate-900/70">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-700/70 px-5 py-4"><p className="text-sm text-slate-300">Conversation in this tab</p><button type="button" disabled={loading || messages.length === 0} onClick={() => {setMessages([]);setError(null);setQuestion("");inputRef.current?.focus();}} className="rounded-lg border border-slate-700 px-3 py-2 text-sm text-slate-200 disabled:opacity-40">New conversation</button></div>
+        <div role="log" aria-label="Conversation messages" aria-live="polite" className="min-h-[420px] space-y-5 p-5 md:p-7">
           {messages.length === 0 ? (
             <div className="mx-auto max-w-3xl py-8 text-center">
               <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-500/30 bg-blue-500/10 text-2xl text-blue-300">
@@ -309,7 +316,7 @@ export default function AICopilotWorkspace() {
                     key={message.id}
                     className="ml-auto max-w-3xl rounded-2xl rounded-br-md border border-blue-500/30 bg-blue-500/10 px-5 py-4"
                   >
-                    <p className="text-sm leading-6 text-blue-100">
+                    <p className="whitespace-pre-wrap break-words text-sm leading-6 text-blue-100">
                       {message.text}
                     </p>
                   </div>
@@ -345,7 +352,7 @@ export default function AICopilotWorkspace() {
                           .headline
                       }
                     </h2>
-                    <p className="mt-3 text-sm leading-7 text-slate-300">
+                    <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-300">
                       {
                         message.answer
                           .summary
@@ -381,7 +388,7 @@ export default function AICopilotWorkspace() {
                       </div>
                     ) : null}
 
-                    <div className="mt-5 rounded-xl border border-slate-700/70 bg-slate-900/40 p-4">
+                    {message.answer.evidence.length > 0 && <div className="mt-5 rounded-xl border border-slate-700/70 bg-slate-900/40 p-4">
                       <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
                         Evidence
                       </p>
@@ -403,7 +410,7 @@ export default function AICopilotWorkspace() {
                             ),
                           )}
                       </ul>
-                    </div>
+                    </div>}
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       {message.answer
@@ -428,6 +435,7 @@ export default function AICopilotWorkspace() {
                     </div>
 
                     <p className="mt-4 text-xs text-slate-600">
+                      {message.contextUsed ? "Uses the previous question for the reporting period · " : ""}
                       {
                         message.method
                       }{" "}
@@ -448,7 +456,7 @@ export default function AICopilotWorkspace() {
           ) : null}
 
           {error ? (
-            <div className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
+            <div role="alert" className="rounded-xl border border-red-500/30 bg-red-500/10 p-4 text-sm text-red-200">
               {error}
             </div>
           ) : null}
@@ -459,8 +467,10 @@ export default function AICopilotWorkspace() {
           className="border-t border-slate-700/70 p-4 md:p-5"
         >
           <div className="flex flex-col gap-3 sm:flex-row">
-            <input
+            <textarea
               ref={inputRef}
+              aria-label="Message TaxiCRM Agent"
+              rows={2}
               value={question}
               onChange={(event) =>
                 setQuestion(
@@ -469,7 +479,7 @@ export default function AICopilotWorkspace() {
               }
               maxLength={500}
               placeholder="Ask about revenue, bookings, live drivers, demand, warnings or system health…"
-              className="min-w-0 flex-1 rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500/60"
+              className="min-w-0 flex-1 resize-y rounded-xl border border-slate-700 bg-slate-950/60 px-4 py-3 text-sm text-white outline-none placeholder:text-slate-600 focus:border-blue-500/60"
             />
             <button
               type="submit"
@@ -480,14 +490,12 @@ export default function AICopilotWorkspace() {
               }
               className="rounded-xl bg-blue-600 px-6 py-3 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Ask Copilot
+              Send
             </button>
           </div>
 
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            Questions are not stored. Copilot cannot
-            modify data, execute jobs or contact
-            customers.
+            This conversation is kept in this tab only. Short period follow-ups can reuse the previous verified report; other questions are processed separately. The agent cannot yet change data, execute actions or contact customers.
           </p>
         </form>
       </section>

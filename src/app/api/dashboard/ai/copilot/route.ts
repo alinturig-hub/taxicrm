@@ -21,6 +21,7 @@ import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
+import { followUpPeriod } from "@/lib/ai/copilot-follow-up";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -1079,6 +1080,7 @@ export async function POST(
         () => ({}),
       )) as {
         question?: unknown;
+        previousQuestion?: unknown;
       };
 
     const question =
@@ -1097,6 +1099,19 @@ export async function POST(
             question,
           )
         : null;
+
+    const period = followUpPeriod(question);
+    const previousQuestion = typeof body.previousQuestion === "string"
+      ? body.previousQuestion.trim().slice(0, 500)
+      : "";
+    const previousPlan = period && classify(previousQuestion) === "ANALYTICS"
+      ? planAnalyticsQuestion(previousQuestion)
+      : null;
+    const contextUsed = !!(period && previousPlan && previousPlan.metric !== "PERIOD_COMPARISON");
+    if (contextUsed && period && previousPlan) {
+      analyticsPlan = { ...previousPlan, period };
+      intent = "ANALYTICS";
+    }
 
     let semanticPlannerUsed =
       false;
@@ -1256,6 +1271,7 @@ export async function POST(
         refinement.method,
       answer:
         refinement.answer,
+      contextUsed,
       safeguards: {
         externalModelUsed:
           refinement.externalModelUsed,
