@@ -2,13 +2,16 @@ import { createHash } from "node:crypto";
 
 import { buildCustomerBookingWindow } from "@/lib/customers/customer-booking-window";
 import {
+  BOOKING_PREDICTION_MODEL_VERSION as MODEL_VERSION,
+  PREVIOUS_BOOKING_PREDICTION_MODEL_VERSION,
+} from "./booking-prediction-model";
+import {
   minutesBetween,
   recordPredictionEvidence,
 } from "@/lib/customers/customer-prediction-evidence";
 import { buildCustomerProfile } from "@/lib/customers/customer-profiler";
 import { prisma } from "@/lib/prisma";
 
-const MODEL_VERSION = "HAZARD_SLOT_V1";
 const PRIMARY_HORIZON_HOURS = 24;
 
 function fingerprint(
@@ -675,12 +678,11 @@ export async function getCustomerPredictionHistory(
   customerId: string,
   limit = 30,
 ) {
-  const predictions =
-    await prisma.customerBookingPrediction.findMany({
+  const findVersion = (modelVersion: string) =>
+    prisma.customerBookingPrediction.findMany({
       where: {
         normalCustomerId: customerId,
-        modelVersion:
-          MODEL_VERSION,
+        modelVersion,
         horizonHours:
           PRIMARY_HORIZON_HOURS,
       },
@@ -712,7 +714,16 @@ export async function getCustomerPredictionHistory(
       },
     });
 
-  const resolved = predictions.filter(
+  // Bound each version independently, so legacy records cannot displace the
+  // new cohort. Retain both for history, but calculate accuracy only for V2.
+  const [currentPredictions, legacyPredictions] = await Promise.all([
+    findVersion(MODEL_VERSION),
+    findVersion(PREVIOUS_BOOKING_PREDICTION_MODEL_VERSION),
+  ]);
+  const predictions = [...currentPredictions, ...legacyPredictions].sort(
+    (first, second) => second.issuedAt.getTime() - first.issuedAt.getTime(),
+  );
+  const resolved = currentPredictions.filter(
     (prediction) =>
       prediction.status === "HIT" ||
       prediction.status === "MISSED",

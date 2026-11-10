@@ -39,10 +39,10 @@ function evidenceMessage(
       return "The predicted 24-hour booking outcome was confirmed.";
 
     case "TIME_SLOT_CONFIRMED":
-      return "The booking occurred inside the predicted three-hour interval.";
+      return "The booking occurred inside the predicted time window.";
 
     case "TIME_SLOT_MISSED":
-      return "A booking occurred inside 24 hours but outside the predicted three-hour interval.";
+      return "A booking occurred inside 24 hours but outside the predicted time window.";
 
     case "HORIZON_24H_MISSED":
       return "No booking was observed before the 24-hour prediction expired.";

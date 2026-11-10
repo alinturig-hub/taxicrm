@@ -4,12 +4,12 @@ import { NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
 import { CUSTOMER_INTELLIGENCE_JOBS } from "@/lib/customers/customer-intelligence-job-runs";
 import { prisma } from "@/lib/prisma";
+import { BOOKING_PREDICTION_MODEL_VERSION as MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MODEL_VERSION = "HAZARD_SLOT_V1";
 const HORIZON_HOURS = 24;
 const PREDICTION_STALE_MINUTES = 30;
 const DEMAND_FORECAST_STALE_MINUTES = 210;

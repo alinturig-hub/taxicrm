@@ -1,3 +1,5 @@
+import { BOOKING_PREDICTION_MODEL_VERSION } from "./booking-prediction-model";
+
 export type BookingWindowBooking = {
   bookedAtTime?: Date | string | null;
   pickupDueTime?: Date | string | null;
@@ -341,57 +343,52 @@ function weeklyWindow(
     );
   }
 
-  const firstCandidate =
-    new Date(now);
+  const windowEnd = now + horizonHours * HOUR_MS;
+  // Visit actual UTC instants, grouping contiguous London three-hour slots.
+  // This includes the current partial slot and handles skipped/repeated hours.
+  const segments: Array<{
+    key: string;
+    count: number;
+    startAt: Date;
+    endAt: Date;
+    weekday: string;
+    hour: number;
+  }> = [];
 
-  firstCandidate.setUTCMinutes(
-    0,
-    0,
-    0,
-  );
-
-  if (
-    firstCandidate.getTime() < now
-  ) {
-    firstCandidate.setUTCHours(
-      firstCandidate.getUTCHours() + 1,
+  for (let cursor = now; cursor < windowEnd;) {
+    const slot = londonSlot(new Date(cursor));
+    const segmentEnd = Math.min(
+      windowEnd,
+      (Math.floor(cursor / HOUR_MS) + 1) * HOUR_MS,
     );
+    const previous = segments[segments.length - 1];
+    if (previous?.key === slot.key) {
+      previous.endAt = new Date(segmentEnd);
+    } else {
+      segments.push({
+        key: slot.key,
+        count: counts.get(slot.key) ?? 0,
+        startAt: new Date(cursor),
+        endAt: new Date(segmentEnd),
+        weekday: slot.weekday,
+        hour: slot.hour,
+      });
+    }
+    cursor = segmentEnd;
   }
 
   let best:
     {
       count: number;
       startAt: Date;
+      endAt: Date;
       weekday: string;
       hour: number;
     } | null = null;
 
-  for (
-    let offset = 0;
-    offset <= horizonHours;
-    offset += 1
-  ) {
-    const candidate = new Date(
-      firstCandidate.getTime() +
-        offset * HOUR_MS,
-    );
-
-    const slot =
-      londonSlot(candidate);
-
-    const count =
-      counts.get(slot.key) ?? 0;
-
-    if (
-      !best ||
-      count > best.count
-    ) {
-      best = {
-        count,
-        startAt: candidate,
-        weekday: slot.weekday,
-        hour: slot.hour,
-      };
+  for (const segment of segments) {
+    if (segment.count > 0 && (!best || segment.count > best.count)) {
+      best = segment;
     }
   }
 
@@ -411,13 +408,7 @@ function weeklyWindow(
       round(share * 100),
     startAt:
       best?.startAt ?? null,
-    endAt:
-      best
-        ? new Date(
-            best.startAt.getTime() +
-              3 * HOUR_MS,
-          )
-        : null,
+    endAt: best?.endAt ?? null,
     weekday:
       best?.weekday ?? null,
     hour:
@@ -553,7 +544,7 @@ export function buildCustomerBookingWindow(
   if (!profileSafeForPersonalisation) {
     return {
       status: "DISABLED" as const,
-      model: "HAZARD_SLOT_V1",
+      model: BOOKING_PREDICTION_MODEL_VERSION,
       analysedBookings:
         actions.length,
       primaryHorizonHours: 24,
@@ -576,7 +567,7 @@ export function buildCustomerBookingWindow(
   ) {
     return {
       status: "LEARNING" as const,
-      model: "HAZARD_SLOT_V1",
+      model: BOOKING_PREDICTION_MODEL_VERSION,
       analysedBookings:
         actions.length,
       primaryHorizonHours: 24,
@@ -700,7 +691,7 @@ export function buildCustomerBookingWindow(
 
   return {
     status: "READY" as const,
-    model: "HAZARD_SLOT_V1",
+    model: BOOKING_PREDICTION_MODEL_VERSION,
     analysedBookings:
       actions.length,
     primaryHorizonHours: 24,
@@ -723,7 +714,7 @@ export function buildCustomerBookingWindow(
       "The booking-action window combines conditional booking gaps with repeated London weekday and time patterns.",
     explanation: [
       "The primary operational window is the next 24 hours.",
-      "Observed benchmark rates come from chronological per-customer holdout testing and are not guarantees for an individual booking.",
+      "Scores rank booking signals; evidence strength is not a probability. Historical benchmark rates have not been revalidated for the corrected windows or current customer population.",
       "The model uses booking timestamps only; it does not use protected locations, medical information, financial eligibility or inferred personal traits.",
     ],
   };

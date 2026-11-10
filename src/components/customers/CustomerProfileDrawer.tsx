@@ -5,6 +5,7 @@ import { bookingPriceDisplay } from "@/lib/customers/booking-price-display";
 import RetentionProgressCard from "@/components/customers/RetentionProgressCard";
 import CustomerOutcomeHistory from "@/components/customers/CustomerOutcomeHistory";
 import CustomerOutcomePatterns from "@/components/customers/CustomerOutcomePatterns";
+import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 import {
   useEffect,
@@ -932,9 +933,9 @@ export default function CustomerProfileDrawer({
                     .primaryLevel ?? "LOW"}{" "}
                   ·{" "}
                   {data.bookingWindow
-                    .primaryObservedBenchmarkRate ??
+                    .primaryScore ??
                     0}
-                  %
+                  /100
                   {(() => {
                     const primary =
                       data.bookingWindow.horizons.find(
@@ -1661,8 +1662,13 @@ function PredictionTab({
 }) {
   const { classification } = profile;
 
-  const latestStoredPrediction =
-    predictionHistory?.predictions[0];
+  const currentPredictions = predictionHistory?.predictions.filter(
+    (item) => item.modelVersion === BOOKING_PREDICTION_MODEL_VERSION,
+  ) ?? [];
+  const legacyPredictions = predictionHistory?.predictions.filter(
+    (item) => item.modelVersion !== BOOKING_PREDICTION_MODEL_VERSION,
+  ) ?? [];
+  const latestStoredPrediction = currentPredictions[0];
 
   const likelyInterval =
     latestStoredPrediction
@@ -1677,7 +1683,7 @@ function PredictionTab({
   return (
     <div className="space-y-6">
       {latestStoredPrediction ? (
-        <Section title="Verified 24-hour prediction">
+        <Section title="Recorded 24-hour prediction">
           <div className="rounded-2xl border border-blue-500/25 bg-blue-500/5 p-5">
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div>
@@ -1689,7 +1695,7 @@ function PredictionTab({
                 </p>
                 <p className="mt-2 text-sm text-slate-300">
                   {latestStoredPrediction.observedRate}%
-                  observed 24-hour benchmark
+                  historical 24-hour benchmark · not revalidated
                 </p>
               </div>
 
@@ -1735,7 +1741,7 @@ function PredictionTab({
                     latestStoredPrediction
                       .evidenceConfidence
                   }
-                  % evidence
+                  /100 evidence strength
                 </Badge>
               </div>
             </div>
@@ -1745,7 +1751,7 @@ function PredictionTab({
                 label="Likely time"
                 value={
                   likelyInterval ??
-                  "No reliable 3-hour slot"
+                  "No matching time window"
                 }
               />
               <Metric
@@ -1777,7 +1783,7 @@ function PredictionTab({
                 }
               />
               <Metric
-                label="3-hour slot accuracy"
+                label="Time-window accuracy"
                 value={
                   predictionHistory?.accuracy
                     .timeSlotHitRate === null ||
@@ -1823,12 +1829,35 @@ function PredictionTab({
             </div>
 
             <p className="mt-4 text-xs leading-5 text-slate-500">
+              These results cover the current model only. Earlier model records
+              are preserved separately below.{" "}
               Pending means the 24-hour window has not
               finished. Correct means a booking was
               recorded inside it. Missed means the window
               ended without a booking.
             </p>
           </div>
+        </Section>
+      ) : null}
+
+      {legacyPredictions.length > 0 ? (
+        <Section title="Earlier model history">
+          <p className="mb-3 text-sm text-slate-400">
+            Preserved for reference and excluded from current-model accuracy.
+            {currentPredictions.length === 0 ? " The current model has no recorded predictions yet." : ""}
+          </p>
+          <details className="rounded-xl border border-slate-800 p-4">
+            <summary className="cursor-pointer font-medium text-slate-200">
+              View {legacyPredictions.length} earlier prediction records
+            </summary>
+            <ul className="mt-3 space-y-2 text-sm text-slate-400">
+              {legacyPredictions.map((item) => (
+                <li key={item.id}>
+                  {dateTime(item.issuedAt)} · {item.modelVersion} · {item.status} · score {item.score}/100
+                </li>
+              ))}
+            </ul>
+          </details>
         </Section>
       ) : null}
 
@@ -1973,17 +2002,17 @@ function PredictionTab({
                         0}
                       /100
                     </Badge>
-                    <Badge tone="green">
+                    <Badge tone="slate">
                       {bookingWindow
                         .primaryObservedBenchmarkRate ??
                         0}
-                      % observed benchmark
+                      % historical benchmark · unverified
                     </Badge>
                     <Badge tone="slate">
                       {bookingWindow
                         .primaryEvidenceConfidence ??
                         0}
-                      % evidence confidence
+                      /100 evidence strength
                     </Badge>
                   </div>
                 </div>
@@ -1994,10 +2023,10 @@ function PredictionTab({
                       <Metric
                         key={horizon.horizonHours}
                         label={`Next ${horizon.horizonHours} hours`}
-                        value={`${horizon.observedBenchmarkRate}%`}
-                        detail={`${horizon.level} · score ${horizon.score}/100 · ${horizon.calibrationSamples.toLocaleString(
+                        value={`${horizon.score}/100`}
+                        detail={`${horizon.level} · historical benchmark ${horizon.observedBenchmarkRate}% (${horizon.calibrationSamples.toLocaleString(
                           "en-GB",
-                        )} validation samples`}
+                        )} samples), not revalidated`}
                       />
                     ),
                   )}
@@ -2006,7 +2035,7 @@ function PredictionTab({
                 <div className="mt-5 grid gap-3 lg:grid-cols-2">
                   <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4">
                     <p className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-                      Strongest upcoming three-hour window
+                      Strongest matching time window
                     </p>
                     <p className="mt-3 font-semibold text-white">
                       {bookingWindow
@@ -2021,7 +2050,7 @@ function PredictionTab({
                               .strongestUpcomingWindow
                               .endAt,
                           )}`
-                        : "Still learning"}
+                        : "No matching time window in the forecast"}
                     </p>
                     <p className="mt-2 text-sm leading-6 text-slate-400">
                       {bookingWindow

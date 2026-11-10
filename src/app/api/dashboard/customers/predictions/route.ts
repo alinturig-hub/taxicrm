@@ -10,12 +10,12 @@ import {
 } from "@/lib/administration-access";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { BOOKING_PREDICTION_MODEL_VERSION as MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
-const MODEL_VERSION = "HAZARD_SLOT_V1";
 const HORIZON_HOURS = 24;
 const ALLOWED_DAYS = new Set([
   7,
@@ -156,9 +156,6 @@ export async function GET(
           },
         },
         orderBy: [
-          {
-            observedRate: "desc",
-          },
           {
             score: "desc",
           },
