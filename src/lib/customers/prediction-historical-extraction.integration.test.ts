@@ -17,7 +17,7 @@ test("read-only SQL and standalone pilot run against isolated synthetic PostgreS
   readonlyUrl.username = "cabby_ro";
   readonlyUrl.password = "synthetic_read_only";
   const reader = new Client({ connectionString: readonlyUrl.toString() });
-  const ids = ["individual", "dormant", "shared", "unknown", "sparse", "late", "new-identity"].map((name) => `synthetic-pilot-${name}`);
+  const ids = ["individual", "idle", "dormant", "shared", "unknown", "sparse", "late", "new-identity"].map((name) => `synthetic-pilot-${name}`);
   try {
     await owner.query("DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='cabby_ro') THEN CREATE ROLE cabby_ro LOGIN PASSWORD 'synthetic_read_only'; END IF; END $$");
     await owner.query('GRANT USAGE ON SCHEMA public TO cabby_ro; GRANT SELECT ON ALL TABLES IN SCHEMA public TO cabby_ro');
@@ -25,7 +25,8 @@ test("read-only SQL and standalone pilot run against isolated synthetic PostgreS
       await owner.query('INSERT INTO "NormalCustomer" (id,"normalizedTelephone","telephoneNumber","createdAt","updatedAt") VALUES ($1,$1,$1,$2,$2)', [id, id.endsWith("new-identity") ? "2026-11-01" : "2026-09-01"]);
       const count = id.endsWith("shared") ? 20 : id.endsWith("sparse") ? 4 : 6;
       for (let index = 0; index < count; index++) {
-        const day = id.endsWith("dormant") ? `2026-09-${String(index + 1).padStart(2, "0")}` : id.endsWith("shared") ? `2026-10-${String(index + 1).padStart(2, "0")}` : `2026-10-${20 + index}`;
+        const month = id.endsWith("dormant") ? "2026-03" : "2026-08";
+        const day = id.endsWith("dormant") || id.endsWith("idle") ? `${month}-${String(index + 1).padStart(2, "0")}` : id.endsWith("shared") ? `2026-10-${String(index + 1).padStart(2, "0")}` : `2026-10-${20 + index}`;
         const at = `${day}T08:00:00Z`;
         const created = id.endsWith("late") ? "2026-11-01T08:00:00Z" : at;
         const bookingId = `${id}-${index}`;
@@ -48,7 +49,7 @@ test("read-only SQL and standalone pilot run against isolated synthetic PostgreS
     const envelope = Object.values(json)[0] as Record<string, unknown>;
     assert.equal(envelope.sourceRole, "cabby_ro");
     assert.equal(envelope.readOnly, "on");
-    assert.equal(envelope.sourceRows, 41);
+    assert.equal(envelope.sourceRows, 47);
     const serialized = JSON.stringify(envelope);
     assert.equal(serialized.includes("PRIVATE"), false);
     assert.equal(serialized.includes("synthetic-pilot-"), false);
@@ -58,12 +59,16 @@ test("read-only SQL and standalone pilot run against isolated synthetic PostgreS
     assert.equal(processResult.status, 0, processResult.stderr);
     const report = JSON.parse(processResult.stdout);
     assert.equal(report.dataKind, "SYNTHETIC");
-    assert.equal(report.cohort.selectedProfiles, 4);
-    assert.equal(report.cohort.evaluatedProfiles, 2);
+    assert.equal(report.cohort.selectedProfiles, 5);
+    assert.equal(report.cohort.evaluatedProfiles, 3);
     assert.equal(report.cohort.sharedProfiles, 1);
     assert.equal(report.cohort.profilesWithoutIdentityEvidence, 1);
     assert.equal(report.cohort.lateImportedActionsInEvaluatedProfiles, 1);
-    assert.equal(report.horizons[2].samples, 28);
+    assert.equal(report.checkpointHours, 6);
+    assert.equal(report.horizons[2].samples, 159);
+    assert.equal(report.horizons[2].positiveProfiles, 1);
+    assert.equal(report.segments.length, 3);
+    assert.ok(report.segments.filter((item: { segment: string }) => item.segment !== "RECENT_60D").every((item: { horizons: Array<{ positives: number }> }) => item.horizons.every((horizon) => horizon.positives === 0)));
     assert.ok(report.horizons.every((item: { outsideHorizon: number }) => item.outsideHorizon === 0));
     const bad = spawnSync(process.execPath, ["docs/prediction-validation/release/historical-evaluator.cjs"], { input: "not-json", encoding: "utf8", timeout: 10_000 });
     assert.equal(bad.status, 1);

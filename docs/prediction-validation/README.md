@@ -107,14 +107,20 @@ recorded rather than verified. No existing historical evidence was erased.
   customer keys, ambiguous times, actions outside coverage and oversized runs fail
   without returning a partial report. Default limit: 100,000 model forecasts.
 
-## Real-data stage — prepared, not executed
+## Historical diagnostics and remaining evidence limits
 
 **Update after the owner's execution:** the source inventory completed read-only
 on 10 November at 07:28:29 UTC. It confirmed 2,757,545 canonical rows and V1-only
 prediction history. See [source evidence and the bounded pilot](source-preflight-2026-11-10.md).
-Historical model performance has still not been evaluated. The next step uses
-the reviewed standalone pilot through the owner's existing SSH session, without
-providing DB credentials to this executor or exporting customer data into chat.
+The owner also executed the initial historical pilot at 07:49:39 UTC. The 94
+evaluated profiles produced only five positive 24-hour snapshots; V2 and the
+frequency baseline both had 1.90% top-fifth precision. No incremental benefit
+was demonstrated. The initial design scored only midnight checkpoints.
+See [the preserved result and revised diagnostic design](initial-historical-pilot-2026-11-10.md).
+The updated pilot uses six-hour checkpoints and fixed pre-period recency strata,
+without changing model weights, application code or production rules. Execution
+remains through the owner's existing SSH session, without giving DB credentials
+to this executor or exporting customer data into chat.
 
 `scripts/prediction-validation-preflight.sql` inventories the canonical source in
 a bounded read-only transaction and requires `cabby_ro` on database `postgres`.
@@ -122,7 +128,7 @@ Use only the documented shared primary `q9fahphg3lydu18inysgmerq`. The SQL retur
 counts and dates, no phone numbers, names or addresses. It is not an export and
 does not prove ingestion completeness. It has not been executed against live here.
 
-Before historical evaluation:
+Before confirmatory evaluation or generalized accuracy claims:
 
 1. Verify identity of the source, earliest reliable coverage, gaps in ingestion,
    backfills and late corrections. Current `Booking` timestamps and `updatedAt`
@@ -140,8 +146,9 @@ Before historical evaluation:
 5. Preserve a later, untouched temporal holdout for any subsequent model tuning.
    Validation on the same period used to pick rules is not an independent test.
 
-No real-data accuracy, confidence interval, calibration refresh or campaign uplift
-has been established. No real extraction or database access occurred in this step.
+No generalizable accuracy, confidence interval, calibration refresh or campaign
+uplift has been established. The owner's bounded aggregate diagnostic results
+are documented above; the assistant has no direct analytical DB connection.
 
 ## Next corrections and acceptance
 

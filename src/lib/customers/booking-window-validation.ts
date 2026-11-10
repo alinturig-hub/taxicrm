@@ -3,6 +3,8 @@ import { BOOKING_PREDICTION_MODEL_VERSION, BOOKING_WINDOW_IMPLEMENTATION_REVISIO
 
 const HOUR = 3_600_000;
 const HORIZONS = [6, 12, 24, 48] as const;
+export const VALIDATION_SEGMENTS = ["RECENT_60D", "IDLE_61_180D", "DORMANT_181D_PLUS"] as const;
+export type ValidationSegment = typeof VALIDATION_SEGMENTS[number];
 
 export type ValidationCustomer = {
   /** Pseudonymous identifier; never included in the report. */
@@ -11,6 +13,7 @@ export type ValidationCustomer = {
   bookedAt: string[];
   /** First database availability, aligned with bookedAt. Omit only for synthetic/assumed histories. */
   availableAt?: string[];
+  segment?: ValidationSegment;
 };
 
 export type ValidationInput = {
@@ -24,6 +27,25 @@ export type ValidationInput = {
 };
 
 type Evaluation = { score: number; positive: boolean };
+
+function createBuckets() {
+  return HORIZONS.map((horizonHours) => ({
+    horizonHours, model: [] as Evaluation[], frequency: [] as Evaluation[],
+    selected: 0, modelHits: 0, frequencyHits: 0, censored: 0, learning: 0, slotsOutsideHorizon: 0,
+    evaluatedProfiles: new Set<number>(), positiveProfiles: new Set<number>(),
+  }));
+}
+type Buckets = ReturnType<typeof createBuckets>;
+function reportBuckets(buckets: Buckets) {
+  return buckets.map((bucket) => ({
+    horizonHours: bucket.horizonHours, censoredSnapshots: bucket.censored,
+    learningSnapshots: bucket.learning, matchingSlotsOutsideHorizon: bucket.slotsOutsideHorizon,
+    evaluatedProfiles: bucket.evaluatedProfiles.size, positiveProfiles: bucket.positiveProfiles.size,
+    model: summarize(bucket.model, bucket.selected, bucket.modelHits),
+    frequencyBaseline: summarize(bucket.frequency, bucket.selected, bucket.frequencyHits),
+  }));
+}
+type EvaluationGroup = { buckets: Buckets; profiles: number };
 
 function instant(value: string) {
   if (typeof value !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(value)) {
@@ -94,11 +116,14 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
   let excludedUnsafeProfiles = 0;
   let profilesWithAvailability = 0;
   let lateImportedActions = 0;
-  const timelines: Array<Array<{ time: number; available: number }>> = [];
+  const timelines: Array<{ events: Array<{ time: number; available: number }>; segment?: ValidationSegment }> = [];
+  const overall: EvaluationGroup = { buckets: createBuckets(), profiles: 0 };
+  const groups = new Map<ValidationSegment, EvaluationGroup>();
   for (const customer of input.customers) {
     if (!customer.key || keys.has(customer.key)) throw new Error("Customer keys must be unique and nonempty");
     keys.add(customer.key);
     if (typeof customer.safeForPersonalisation !== "boolean") throw new Error("Explicit profile safety is required");
+    if (customer.segment !== undefined && !VALIDATION_SEGMENTS.includes(customer.segment)) throw new Error("Invalid cohort segment");
     const actions = customer.bookedAt.map(instant);
     if (customer.availableAt && customer.availableAt.length !== actions.length) throw new Error("Availability must align with actions");
     const availability = customer.availableAt?.map(instant) ?? actions;
@@ -116,51 +141,62 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
     const unique = Array.from(firstAvailable, ([time, available]) => ({ time, available })).sort((a, b) => a.time - b.time);
     lateImportedActions += unique.filter((row) => row.available > row.time + 24 * HOUR).length;
     duplicateActionsRemoved += actions.length - unique.length;
-    timelines.push(unique);
+    timelines.push({ events: unique, segment: customer.segment });
+    overall.profiles++;
+    if (customer.segment) {
+      const group = groups.get(customer.segment) ?? { buckets: createBuckets(), profiles: 0 };
+      group.profiles++;
+      groups.set(customer.segment, group);
+    }
   }
 
-  const buckets = HORIZONS.map((horizonHours) => ({
-    horizonHours, model: [] as Evaluation[], frequency: [] as Evaluation[],
-    selected: 0, modelHits: 0, frequencyHits: 0, censored: 0, learning: 0, slotsOutsideHorizon: 0,
-  }));
+  const evaluationGroups = [overall, ...Array.from(groups.values())];
   let forecasts = 0;
   let checkpoints = 0;
   // Scoring candidates share the same clock; dormant customers remain in the cohort.
   for (let cutoff = start; cutoff < end; cutoff += input.checkpointHours * HOUR) {
     checkpoints++;
     if (checkpoints > maximumForecasts) throw new Error("Evaluation limit exceeded; narrow the interval");
-    const atCheckpoint = buckets.map(() => ({ model: [] as Evaluation[], frequency: [] as Evaluation[] }));
-    for (const timeline of timelines) {
+    const batches = new Map(evaluationGroups.map((group) => [group,
+      group.buckets.map(() => ({ model: [] as Evaluation[], frequency: [] as Evaluation[] })),
+    ]));
+    for (let profileIndex = 0; profileIndex < timelines.length; profileIndex++) {
+      const { events: timeline, segment } = timelines[profileIndex];
+      const targets = segment ? [overall, groups.get(segment)!] : [overall];
       const history = timeline.filter((row) => row.time <= cutoff && row.available <= cutoff).map((row) => row.time);
-      const available = buckets.some((bucket) => cutoff + bucket.horizonHours * HOUR <= end);
+      const available = overall.buckets.some((bucket) => cutoff + bucket.horizonHours * HOUR <= end);
       if (!available) {
-        buckets.forEach((bucket) => bucket.censored++);
+        targets.forEach((group) => group.buckets.forEach((bucket) => bucket.censored++));
         continue;
       }
       if (++forecasts > maximumForecasts) throw new Error("Evaluation limit exceeded; narrow the cohort or interval");
       const prediction = buildCustomerBookingWindow(history.map((time) => ({ bookedAtTime: new Date(time) })), { now: new Date(cutoff) });
-      for (let index = 0; index < buckets.length; index++) {
-        const bucket = buckets[index];
+      for (let index = 0; index < overall.buckets.length; index++) {
+        const bucket = overall.buckets[index];
         const windowEnd = cutoff + bucket.horizonHours * HOUR;
-        if (windowEnd > end) { bucket.censored++; continue; }
-        if (prediction.status !== "READY") { bucket.learning++; continue; }
+        if (windowEnd > end) { targets.forEach((group) => group.buckets[index].censored++); continue; }
+        if (prediction.status !== "READY") { targets.forEach((group) => group.buckets[index].learning++); continue; }
         const horizon = prediction.horizons.find((item) => item.horizonHours === bucket.horizonHours)!;
         const slot = horizon.strongestSlot;
         if (slot.historicalMatches > 0 && slot.startAt && slot.endAt &&
           (Date.parse(slot.startAt) < cutoff || Date.parse(slot.endAt) > windowEnd)) {
-          bucket.slotsOutsideHorizon++;
+          targets.forEach((group) => group.buckets[index].slotsOutsideHorizon++);
         }
         // Label is future-only: (cutoff, windowEnd], including no-return negatives.
         const positive = timeline.some((row) => row.time > cutoff && row.time <= windowEnd);
-        atCheckpoint[index].model.push({ score: horizon.score, positive });
         const recent = history.filter((time) => time > cutoff - 28 * 24 * HOUR).length;
         const exposureHours = Math.min(28 * 24, (cutoff - historyStart) / HOUR);
         const score = exposureHours > 0 ? 100 * (1 - Math.exp(-recent * bucket.horizonHours / exposureHours)) : 0;
-        atCheckpoint[index].frequency.push({ score, positive });
+        for (const group of targets) {
+          batches.get(group)![index].model.push({ score: horizon.score, positive });
+          batches.get(group)![index].frequency.push({ score, positive });
+          group.buckets[index].evaluatedProfiles.add(profileIndex);
+          if (positive) group.buckets[index].positiveProfiles.add(profileIndex);
+        }
       }
     }
-    buckets.forEach((bucket, index) => {
-      const batch = atCheckpoint[index];
+    evaluationGroups.forEach((group) => group.buckets.forEach((bucket, index) => {
+      const batch = batches.get(group)![index];
       const modelTop = topFifth(batch.model);
       const baselineTop = topFifth(batch.frequency);
       bucket.model.push(...batch.model);
@@ -168,7 +204,7 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
       bucket.selected += modelTop.selected;
       bucket.modelHits += modelTop.hits;
       bucket.frequencyHits += baselineTop.hits;
-    });
+    }));
   }
   return {
     dataKind: input.dataKind,
@@ -187,14 +223,11 @@ export function validateBookingWindows(input: ValidationInput, maximumForecasts 
     profilesWithAvailability,
     profilesWithAssumedAvailability: timelines.length - profilesWithAvailability,
     lateImportedActions,
-    horizons: buckets.map((bucket) => ({
-      horizonHours: bucket.horizonHours,
-      censoredSnapshots: bucket.censored,
-      learningSnapshots: bucket.learning,
-      matchingSlotsOutsideHorizon: bucket.slotsOutsideHorizon,
-      model: summarize(bucket.model, bucket.selected, bucket.modelHits),
-      frequencyBaseline: summarize(bucket.frequency, bucket.selected, bucket.frequencyHits),
-    })),
+    horizons: reportBuckets(overall.buckets),
+    segments: VALIDATION_SEGMENTS.flatMap((segment) => {
+      const group = groups.get(segment);
+      return group ? [{ segment, profiles: group.profiles, horizons: reportBuckets(group.buckets) }] : [];
+    }),
     limitations: [
       "Scores are ranking signals, not individual probabilities. Existing static calibration is not refitted or validated by this report.",
       "Top 20% is ranked separately at each checkpoint; boundary ties use fractional weights.",

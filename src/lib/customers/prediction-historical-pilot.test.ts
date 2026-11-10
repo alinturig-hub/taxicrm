@@ -50,3 +50,25 @@ test("source-role, row limits, coverage claims and missing availability fail clo
   const data = fixture(); delete data.customers[0].availableAt;
   assert.throws(() => evaluateHistoricalPilot(data), /availability/);
 });
+
+test("a later return cannot move a previously dormant customer into the recent diagnostic stratum", () => {
+  const data = fixture();
+  data.historyAvailableFrom = "2026-01-01T00:00:00Z";
+  data.observedThrough = "2026-10-08T00:00:00Z";
+  const past = [1, 2, 3, 4, 5].map((day) => `2026-03-0${day}T08:00:00Z`);
+  data.customers[0].bookedAt = [...past, "2026-10-07T08:00:00Z"];
+  data.customers[0].availableAt = [...data.customers[0].bookedAt];
+  data.customers[0].segment = "DORMANT_181D_PLUS";
+  data.sourceRows = 6;
+  const result = evaluateHistoricalPilot(data);
+  assert.equal(result.segments[0].segment, "DORMANT_181D_PLUS");
+  assert.equal(result.segments[0].horizons[2].positiveProfiles, 1);
+  data.customers[0].segment = "RECENT_60D";
+  assert.throws(() => evaluateHistoricalPilot(data), /Recency segment/);
+});
+
+test("the revised design cannot silently fall back to midnight-only checkpoints", () => {
+  const data = fixture();
+  data.samplingDesign = "STRATIFIED_RECENCY_50_30_20_6H_V1";
+  assert.throws(() => evaluateHistoricalPilot(data), /six-hour/);
+});

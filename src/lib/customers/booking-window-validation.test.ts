@@ -138,3 +138,31 @@ test("duplicate actions use the earliest availability and mismatched availabilit
   input.customers[0].availableAt.pop();
   assert.throws(() => validateBookingWindows(input), /align/);
 });
+
+test("overlapping hits remain separate snapshots but count a returning profile once", () => {
+  const input = base();
+  input.checkpointHours = 6;
+  input.observedThrough = "2026-10-08T00:00:00Z";
+  input.customers[0].bookedAt.push("2026-10-07T00:00:00Z");
+  const result = h24(input);
+  assert.equal(result.model.samples, 5);
+  assert.equal(result.model.positives, 4);
+  assert.equal(result.positiveProfiles, 1);
+  assert.equal(result.evaluatedProfiles, 1);
+});
+
+test("reports recency segments from the same scored snapshots without dropping dormant negatives", () => {
+  const input = base();
+  input.historyAvailableFrom = "2026-01-01T00:00:00Z";
+  input.customers[0].segment = "RECENT_60D";
+  input.customers[0].bookedAt.push("2026-10-06T08:00:00Z");
+  input.customers.push({ key: "old-contact", safeForPersonalisation: true, segment: "DORMANT_181D_PLUS", bookedAt: [1, 2, 3, 4, 5].map((day) => `2026-03-0${day}T08:00:00Z`) });
+  const result = validateBookingWindows(input);
+  const main = result.horizons[2];
+  assert.equal(main.model.samples, 2);
+  assert.equal(main.positiveProfiles, 1);
+  assert.equal(result.segments.length, 2);
+  assert.equal(result.segments.find((item) => item.segment === "DORMANT_181D_PLUS")!.horizons[2].model.positives, 0);
+  assert.equal(result.segments.reduce((sum, item) => sum + item.horizons[2].model.samples, 0), main.model.samples);
+  assert.equal(result.segments.reduce((sum, item) => sum + item.horizons[2].model.positives, 0), main.model.positives);
+});

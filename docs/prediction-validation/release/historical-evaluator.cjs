@@ -490,6 +490,34 @@ function buildCustomerBookingWindow(bookings, {
 // src/lib/customers/booking-window-validation.ts
 var HOUR = 36e5;
 var HORIZONS2 = [6, 12, 24, 48];
+var VALIDATION_SEGMENTS = ["RECENT_60D", "IDLE_61_180D", "DORMANT_181D_PLUS"];
+function createBuckets() {
+  return HORIZONS2.map((horizonHours) => ({
+    horizonHours,
+    model: [],
+    frequency: [],
+    selected: 0,
+    modelHits: 0,
+    frequencyHits: 0,
+    censored: 0,
+    learning: 0,
+    slotsOutsideHorizon: 0,
+    evaluatedProfiles: /* @__PURE__ */ new Set(),
+    positiveProfiles: /* @__PURE__ */ new Set()
+  }));
+}
+function reportBuckets(buckets) {
+  return buckets.map((bucket) => ({
+    horizonHours: bucket.horizonHours,
+    censoredSnapshots: bucket.censored,
+    learningSnapshots: bucket.learning,
+    matchingSlotsOutsideHorizon: bucket.slotsOutsideHorizon,
+    evaluatedProfiles: bucket.evaluatedProfiles.size,
+    positiveProfiles: bucket.positiveProfiles.size,
+    model: summarize(bucket.model, bucket.selected, bucket.modelHits),
+    frequencyBaseline: summarize(bucket.frequency, bucket.selected, bucket.frequencyHits)
+  }));
+}
 function instant(value) {
   if (typeof value !== "string" || !/(Z|[+-]\d{2}:\d{2})$/.test(value)) {
     throw new Error("Timestamps must include an explicit UTC offset");
@@ -554,10 +582,13 @@ function validateBookingWindows(input, maximumForecasts = 1e5) {
   let profilesWithAvailability = 0;
   let lateImportedActions = 0;
   const timelines = [];
+  const overall = { buckets: createBuckets(), profiles: 0 };
+  const groups = /* @__PURE__ */ new Map();
   for (const customer of input.customers) {
     if (!customer.key || keys.has(customer.key)) throw new Error("Customer keys must be unique and nonempty");
     keys.add(customer.key);
     if (typeof customer.safeForPersonalisation !== "boolean") throw new Error("Explicit profile safety is required");
+    if (customer.segment !== void 0 && !VALIDATION_SEGMENTS.includes(customer.segment)) throw new Error("Invalid cohort segment");
     const actions = customer.bookedAt.map(instant);
     if (customer.availableAt && customer.availableAt.length !== actions.length) throw new Error("Availability must align with actions");
     const availability = customer.availableAt?.map(instant) ?? actions;
@@ -575,60 +606,65 @@ function validateBookingWindows(input, maximumForecasts = 1e5) {
     const unique = Array.from(firstAvailable, ([time, available]) => ({ time, available })).sort((a, b) => a.time - b.time);
     lateImportedActions += unique.filter((row) => row.available > row.time + 24 * HOUR).length;
     duplicateActionsRemoved += actions.length - unique.length;
-    timelines.push(unique);
+    timelines.push({ events: unique, segment: customer.segment });
+    overall.profiles++;
+    if (customer.segment) {
+      const group = groups.get(customer.segment) ?? { buckets: createBuckets(), profiles: 0 };
+      group.profiles++;
+      groups.set(customer.segment, group);
+    }
   }
-  const buckets = HORIZONS2.map((horizonHours) => ({
-    horizonHours,
-    model: [],
-    frequency: [],
-    selected: 0,
-    modelHits: 0,
-    frequencyHits: 0,
-    censored: 0,
-    learning: 0,
-    slotsOutsideHorizon: 0
-  }));
+  const evaluationGroups = [overall, ...Array.from(groups.values())];
   let forecasts = 0;
   let checkpoints = 0;
   for (let cutoff = start; cutoff < end; cutoff += input.checkpointHours * HOUR) {
     checkpoints++;
     if (checkpoints > maximumForecasts) throw new Error("Evaluation limit exceeded; narrow the interval");
-    const atCheckpoint = buckets.map(() => ({ model: [], frequency: [] }));
-    for (const timeline of timelines) {
+    const batches = new Map(evaluationGroups.map((group) => [
+      group,
+      group.buckets.map(() => ({ model: [], frequency: [] }))
+    ]));
+    for (let profileIndex = 0; profileIndex < timelines.length; profileIndex++) {
+      const { events: timeline, segment } = timelines[profileIndex];
+      const targets = segment ? [overall, groups.get(segment)] : [overall];
       const history = timeline.filter((row) => row.time <= cutoff && row.available <= cutoff).map((row) => row.time);
-      const available = buckets.some((bucket) => cutoff + bucket.horizonHours * HOUR <= end);
+      const available = overall.buckets.some((bucket) => cutoff + bucket.horizonHours * HOUR <= end);
       if (!available) {
-        buckets.forEach((bucket) => bucket.censored++);
+        targets.forEach((group) => group.buckets.forEach((bucket) => bucket.censored++));
         continue;
       }
       if (++forecasts > maximumForecasts) throw new Error("Evaluation limit exceeded; narrow the cohort or interval");
       const prediction = buildCustomerBookingWindow(history.map((time) => ({ bookedAtTime: new Date(time) })), { now: new Date(cutoff) });
-      for (let index = 0; index < buckets.length; index++) {
-        const bucket = buckets[index];
+      for (let index = 0; index < overall.buckets.length; index++) {
+        const bucket = overall.buckets[index];
         const windowEnd = cutoff + bucket.horizonHours * HOUR;
         if (windowEnd > end) {
-          bucket.censored++;
+          targets.forEach((group) => group.buckets[index].censored++);
           continue;
         }
         if (prediction.status !== "READY") {
-          bucket.learning++;
+          targets.forEach((group) => group.buckets[index].learning++);
           continue;
         }
         const horizon = prediction.horizons.find((item) => item.horizonHours === bucket.horizonHours);
         const slot = horizon.strongestSlot;
         if (slot.historicalMatches > 0 && slot.startAt && slot.endAt && (Date.parse(slot.startAt) < cutoff || Date.parse(slot.endAt) > windowEnd)) {
-          bucket.slotsOutsideHorizon++;
+          targets.forEach((group) => group.buckets[index].slotsOutsideHorizon++);
         }
         const positive = timeline.some((row) => row.time > cutoff && row.time <= windowEnd);
-        atCheckpoint[index].model.push({ score: horizon.score, positive });
         const recent = history.filter((time) => time > cutoff - 28 * 24 * HOUR).length;
         const exposureHours = Math.min(28 * 24, (cutoff - historyStart) / HOUR);
         const score = exposureHours > 0 ? 100 * (1 - Math.exp(-recent * bucket.horizonHours / exposureHours)) : 0;
-        atCheckpoint[index].frequency.push({ score, positive });
+        for (const group of targets) {
+          batches.get(group)[index].model.push({ score: horizon.score, positive });
+          batches.get(group)[index].frequency.push({ score, positive });
+          group.buckets[index].evaluatedProfiles.add(profileIndex);
+          if (positive) group.buckets[index].positiveProfiles.add(profileIndex);
+        }
       }
     }
-    buckets.forEach((bucket, index) => {
-      const batch = atCheckpoint[index];
+    evaluationGroups.forEach((group) => group.buckets.forEach((bucket, index) => {
+      const batch = batches.get(group)[index];
       const modelTop = topFifth(batch.model);
       const baselineTop = topFifth(batch.frequency);
       bucket.model.push(...batch.model);
@@ -636,7 +672,7 @@ function validateBookingWindows(input, maximumForecasts = 1e5) {
       bucket.selected += modelTop.selected;
       bucket.modelHits += modelTop.hits;
       bucket.frequencyHits += baselineTop.hits;
-    });
+    }));
   }
   return {
     dataKind: input.dataKind,
@@ -655,14 +691,11 @@ function validateBookingWindows(input, maximumForecasts = 1e5) {
     profilesWithAvailability,
     profilesWithAssumedAvailability: timelines.length - profilesWithAvailability,
     lateImportedActions,
-    horizons: buckets.map((bucket) => ({
-      horizonHours: bucket.horizonHours,
-      censoredSnapshots: bucket.censored,
-      learningSnapshots: bucket.learning,
-      matchingSlotsOutsideHorizon: bucket.slotsOutsideHorizon,
-      model: summarize(bucket.model, bucket.selected, bucket.modelHits),
-      frequencyBaseline: summarize(bucket.frequency, bucket.selected, bucket.frequencyHits)
-    })),
+    horizons: reportBuckets(overall.buckets),
+    segments: VALIDATION_SEGMENTS.flatMap((segment) => {
+      const group = groups.get(segment);
+      return group ? [{ segment, profiles: group.profiles, horizons: reportBuckets(group.buckets) }] : [];
+    }),
     limitations: [
       "Scores are ranking signals, not individual probabilities. Existing static calibration is not refitted or validated by this report.",
       "Top 20% is ranked separately at each checkpoint; boundary ties use fractional weights.",
@@ -681,14 +714,17 @@ function evaluateHistoricalPilot(envelope) {
   if (!Number.isInteger(envelope.poolSize) || envelope.poolSize < 1 || envelope.poolSize > 2e3) throw new Error("Invalid pool size");
   if (!Array.isArray(envelope.customers) || envelope.customers.length > 100 || envelope.customers.length === 0) throw new Error("Invalid cohort");
   if (envelope.coverageStatus !== "CURRENT_SNAPSHOT_NOT_POINT_IN_TIME_AUDITED") throw new Error("Unexpected source coverage claim");
+  if (envelope.samplingDesign !== void 0 && !["LEGACY_RANDOM_DAILY", "STRATIFIED_RECENCY_50_30_20_6H_V1"].includes(envelope.samplingDesign)) throw new Error("Unknown sampling design");
+  if (envelope.samplingDesign === "STRATIFIED_RECENCY_50_30_20_6H_V1" && envelope.checkpointHours !== 6) throw new Error("Stratified design requires six-hour checkpoints");
   const snapshot = Date.parse(envelope.snapshotAt);
   if (!Number.isFinite(snapshot) || snapshot < Date.parse(envelope.observedThrough)) throw new Error("Snapshot precedes observation end");
   let profilesWithoutIdentityEvidence = 0;
   let sharedProfiles = 0;
   let rows = 0;
   const customers = envelope.customers.map((profile) => {
-    if (!profile.availableAt || profile.availableAt.some((at) => Date.parse(at) > snapshot)) throw new Error("Invalid source availability");
+    if (!profile.availableAt || profile.availableAt.length !== profile.bookedAt.length || profile.availableAt.some((at) => Date.parse(at) > snapshot)) throw new Error("Invalid source availability");
     rows += profile.bookedAt.length;
+    if (rows > 2e4) throw new Error("Too many source rows");
     const evidence = profile.identityHistory;
     if (!Array.isArray(evidence) || evidence.length > 2e4) throw new Error("Invalid identity evidence");
     const complete = evidence.filter(
@@ -696,17 +732,41 @@ function evaluateHistoricalPilot(envelope) {
     ).length;
     const sufficient = evidence.length >= 5 && complete / evidence.length >= 0.8;
     const shared = isSharedBookingPoint(evidence);
+    const start = Date.parse(envelope.evaluationStart);
+    const known = profile.bookedAt.map((at, index) => ({ time: Date.parse(at), available: Date.parse(profile.availableAt[index]) })).filter((row) => row.time <= start && row.available <= start);
+    if (known.length === 0) throw new Error("No known pre-period history");
+    const lastKnown = Math.max(...known.map((row) => row.time));
+    const segment = lastKnown >= start - 60 * 864e5 ? "RECENT_60D" : lastKnown >= start - 180 * 864e5 ? "IDLE_61_180D" : "DORMANT_181D_PLUS";
+    if (profile.segment && profile.segment !== segment) throw new Error("Recency segment inconsistent with pre-period history");
     if (!sufficient) profilesWithoutIdentityEvidence++;
     if (shared) sharedProfiles++;
-    return { key: profile.key, bookedAt: profile.bookedAt, availableAt: profile.availableAt, safeForPersonalisation: sufficient && !shared };
+    return { key: profile.key, bookedAt: profile.bookedAt, availableAt: profile.availableAt, segment, safeForPersonalisation: sufficient && !shared };
   });
   if (rows !== envelope.sourceRows) throw new Error("Source row count mismatch");
-  const report = validateBookingWindows({ ...envelope, customers }, 2e3);
+  const report = validateBookingWindows({ ...envelope, customers }, 6e3);
+  const compactHorizons = (horizons) => horizons.map((horizon) => ({
+    hours: horizon.horizonHours,
+    samples: horizon.model.samples,
+    positives: horizon.model.positives,
+    evaluatedProfiles: horizon.evaluatedProfiles,
+    positiveProfiles: horizon.positiveProfiles,
+    baseRate: horizon.model.baseRate,
+    top20Precision: horizon.model.top20Precision,
+    top20Recall: horizon.model.top20Recall,
+    top20Lift: horizon.model.top20Lift,
+    baselinePrecision: horizon.frequencyBaseline.top20Precision,
+    baselineLift: horizon.frequencyBaseline.top20Lift,
+    learningSnapshots: horizon.learningSnapshots,
+    censoredSnapshots: horizon.censoredSnapshots,
+    outsideHorizon: horizon.matchingSlotsOutsideHorizon
+  }));
   return {
     state: "DIAGNOSTIC_ONLY_NOT_DEPLOYMENT_APPROVAL",
     dataKind: report.dataKind,
     model: report.model,
     implementationRevision: report.implementationRevision,
+    samplingDesign: envelope.samplingDesign ?? "LEGACY_RANDOM_DAILY",
+    checkpointHours: report.checkpointHours,
     source: { database: "postgres", role: "cabby_ro", readOnly: true, snapshotAt: new Date(snapshot).toISOString() },
     period: { evaluationStart: report.evaluationStart, observedThrough: report.observedThrough },
     cohort: { poolSize: envelope.poolSize, selectedProfiles: report.inputCustomers, evaluatedProfiles: report.eligibleProfiles, excludedProfiles: report.inputCustomers - report.eligibleProfiles, sharedProfiles, profilesWithoutIdentityEvidence, sourceRows: rows, lateImportedActionsInEvaluatedProfiles: report.lateImportedActions, duplicateActionsRemoved: report.duplicateActionsRemoved },
@@ -714,22 +774,11 @@ function evaluateHistoricalPilot(envelope) {
       if (!/^\d{4}-\d{2}-\d{2}$/.test(day.day) || !Number.isInteger(day.bookings) || day.bookings < 0) throw new Error("Invalid daily count");
       return { day: day.day, bookings: day.bookings };
     }),
-    horizons: report.horizons.map((horizon) => ({
-      hours: horizon.horizonHours,
-      samples: horizon.model.samples,
-      positives: horizon.model.positives,
-      baseRate: horizon.model.baseRate,
-      top20Precision: horizon.model.top20Precision,
-      top20Recall: horizon.model.top20Recall,
-      top20Lift: horizon.model.top20Lift,
-      baselinePrecision: horizon.frequencyBaseline.top20Precision,
-      baselineLift: horizon.frequencyBaseline.top20Lift,
-      learningSnapshots: horizon.learningSnapshots,
-      censoredSnapshots: horizon.censoredSnapshots,
-      outsideHorizon: horizon.matchingSlotsOutsideHorizon
-    })),
+    horizons: compactHorizons(report.horizons),
+    segments: report.segments.map((segment) => ({ segment: segment.segment, profiles: segment.profiles, horizons: compactHorizons(segment.horizons) })),
     limitations: [
       "Bounded pilot, not a full-population or independent calibration study; repeated customer snapshots are dependent.",
+      "Diagnostic recency quotas do not represent population proportions. Segment ranks are evaluated separately; the design was revised after inspecting the initial pilot.",
       "Database creation times prevent training on rows not yet imported. Later timestamp corrections and identity merges cannot be reconstructed from this snapshot.",
       "Daily source activity is diagnostic and does not prove complete historical ingestion. Marketing permissions and sending remain separate.",
       "Missing-time/unlinked bookings are outside individual scoring. Location-evidence coverage is a conservative pilot filter, not a production rule change."

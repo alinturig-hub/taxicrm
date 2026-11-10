@@ -29,7 +29,7 @@ test before claiming complete no-fare profiling coverage. This pilot predicts
 booking actions without filtering by final status, so it does not silently
 normalize or mutate these statuses or treat them as proof of a customer no-show.
 
-## Bounded historical pilot
+## Initial bounded historical pilot at commit b10e9b1
 
 The prepared query freezes evaluation to **26 October–9 November 2026**, with
 daily checkpoints and 6/12/24/48-hour horizons. It hashes identities in a stable
@@ -78,3 +78,9 @@ standalone bundle. It checks no-return clients, shared/unknown exclusions,
 late imports, sparse/new-identity exclusion, no readable addresses/IDs in the
 stream, bounded windows and failure without partial output for malformed input.
 These are synthetic mechanics checks, not a historical performance result.
+
+The owner subsequently ran this initial pilot. Its observed results and the
+explicitly revised six-hour, recency-stratified diagnostic design are preserved in
+[the initial pilot report](initial-historical-pilot-2026-11-10.md). That document
+supersedes the daily-checkpoint sampling plan above for the next execution, while
+retaining the initial result and all source/privacy/resource constraints.
