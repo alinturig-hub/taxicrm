@@ -55,24 +55,9 @@ const item = (
 export const navigationGroups: NavigationGroup[] = [
   {
     id: "overview",
-    label: "Today",
-    description: "Choose your workspace or review the business overview.",
-    items: [
-      item(
-        "Command Center",
-        "/dashboard/command-center",
-        "executive",
-        "Connected business workspaces and recorded signals requiring review.",
-        "dashboard.view",
-      ),
-      item(
-        "Today",
-        "/dashboard/workspace",
-        "dashboard",
-        "All TaxiCRM modules, organised around your work.",
-        "dashboard.view",
-      ),
-    ],
+    label: "My workspace",
+    description: "Your saved view of business figures and useful modules.",
+    items: [item("My workspace", "/dashboard/workspace", "dashboard", "Personalise your figures and shortcuts within your access.", "dashboard.view")],
   },
   {
     id: "operations",
