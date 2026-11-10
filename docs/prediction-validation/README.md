@@ -122,6 +122,15 @@ without changing model weights, application code or production rules. Execution
 remains through the owner's existing SSH session, without giving DB credentials
 to this executor or exporting customer data into chat.
 
+**Revised pilot result, 08:19:43 UTC:** V2 underperformed the frequency comparator
+at 6/12/24/48 hours, both overall and within recent profiles. At 24h precision was
+3.29% versus 6.12% overall, and 6.92% versus 10.13% among recent profiles. Only
+seven distinct profiles returned. See [the preserved result and decision](stratified-historical-pilot-2026-11-10.md).
+This does not support promoting the combined V2 change as an improved prediction
+engine. PR20 stays draft; do not silently substitute the comparator or repeat
+sampling on this period to obtain a favorable result. Correctness/UI work and a
+future baseline-first prediction proposal require clearly separated release scope.
+
 `scripts/prediction-validation-preflight.sql` inventories the canonical source in
 a bounded read-only transaction and requires `cabby_ro` on database `postgres`.
 Use only the documented shared primary `q9fahphg3lydu18inysgmerq`. The SQL returns
