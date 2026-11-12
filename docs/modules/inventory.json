@@ -1,5 +1,5 @@
 {
-  "baseline": "f259b3a1a6c986f6b82fe22c795e7d44d7a97970",
+  "baseline": "9ef1cc8ed767689e3df040ed967bf8f0f3164ed3",
   "scope": "Ownership inventory; guarded activation for AI, Reports, Automation and Predictions is documented in ACTIVATION.md and PREDICTIONS_ACTIVATION.md",
   "modules": {
     "core": {
@@ -389,6 +389,12 @@
     {
       "file": "src/app/api/dashboard/drivers/[id]/route.ts",
       "path": "/api/dashboard/drivers/[id]",
+      "kind": "api",
+      "moduleId": "operations"
+    },
+    {
+      "file": "src/app/api/dashboard/drivers/[id]/sessions/route.ts",
+      "path": "/api/dashboard/drivers/[id]/sessions",
       "kind": "api",
       "moduleId": "operations"
     },

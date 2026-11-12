@@ -1,3 +1,5 @@
+import { requireAdministrationPermission } from "@/lib/administration-access";
+import { meteredDistance } from "@/lib/drivers/metered-distance";
 import { getServerSession } from "next-auth";
 import { NextResponse } from "next/server";
 
@@ -154,6 +156,7 @@ async function calculateBookingMetrics(
   externalDriverId: string,
   from: Date,
   to: Date,
+  driverProvider: string,
 ) {
   const bookings = await prisma.booking.findMany({
     where: {
@@ -165,6 +168,7 @@ async function calculateBookingMetrics(
     },
     select: {
       status: true,
+      meterDistanceMetres: true,
       completedAt: true,
       noFareAt: true,
       arrivedAt: true,
@@ -181,6 +185,7 @@ async function calculateBookingMetrics(
     await loadAccountRevenueRuleMap(bookings);
 
   return {
+    meteredDistance: meteredDistance(bookings.filter(booking => booking.provider === driverProvider)),
     jobs: bookings.length,
     completed: bookings.filter(
       (booking) =>
@@ -296,6 +301,8 @@ export async function GET(
       },
     );
   }
+
+  const canViewPerformance = Boolean(await requireAdministrationPermission(session.user.email, "drivers.view"));
 
   const driver =
     await prisma.driver.findUnique({
@@ -415,24 +422,29 @@ export async function GET(
       driver.externalId,
       todayFrom,
       todayTo,
+      driver.provider,
     ),
     calculateBookingMetrics(
       driver.externalId,
       yesterdayFrom,
       yesterdayTo,
+      driver.provider,
     ),
     calculateBookingMetrics(
       driver.externalId,
       weekFrom,
       weekTo,
+      driver.provider,
     ),
     hasCustomRange
       ? calculateBookingMetrics(
           driver.externalId,
           customFrom,
           customTo,
+          driver.provider,
         )
       : Promise.resolve({
+          meteredDistance: meteredDistance([]),
           jobs: 0,
           completed: 0,
           noFare: 0,
@@ -670,6 +682,7 @@ export async function GET(
           Math.round(todayHours * 100) /
           100,
         ...todayBookings,
+        meteredDistance: canViewPerformance ? todayBookings.meteredDistance : null,
         rejections:
           todayRejections,
         accepted:
@@ -681,6 +694,7 @@ export async function GET(
           Math.round(yesterdayHours * 100) /
           100,
         ...yesterdayBookings,
+        meteredDistance: canViewPerformance ? yesterdayBookings.meteredDistance : null,
         rejections:
           yesterdayRejections,
         accepted:
@@ -692,6 +706,7 @@ export async function GET(
           Math.round(weekHours * 100) /
           100,
         ...weekBookings,
+        meteredDistance: canViewPerformance ? weekBookings.meteredDistance : null,
         rejections:
           weekRejections,
         accepted:
@@ -706,6 +721,7 @@ export async function GET(
               Math.round(customHours * 100) /
               100,
             ...customBookings,
+            meteredDistance: canViewPerformance ? customBookings.meteredDistance : null,
             rejections:
               customRejections,
             accepted:
