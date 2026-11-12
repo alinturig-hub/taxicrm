@@ -260,13 +260,6 @@ export const navigationGroups: NavigationGroup[] = [
         "integrations.view",
       ),
       item(
-        "WhatsApp connection",
-        "/dashboard/integrations/whatsapp",
-        "webhooks",
-        "Meta account and secure connection readiness.",
-        "integrations.view",
-      ),
-      item(
         "NeedACabPlus integration",
         "/dashboard/integrations/needacabplus",
         "sync",
@@ -279,6 +272,21 @@ export const navigationGroups: NavigationGroup[] = [
         "autocab",
         "Autocab REST settings, saved API data and received event history.",
         "integrations.view",
+      ),
+      item(
+        "WhatsApp connection",
+        "/dashboard/integrations/whatsapp",
+        "webhooks",
+        "Meta account and secure connection readiness.",
+        "integrations.view",
+      ),
+      item(
+        "Communication",
+        "/dashboard/configuration/sms",
+        "automation",
+        "SMS gateway and freephone alert settings.",
+        "configuration.view",
+        ["ADMIN", "MANAGER"],
       ),
       item(
         "Local integration",
@@ -303,14 +311,6 @@ export const navigationGroups: NavigationGroup[] = [
         "configuration.view",
       ),
       item("Product modules", "/dashboard/configuration/modules", "system", "Installation-wide feature availability and audited changes.", "configuration.manage"),
-      item(
-        "SMS & freephone alerts",
-        "/dashboard/configuration/sms",
-        "automation",
-        "Orion gateway, monitored lines, event recipients and delivery history.",
-        "configuration.view",
-        ["ADMIN", "MANAGER"],
-      ),
       item(
         "Account revenue rules",
         "/dashboard/configuration/accounts",
@@ -344,13 +344,6 @@ export const navigationGroups: NavigationGroup[] = [
         "/dashboard/configuration/api-endpoints",
         "keys",
         "Preview Autocab API responses and inspect saved records.",
-        "configuration.view",
-      ),
-      item(
-        "Integration events",
-        "/dashboard/configuration/webhooks/events",
-        "webhooks",
-        "Inspect received events and processing results. Webhook administration is in NeedACabPlus.",
         "configuration.view",
       ),
       item(
