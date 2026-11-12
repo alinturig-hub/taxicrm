@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
+import DriverSessions from "./DriverSessions";
 
 type Vehicle = {
   id: string;
@@ -55,6 +56,7 @@ type DriverProfileResponse = {
 };
 
 type Metrics = {
+  meteredDistance: { miles: number | null; measuredJobs: number; completedJobs: number; zeroOrMissingJobs: number } | null;
   hours: number;
   jobs: number;
   completed: number;
@@ -326,6 +328,10 @@ export default function DriverProfile({
               label="Completed"
               value={selectedMetrics.completed}
             />
+            {selectedMetrics.meteredDistance && <MetricCard
+              label="Completed jobs · metered miles"
+              value={selectedMetrics.meteredDistance.miles === null ? "Unavailable" : `${selectedMetrics.meteredDistance.miles.toFixed(2)} mi`}
+            />}
             <MetricCard
               label="No Fare"
               value={selectedMetrics.noFare}
@@ -357,6 +363,8 @@ export default function DriverProfile({
           </div>
         )}
       </div>
+
+      {selectedMetrics?.meteredDistance && <p className="text-sm text-slate-400">Metered miles use positive metre readings on bookings with status COMPLETED, linked to this driver and provider by scheduled pickup date: {selectedMetrics.meteredDistance.measuredJobs} of {selectedMetrics.meteredDistance.completedJobs} completed jobs have a positive reading. Zero, missing or invalid: {selectedMetrics.meteredDistance.zeroOrMissingJobs}. This does not measure the entire journey from acceptance.</p>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
@@ -480,6 +488,7 @@ export default function DriverProfile({
           </div>
         </div>
       </div>
+      <DriverSessions driverId={driverId} />
     </div>
   );
 }
