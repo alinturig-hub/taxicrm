@@ -420,7 +420,9 @@ function SidebarContent({
                   ].join(" ")}
                 >
                   <span className="text-[13px] font-semibold">
-                    {group.label}
+                    {group.id === "integrations"
+                      ? "Integrations hub"
+                      : group.label}
                   </span>
 
                   <span
@@ -447,7 +449,12 @@ function SidebarContent({
                       {group.items.map((item) => (
                         <SidebarItem
                           key={item.href}
-                          item={item}
+                          item={
+                            group.id === "integrations" &&
+                            item.href === "/dashboard/integrations/overview"
+                              ? { ...item, label: "Overview" }
+                              : item
+                          }
                           active={
                             item.available && isItemActive(pathname, item)
                           }
