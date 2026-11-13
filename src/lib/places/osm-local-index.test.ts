@@ -1,0 +1,4 @@
+import {strict as assert} from 'node:assert';import {test} from 'node:test';import {buildLocalVenueIndex} from './osm-local-index';
+const base={version:1,source:'OpenStreetMap',sourceSha256:'a'.repeat(64),createdAt:'2026-11-13T00:00:00Z',venues:[{name:'Synthetic Pub',category:'catering.pub',latitude:50.37,longitude:-4.14,osmType:'node',osmId:7}]};
+test('finds nearby venue without external requests',()=>{const index=buildLocalVenueIndex(base);assert.equal(index.findNearby(50.37,-4.14)[0].name,'Synthetic Pub');assert.equal(index.findNearby(51,-4).length,0)});
+test('rejects unsafe or incomplete index and invalid locations',()=>{assert.throws(()=>buildLocalVenueIndex({...base,sourceSha256:'bad'}));assert.throws(()=>buildLocalVenueIndex({...base,venues:[{...base.venues[0],category:'healthcare'}]}));assert.throws(()=>buildLocalVenueIndex(base).findNearby(NaN,0));});

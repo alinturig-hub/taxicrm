@@ -1,0 +1,5 @@
+import {strict as assert} from 'node:assert';import {test} from 'node:test';import {decideOsmAutoMatch} from './osm-auto-match';import type {OsmCandidate} from './osm-suggestions';
+const pub:OsmCandidate={name:'The Synthetic Arms',category:'catering.pub',distanceMetres:8,url:'https://www.openstreetmap.org/node/123'};
+test('matches one close exact venue name',()=>assert.deepEqual(decideOsmAutoMatch(' The synthetic arms ',[pub]),{state:'MATCH',candidate:pub}));
+test('generic, missing, different and distant names remain for review',()=>{assert.equal(decideOsmAutoMatch(null,[pub]).state,'REVIEW');assert.equal(decideOsmAutoMatch('pub',[pub]).state,'REVIEW');assert.equal(decideOsmAutoMatch('The Other Arms',[pub]).state,'REVIEW');assert.equal(decideOsmAutoMatch(pub.name,[{...pub,distanceMetres:16}]).state,'REVIEW')});
+test('duplicate names never resolve by proximity alone',()=>assert.deepEqual(decideOsmAutoMatch(pub.name,[pub,{...pub,url:'https://www.openstreetmap.org/node/124',distanceMetres:2}]),{state:'REVIEW',reason:'AMBIGUOUS'}));

@@ -590,6 +590,18 @@ server.listen(port, hostname, () => {
   startDriverRegistryScheduler();
   startCustomerIntelligenceScheduler();
 
+  if (process.env.OSM_AUTO_ENABLED === "true") {
+    scheduleJob({
+      name: "Offline OSM place classification",
+      path: "/api/internal/osm-place-classification",
+      body: {},
+      state: { running: false },
+      startDelayMs: 120000,
+      intervalMs: 900000,
+      drain: false,
+    });
+  }
+
   scheduleJob({
     name: "SMS notifications",
     path: "/api/internal/notifications",

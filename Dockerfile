@@ -58,7 +58,9 @@ RUN mkdir -p /runtime && \
     mkdir -p /runtime && \
     cp -a /app/prisma /runtime/prisma && \
     mkdir -p /runtime && \
-    cp -a /app/prisma.config.ts /runtime/prisma.config.ts
+    cp -a /app/prisma.config.ts /runtime/prisma.config.ts && \
+    mkdir -p /runtime/data/osm && \
+    cp -a /app/data/osm/devon-venues.json /runtime/data/osm/devon-venues.json
 
 FROM node:24-alpine AS runner
 
