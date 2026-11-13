@@ -20,7 +20,7 @@ export async function POST(request:Request){
  nextRequestAt=Date.now()+5000;
  const query=`[out:json][timeout:8];(nwr["amenity"~"^(pub|bar|restaurant|cafe|fast_food)$"](around:50,${latitude},${longitude}););out center 300;`;
  try{
-  const response=await fetch('https://overpass-api.de/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'TaxiCRM-PlaceReview/1.0'},body:new URLSearchParams({data:query}),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(12000)});
+  const response=await fetch('https://ovp.dresel.systems/api/interpreter',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded','User-Agent':'TaxiCRM-PlaceReview/1.0'},body:new URLSearchParams({data:query}),cache:'no-store',redirect:'error',signal:AbortSignal.timeout(12000)});
   if(!response.ok||!response.body)return NextResponse.json({error:'OSM_UNAVAILABLE'},{status:503,headers});
   const reader=response.body.getReader(),chunks:Uint8Array[]=[];let size=0;for(;;){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>1048576){await reader.cancel();return NextResponse.json({error:'OSM_RESPONSE_TOO_LARGE'},{status:502,headers})}chunks.push(value)}
   const suggestions=osmSuggestions(JSON.parse(Buffer.concat(chunks).toString('utf8')),latitude,longitude);
