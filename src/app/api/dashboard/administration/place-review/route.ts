@@ -17,6 +17,7 @@ import {
 import {
   prisma,
 } from "@/lib/prisma";
+import {isOsmReference} from "@/lib/places/osm-suggestions";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -32,6 +33,7 @@ const BUILT_IN_CATEGORIES = [
   "catering.fast_food",
   "catering.pub",
   "catering.restaurant",
+  "catering.restaurant.chinese",
   "childcare",
   "commercial.department_store",
   "commercial.shopping_mall",
@@ -541,6 +543,10 @@ export async function PATCH(
     true;
   const manuallySensitive =
     body.sensitive === true;
+  const osmReference = body.osmReference == null ? null : body.osmReference;
+  if (osmReference !== null && !isOsmReference(osmReference)) {
+    return NextResponse.json({success:false,error:"INVALID_OSM_REFERENCE"},{status:400});
+  }
 
   if (
     !id ||
@@ -669,6 +675,7 @@ export async function PATCH(
   const duplicateWhere:
     Prisma.PlaceIntelligenceWhereInput =
       applyToMatchingPlace &&
+      !osmReference &&
       place.placeName &&
       place.formattedAddress
         ? {
@@ -706,7 +713,8 @@ export async function PATCH(
             ? "SKIPPED_SENSITIVE"
             : "READY",
         poiCategorySource:
-          "MANUAL",
+          osmReference ? "OSM_MANUAL" : "MANUAL",
+        ...(typeof osmReference === "string" ? {poiCategoryProviderPlaceId: osmReference} : {}),
         poiCategoryReviewedAt:
           reviewedAt,
         poiCategoryReviewedBy:
