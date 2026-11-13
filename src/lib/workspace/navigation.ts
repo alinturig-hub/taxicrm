@@ -224,6 +224,7 @@ export const navigationGroups: NavigationGroup[] = [
         "Driver performance by badge and London business periods.",
         "drivers.view",
       ),
+      item("Company owner agent", "/dashboard/ai/owner-agent", "copilot", "Company evidence, confirmed preferences and AI provider settings.", "intelligence.view"),
       item(
         "AI copilot",
         "/dashboard/ai/copilot",
