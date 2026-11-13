@@ -1,3 +1,4 @@
+import {evaluateLocationRule, type LocationTagRule} from "./location-tag-rules";
 import { evaluateTimeTag } from "./configurable-time-tag";
 import { defaultTimeTagRules, type SavedTimeTagRule } from "./time-tag-rules";
 const WINDOW_DAYS = 14;
@@ -283,6 +284,7 @@ export function buildCustomerBehaviourTags(
   bookings: TagBooking[],
   now = new Date(),
   timeRules: SavedTimeTagRule[] = defaultTimeTagRules,
+  locationRules: LocationTagRule[] = [],
 ) {
   const windowStart =
     now.getTime() -
@@ -486,6 +488,12 @@ export function buildCustomerBehaviourTags(
         (count, share) =>
           `${count} of ${completedJourneys.length} completed journeys matched this place pattern (${share}%).`,
     });
+  }
+
+  for (const rule of locationRules) {
+    const result = evaluateLocationRule(rule, bookings, now);
+    if (!result.qualifies || result.percent === null) continue;
+    tags.push({id:rule.id,label:rule.name,category:"PLACE",confidence:confidence(result.matched,result.percent),evidenceCount:result.matched,eligibleCount:result.eligible,percentage:result.percent,windowDays:rule.windowDays,lastObservedAt:result.lastMatchedAt,explanation:`${result.matched} of ${result.eligible} completed journeys with classified destinations matched this place category (${result.percent}%) in ${rule.windowDays} days.`});
   }
 
   const timedJourneys =
