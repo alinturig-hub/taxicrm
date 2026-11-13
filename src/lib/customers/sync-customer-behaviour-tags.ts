@@ -58,7 +58,7 @@ export async function syncCustomerBehaviourTags(
   if (!Number.isFinite(now.getTime())) throw new Error("Invalid tag calculation date");
   if (options.customerLimit !== undefined && (!Number.isInteger(options.customerLimit) || options.customerLimit < 1 || options.customerLimit > 200)) throw new Error("Customer batch limit must be an integer from 1 to 200");
   const ruleConfig = await loadTimeTagRules();
-  const lookbackDays = Math.max(WINDOW_DAYS, ...ruleConfig.rules.filter(r=>r.enabled).map(r=>r.windowDays));
+  const lookbackDays = Math.max(WINDOW_DAYS, ...ruleConfig.rules.filter(r=>r.enabled).map(r=>r.windowDays), ...ruleConfig.placeRules.filter(r=>r.enabled).map(r=>r.windowDays));
   const windowStartAt =
     new Date(
       now.getTime() -
@@ -191,7 +191,7 @@ export async function syncCustomerBehaviourTags(
 
     const calculated = customers.map((customer) => ({
       customer,
-      tags: buildCustomerBehaviourTags(customer.bookings, now, ruleConfig.rules),
+      tags: buildCustomerBehaviourTags(customer.bookings, now, ruleConfig.rules, ruleConfig.placeRules),
     }));
     const candidateIds = calculated.filter(({ tags }) => tags.length > 0).map(({ customer }) => customer.id);
     const histories = candidateIds.length > 0
@@ -240,6 +240,7 @@ export async function syncCustomerBehaviourTags(
           );
 
         const changes = await prisma.$transaction(async (tx) => {
+          await tx.$queryRaw`SELECT pg_advisory_xact_lock_shared(187438602, 1)::text`;
           await tx.$queryRaw`SELECT id FROM "CustomerTimeTagConfiguration" WHERE id='default' FOR SHARE`;
           const config = await tx.customerTimeTagConfiguration.findUnique({where:{id:"default"}});
           if ((config?.revision??0)!==ruleConfig.revision) throw Error("Tag rules changed; recalculate on next run");

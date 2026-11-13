@@ -5,7 +5,7 @@ export type LocationTagRule = {
 };
 export type LocationJourney = {
  status:string; pickupDueTime:Date|null;
- locations:Array<{type:'PICKUP'|'DESTINATION';placeIntelligence:{isSensitive:boolean;poiCategoryStatus?:string;category:string|null;categories?:unknown}|null}>;
+ locations:Array<{type:'PICKUP'|'DESTINATION';placeIntelligence?:{isSensitive:boolean;poiCategoryStatus?:string;category:string|null;categories?:unknown}|null}>;
 };
 const categories:Record<LocationTagRule['placeType'],string[]>={pub:['catering.pub','catering.bar'],restaurant:['catering.restaurant'],chinese_restaurant:['catering.restaurant.chinese']};
 export function validateLocationRule(value:unknown):LocationTagRule {
@@ -25,4 +25,9 @@ export function evaluateLocationRule(rule:LocationTagRule,bookings:LocationJourn
  }));
  const percent=eligible.length?Math.round(matched.length/eligible.length*1000)/10:null;
  return {matched:matched.length,eligible:eligible.length,percent,qualifies:matched.length>=rule.minimumMatches&&percent!==null&&percent>=rule.minimumPercent,lastMatchedAt:matched.reduce<string|null>((latest,b)=>{const value=b.pickupDueTime!.toISOString();return !latest||value>latest?value:latest},null)};
+}
+
+export function parseLocationRules(value:unknown):LocationTagRule[]{
+ if(!Array.isArray(value)||value.length>20)throw Error('Use at most 20 location rules.');
+ const seen=new Set<string>();return value.map(item=>{const rule=validateLocationRule(item);if(seen.has(rule.id))throw Error('Duplicate location rule ID.');seen.add(rule.id);return rule});
 }

@@ -1,3 +1,4 @@
+import type { LocationTagRule } from "./location-tag-rules";
 import { evaluateBookingKpis, explicitBookingMode, summariseBookingKpis } from "@/lib/performance/booking-kpis";
 import type { SavedTimeTagRule } from "./time-tag-rules";
 import { customerObservations } from "./customer-observations";
@@ -155,6 +156,7 @@ export function buildCustomerProfile(
   bookings: ProfileBooking[],
   now = new Date(),
   timeTagRules?: SavedTimeTagRule[],
+  locationRules?: LocationTagRule[],
 ) {
   const allOrderedBookings = [...bookings].sort((first, second) =>
     (profileDate(second)?.getTime() ?? 0) - (profileDate(first)?.getTime() ?? 0),
@@ -442,6 +444,7 @@ export function buildCustomerProfile(
           orderedBookings,
           now,
           timeTagRules,
+          locationRules,
         );
 
   const pickupService = summariseBookingKpis(orderedBookings.map(booking => evaluateBookingKpis({

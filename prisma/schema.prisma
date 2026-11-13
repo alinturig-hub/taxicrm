@@ -1576,6 +1576,7 @@ model WhatsAppFlowRevision {
 
 // Versioned company rules; no booking copies or customer contact.
 model CustomerTimeTagConfiguration {
+  placeRules Json?
   id String @id @default("default")
   revision Int @default(1)
   rules Json

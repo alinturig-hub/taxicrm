@@ -157,8 +157,9 @@ export async function GET(
       );
     }
 
+    const tagConfig = await loadTimeTagRules();
     const profile =
-      buildCustomerProfile(customer.bookings, new Date(), (await loadTimeTagRules()).rules);
+      buildCustomerProfile(customer.bookings, new Date(), tagConfig.rules, tagConfig.placeRules);
 
     const retentionProgress = retentionForCustomerProfile(
       customer.bookings,

@@ -38,6 +38,7 @@ export async function PUT(request: NextRequest) {
         const result = await prisma.$transaction(async (tx) => {
             // Lock the row before inspecting its revision, so a running tag refresh cannot
             // reactivate obsolete values after this edit commits.
+            await tx.$queryRaw`SELECT pg_advisory_xact_lock(187438602, 1)::text`;
             await tx.$queryRaw `SELECT id FROM "CustomerTimeTagConfiguration" WHERE id='default' FOR UPDATE`;
             const previous = await tx.customerTimeTagConfiguration.findUnique({ where: { id: "default" } });
             if ((previous?.revision ?? 0) !== body.revision)
