@@ -1,5 +1,7 @@
 "use client";
 
+import OsmPlaceSuggestions from "@/components/administration/OsmPlaceSuggestions";
+
 import {
   type FormEvent,
   useCallback,
@@ -60,6 +62,7 @@ const CATEGORY_OPTIONS = [
   "catering.fast_food",
   "catering.pub",
   "catering.restaurant",
+  "catering.restaurant.chinese",
   "childcare",
   "commercial.department_store",
   "commercial.shopping_mall",
@@ -352,6 +355,7 @@ export default function AmenityReview() {
   ] = useState<
     Record<string, boolean>
   >({});
+  const [osmById, setOsmById] = useState<Record<string, string>>({});
   const [loading, setLoading] =
     useState(true);
   const [savingId, setSavingId] =
@@ -535,7 +539,8 @@ export default function AmenityReview() {
                   sensitiveById[
                     place.id
                   ] ?? false,
-                applyToMatchingPlace,
+                applyToMatchingPlace: osmById[place.id] ? false : applyToMatchingPlace,
+                osmReference: osmById[place.id] ?? null,
               }),
           },
         );
@@ -1348,7 +1353,7 @@ export default function AmenityReview() {
 
                     <td className="px-5 py-4">
                       {place.canEdit ? (
-                        <CategoryPicker
+                        <><CategoryPicker
                           categories={
                             categories
                           }
@@ -1357,19 +1362,14 @@ export default function AmenityReview() {
                               place.id
                             ] ?? ""
                           }
-                          onChange={(slug) =>
-                            setCategoryById(
-                              (current) => ({
-                                ...current,
-                                [place.id]:
-                                  slug,
-                              }),
-                            )
-                          }
+                          onChange={(slug) => {
+                            setCategoryById(current => ({...current, [place.id]: slug}));
+                            setOsmById(current => {const next={...current};delete next[place.id];return next});
+                          }}
                           onCreate={
                             createInlineCategory
                           }
-                        />
+                        /><OsmPlaceSuggestions placeId={place.id} onChoose={(category,url)=>{setCategoryById(current=>({...current,[place.id]:category}));setOsmById(current=>({...current,[place.id]:url}))}}/></>
                       ) : (
                         <span className="text-amber-300">
                           Excluded

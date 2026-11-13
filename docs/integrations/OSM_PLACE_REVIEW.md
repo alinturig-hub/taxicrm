@@ -1,0 +1,11 @@
+# OpenStreetMap place review
+
+This is a single-place, operator-initiated lookup in the existing Amenity Review screen. It is not an automatic enrichment source, a batch process, or a complete treatment of NO_MATCH records. The existing review screen currently lists records with `category=amenity`.
+
+The reviewer initiates a request for a non-sensitive saved location. Only its coordinates are sent to the fixed public Overpass endpoint `ovp.dresel.systems` (Europe); the existing customer history is not sent. Results are limited to nearby named pub, bar, restaurant, cafe and fast-food objects, within 50 metres. Chinese restaurants require OSM's explicit `cuisine=chinese` tag. A nearby candidate is not assumed to be the correct place.
+
+The reviewer inspects a candidate and explicitly selects its category, then uses the existing Save action. Until Save, the database is unchanged. After confirmation the existing manual review writes the selected category, records source `OSM_MANUAL`, the OSM object URL and reviewer. For an OSM-selected suggestion, only the selected record is updated, even if the duplicate-name/address option is selected. No category is automatically assigned, and sensitive records cannot be queried through this endpoint. If the category is changed in the picker, the OSM reference is cleared.
+
+The interface credits © OpenStreetMap contributors and links to the OSM copyright page. The public Overpass endpoint has availability and fair-use limits; there is a per-process five-second request interval, no automatic retry and no bulk job. This is not a substitute for shared rate limiting or a licensed/managed service suitable for high-volume production workloads.
+
+The original `overpass-api.de` endpoint returned HTTP 406 both from the development environment and the production host. The alternative Europe endpoint returned a real Plymouth result from the development environment on 13 November 2026; the user reported HTTP 200 for a public test query from the production host. Container-runtime connectivity and authenticated production interaction remain to be verified. A successful host test does not establish container-runtime connectivity; verify the running app using an authorised account. Browser tests use mocked responses and do not prove external availability.
