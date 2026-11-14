@@ -304,6 +304,13 @@ export async function GET(
 
   const canViewPerformance = Boolean(await requireAdministrationPermission(session.user.email, "drivers.view"));
 
+  if (!canViewPerformance) {
+    return NextResponse.json(
+      { success: false, error: "FORBIDDEN" },
+      { status: 403 },
+    );
+  }
+
   const driver =
     await prisma.driver.findUnique({
       where: {
