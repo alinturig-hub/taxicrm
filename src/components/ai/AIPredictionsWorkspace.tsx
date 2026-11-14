@@ -23,19 +23,18 @@ export default function AIPredictionsWorkspace() {
               Predictions
             </h1>
             <p className="mt-3 max-w-3xl text-sm leading-6 text-slate-400">
-              Verified booking-demand forecasts and
-              customer prediction signals from one
-              governed source. Historical backtests and
-              live results remain clearly separated.
+              Explore booking demand forecasts and customer
+              activity rankings. Review the available evidence
+              and measured results before acting on a prediction.
             </p>
           </div>
 
           <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 px-4 py-3">
             <p className="text-sm font-semibold text-emerald-300">
-              Evidence-based
+              Check the evidence
             </p>
             <p className="mt-1 text-xs text-emerald-400/70">
-              Unique bookings · measured outcomes
+              Customer rankings are not calibrated probabilities
             </p>
           </div>
         </div>
