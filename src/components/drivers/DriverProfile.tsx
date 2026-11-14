@@ -103,6 +103,8 @@ export default function DriverProfile({
   const [data, setData] =
     useState<DriverProfileResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retry, setRetry] = useState(0);
 
   const [period, setPeriod] =
     useState<"today" | "yesterday" | "week" | "custom">(
@@ -113,15 +115,18 @@ export default function DriverProfile({
   const [customTo, setCustomTo] = useState("");
 
   useEffect(() => {
+    const controller = new AbortController();
     void (async () => {
       try {
         setLoading(true);
+        setLoadError(false);
 
         const params = new URLSearchParams();
 
         if (
           customFrom &&
-          customTo
+          customTo &&
+          customFrom <= customTo
         ) {
           params.set("from", customFrom);
           params.set("to", customTo);
@@ -135,18 +140,23 @@ export default function DriverProfile({
           }`,
           {
             cache: "no-store",
+            signal: controller.signal,
           },
         );
 
         const payload =
           (await response.json()) as DriverProfileResponse;
 
-        setData(payload);
+        if (!response.ok || !payload.success) throw new Error("Profile unavailable");
+        if (!controller.signal.aborted) setData(payload);
+      } catch {
+        if (!controller.signal.aborted) setLoadError(true);
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     })();
-  }, [driverId, customFrom, customTo]);
+    return () => controller.abort();
+  }, [driverId, customFrom, customTo, retry]);
 
   if (loading) {
     return (
@@ -157,13 +167,14 @@ export default function DriverProfile({
   }
 
   if (
-    !data?.success ||
+    loadError || !data?.success ||
     !data.driver ||
     !data.analytics
   ) {
     return (
-      <div className="text-sm text-red-300">
-        Unable to load driver profile.
+      <div role="alert" className="text-sm text-red-300">
+        <p>Unable to load driver profile. Check your access or try again.</p>
+        <button type="button" className="mt-3 underline" onClick={() => setRetry(value => value + 1)}>Try again</button>
       </div>
     );
   }
@@ -244,6 +255,7 @@ export default function DriverProfile({
             <button
               key={value}
               type="button"
+              aria-pressed={period === value}
               onClick={() =>
                 setPeriod(
                   value as
@@ -268,11 +280,12 @@ export default function DriverProfile({
         {period === "custom" ? (
           <div className="mt-4 grid gap-3 sm:grid-cols-2">
             <div>
-              <label className="mb-2 block text-xs font-medium text-slate-500">
+              <label htmlFor="driver-custom-from" className="mb-2 block text-xs font-medium text-slate-500">
                 From
               </label>
               <input
                 type="date"
+                id="driver-custom-from"
                 value={customFrom}
                 onChange={(event) =>
                   setCustomFrom(event.target.value)
@@ -282,11 +295,12 @@ export default function DriverProfile({
             </div>
 
             <div>
-              <label className="mb-2 block text-xs font-medium text-slate-500">
+              <label htmlFor="driver-custom-to" className="mb-2 block text-xs font-medium text-slate-500">
                 To
               </label>
               <input
                 type="date"
+                id="driver-custom-to"
                 value={customTo}
                 min={customFrom || undefined}
                 onChange={(event) =>
@@ -350,21 +364,32 @@ export default function DriverProfile({
             />
             <MetricCard
               label="Acceptance Rate"
-              value={`${selectedMetrics.acceptanceRate.toFixed(2)}%`}
+              value={selectedMetrics.accepted + selectedMetrics.rejections === 0 ? "No recorded offers" : `${selectedMetrics.acceptanceRate.toFixed(2)}%`}
             />
             <MetricCard
               label="Rejection Rate"
-              value={`${selectedMetrics.rejectionRate.toFixed(2)}%`}
+              value={selectedMetrics.accepted + selectedMetrics.rejections === 0 ? "No recorded offers" : `${selectedMetrics.rejectionRate.toFixed(2)}%`}
             />
           </div>
         ) : (
           <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5 text-sm text-slate-500">
-            Select both dates to calculate the custom period.
+            Choose both dates, with the end date on or after the start date.
           </div>
         )}
       </div>
 
+      {selectedMetrics && <p className="text-sm text-slate-400">Acceptance and rejection rates use recorded accepted and rejected offers. They do not explain why an offer was declined.</p>}
       {selectedMetrics?.meteredDistance && <p className="text-sm text-slate-400">Metered miles use positive metre readings on bookings with status COMPLETED, linked to this driver and provider by scheduled pickup date: {selectedMetrics.meteredDistance.measuredJobs} of {selectedMetrics.meteredDistance.completedJobs} completed jobs have a positive reading. Zero, missing or invalid: {selectedMetrics.meteredDistance.zeroOrMissingJobs}. This does not measure the entire journey from acceptance.</p>}
+
+      {selectedMetrics && <section aria-labelledby="driver-activity-summary" className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
+        <h2 id="driver-activity-summary" className="text-lg font-semibold text-white">Activity summary · {selectedTitle}</h2>
+        <p className="mt-2 text-sm text-slate-400">Automatically summarised from the recorded figures above; this is not an assessment of the driver or a prediction.</p>
+        <ul className="mt-3 list-disc space-y-1 pl-5 text-sm text-slate-300">
+          <li>{selectedMetrics.completed} completed, {selectedMetrics.cancelled} cancelled and {selectedMetrics.noFare} no-fare booking records. Categories can overlap.</li>
+          <li>{selectedMetrics.accepted} recorded acceptances and {selectedMetrics.rejections} recorded rejections. The records do not establish the reason for a rejection.</li>
+          {selectedMetrics.meteredDistance && <li>Positive meter readings are available for {selectedMetrics.meteredDistance.measuredJobs} of {selectedMetrics.meteredDistance.completedJobs} completed jobs.</li>}
+        </ul>
+      </section>}
 
       <div className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
