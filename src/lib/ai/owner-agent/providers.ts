@@ -1,8 +1,22 @@
 import { AgentError } from "./policy";
+import { isIP } from "node:net";
 export const providerIds = ["NONE", "OPENAI", "ANTHROPIC", "OLLAMA"] as const;
 export type ProviderId = typeof providerIds[number];
 export type ProviderInput = { provider: ProviderId; model: string; baseUrl: string; enabled: boolean; cloudConsent: boolean; apiKey?: string; clearKey: boolean };
 export type ModelConnection = { provider: Exclude<ProviderId, "NONE">; endpoint: string; model: string; apiKey: string };
+/** Plain HTTP is allowed only for an explicitly allowlisted loopback or RFC1918 literal address. */
+export function ollamaOriginAllowed(url: URL, env: Readonly<Record<string, string | undefined>>) {
+  let allowed: unknown;
+  try { allowed = JSON.parse(env.TAXICRM_AGENT_OLLAMA_ORIGINS || "[]"); } catch { return false; }
+  if (!Array.isArray(allowed) || !allowed.includes(url.origin)) return false;
+  if (url.protocol === "https:") return true;
+  if (url.protocol !== "http:") return false;
+  const host = url.hostname;
+  if (["localhost", "127.0.0.1", "[::1]"].includes(host)) return true;
+  if (isIP(host) !== 4) return false;
+  const [a, b] = host.split(".").map(Number);
+  return a === 10 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168);
+}
 export function parseProviderInput(raw: unknown, env: Readonly<Record<string, string | undefined>> = process.env): ProviderInput {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new AgentError("INVALID_PROVIDER_SETTINGS");
   const r = raw as Record<string, unknown>;
@@ -21,9 +35,7 @@ export function parseProviderInput(raw: unknown, env: Readonly<Record<string, st
     if (typeof r.baseUrl !== "string") throw new AgentError("OLLAMA_ENDPOINT_REQUIRED");
     try {
       const u = new URL(r.baseUrl);
-      if (u.username || u.password || u.search || u.hash || !["", "/", "/v1", "/v1/"].includes(u.pathname) || (u.protocol !== "https:" && !(u.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(u.hostname)))) throw Error();
-      const allowed = JSON.parse(env.TAXICRM_AGENT_OLLAMA_ORIGINS || "[]");
-      if (!Array.isArray(allowed) || !allowed.includes(u.origin)) throw Error();
+      if (u.username || u.password || u.search || u.hash || !["", "/", "/v1", "/v1/"].includes(u.pathname) || !ollamaOriginAllowed(u, env)) throw Error();
       baseUrl = u.origin + "/v1";
     } catch { throw new AgentError("OLLAMA_ORIGIN_NOT_APPROVED"); }
   }

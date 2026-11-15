@@ -1,4 +1,4 @@
-import type { ModelConnection } from "./providers";
+import { ollamaOriginAllowed, type ModelConnection } from "./providers";
 import { AgentError, deterministicTool, tools, type AgentTool, type Preferences } from "./policy";
 export async function planQuestion(question: string, preferences: Preferences, env: Readonly<Record<string, string | undefined>> = process.env, transport: typeof fetch = fetch, connection?: ModelConnection | null): Promise<{ tool: AgentTool; modelUsed: boolean }> {
   const fallback = { tool: deterministicTool(question), modelUsed: false };
@@ -6,7 +6,8 @@ export async function planQuestion(question: string, preferences: Preferences, e
   let url: URL;
   try {
     url = new URL(connection?.endpoint || env.TAXICRM_AGENT_MODEL_BASE_URL!);
-    if (url.username || url.password || url.search || url.hash || (url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname)))) throw Error();
+    const localOllama = connection?.provider === "OLLAMA" && ollamaOriginAllowed(url, env);
+    if (url.username || url.password || url.search || url.hash || (!localOllama && url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) || (connection?.provider === "OLLAMA" && !localOllama)) throw Error();
     if (!connection) url.pathname = url.pathname.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1/chat/completions";
   } catch { throw new AgentError("MODEL_ENDPOINT_INVALID", 503); }
   try {
