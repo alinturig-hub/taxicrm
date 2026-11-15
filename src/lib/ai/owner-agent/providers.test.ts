@@ -19,6 +19,13 @@ test("Ollama destinations need explicit operator allowlisting; credentials, path
   const s = { ...settings, provider: "OLLAMA", baseUrl: "http://127.0.0.1:18444/v1", cloudConsent: false, apiKey: "" };
   const env = { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' };
   assert.equal(parseProviderInput(s, env).baseUrl, "http://127.0.0.1:18444/v1");
+  const privateEnv = { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://10.0.1.1:11434"]' };
+  assert.equal(parseProviderInput({ ...s, baseUrl: "http://10.0.1.1:11434" }, privateEnv).baseUrl, "http://10.0.1.1:11434/v1");
+  assert.throws(() => parseProviderInput({ ...s, baseUrl: "http://10.0.1.2:11434" }, privateEnv));
+  for (const host of ["169.254.169.254", "8.8.8.8", "172.32.0.1", "public.example"]) {
+    const origin = `http://${host}:11434`;
+    assert.throws(() => parseProviderInput({ ...s, baseUrl: origin }, { TAXICRM_AGENT_OLLAMA_ORIGINS: JSON.stringify([origin]) }));
+  }
   assert.throws(() => parseProviderInput(s, {}));
   for (const baseUrl of ["http://169.254.169.254", "http://public.example", "http://user:secret@127.0.0.1:18444", "http://127.0.0.1:18444/other", "http://127.0.0.1:18444?token=x"]) assert.throws(() => parseProviderInput({ ...s, baseUrl }, env));
 });
@@ -73,11 +80,20 @@ test("provider transports use their own auth and wire format, with no API key in
       else { assert.equal(headers.authorization, provider === "OLLAMA" ? undefined : "Bearer " + connection.apiKey); assert.equal(body.messages[0].role, "system"); }
       return new Response(JSON.stringify(provider === "ANTHROPIC" ? { content: [{ type: "text", text: '{"tool":"MARGIN"}' }] } : { choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
     };
-    assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_MODEL_TOKEN: "MUST_NOT_LEAK" }, mock, connection), { tool: "MARGIN", modelUsed: true });
+    assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_MODEL_TOKEN: "MUST_NOT_LEAK", TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' }, mock, connection), { tool: "MARGIN", modelUsed: true });
     assert.equal(calls, 1);
     await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_MODEL_BASE_URL: "https://example.test", TAXICRM_AGENT_MODEL: "default" }, mock, null);
     assert.equal(calls, 1, "explicit company disable never falls back to a deployment model");
   }
+});
+test("Ollama local address must still be allowlisted when the model is called", async () => {
+  const connection: ModelConnection = { provider: "OLLAMA", model: "synthetic", endpoint: "http://10.0.1.1:11434/v1/chat/completions", apiKey: "" };
+  let calls = 0;
+  const mock: typeof fetch = async () => { calls++; return new Response(JSON.stringify({ choices: [{ message: { content: '{"tool":"MARGIN"}' } }] })); };
+  await assert.rejects(planQuestion("margin", defaultPreferences, {}, mock, connection), /MODEL_ENDPOINT_INVALID/);
+  assert.equal(calls, 0);
+  assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://10.0.1.1:11434"]' }, mock, connection), { tool: "MARGIN", modelUsed: true });
+  assert.equal(calls, 1);
 });
 test("provider failures return to deterministic reports without trying another provider", async () => {
   let calls = 0; const mock: typeof fetch = async () => { calls++; return new Response("bad key", { status: 401 }); };
