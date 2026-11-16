@@ -74,11 +74,12 @@ test("provider transports use their own auth and wire format, with no API key in
     const mock: typeof fetch = async (_url, init) => {
       calls++; const body = JSON.parse(String(init?.body)), headers = init?.headers as Record<string, string>;
       assert.equal(body.model, "synthetic");
-      assert.equal(provider === "OPENAI" ? body.max_completion_tokens : body.max_tokens, 80);
+      assert.equal(provider === "OLLAMA" ? body.options.num_predict : provider === "OPENAI" ? body.max_completion_tokens : body.max_tokens, 80);
+      if (provider === "OLLAMA") { assert.equal(String(_url), "http://127.0.0.1:18444/api/chat"); assert.equal(body.think, false); assert.equal(body.format, "json"); }
       assert.doesNotMatch(String(init?.body), /synthetic-own-provider-key|MUST_NOT_LEAK/);
       if (provider === "ANTHROPIC") { assert.equal(headers["x-api-key"], connection.apiKey); assert.ok(body.system); assert.equal(headers.authorization, undefined); }
       else { assert.equal(headers.authorization, provider === "OLLAMA" ? undefined : "Bearer " + connection.apiKey); assert.equal(body.messages[0].role, "system"); }
-      return new Response(JSON.stringify(provider === "ANTHROPIC" ? { content: [{ type: "text", text: '{"tool":"MARGIN"}' }] } : { choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
+      return new Response(JSON.stringify(provider === "OLLAMA" ? { message: { content: '{"tool":"MARGIN"}' } } : provider === "ANTHROPIC" ? { content: [{ type: "text", text: '{"tool":"MARGIN"}' }] } : { choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
     };
     assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_MODEL_TOKEN: "MUST_NOT_LEAK", TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' }, mock, connection), { tool: "MARGIN", modelUsed: true });
     assert.equal(calls, 1);
@@ -89,7 +90,7 @@ test("provider transports use their own auth and wire format, with no API key in
 test("Ollama local address must still be allowlisted when the model is called", async () => {
   const connection: ModelConnection = { provider: "OLLAMA", model: "synthetic", endpoint: "http://10.0.1.1:11434/v1/chat/completions", apiKey: "" };
   let calls = 0;
-  const mock: typeof fetch = async () => { calls++; return new Response(JSON.stringify({ choices: [{ message: { content: '{"tool":"MARGIN"}' } }] })); };
+  const mock: typeof fetch = async () => { calls++; return new Response(JSON.stringify({ message: { content: '{"tool":"MARGIN"}' } })); };
   await assert.rejects(planQuestion("margin", defaultPreferences, {}, mock, connection), /MODEL_ENDPOINT_INVALID/);
   assert.equal(calls, 0);
   assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://10.0.1.1:11434"]' }, mock, connection), { tool: "MARGIN", modelUsed: true });
@@ -122,7 +123,33 @@ test("a slow local model can finish after the cloud timeout without changing all
       const timer = setTimeout(resolve, 6200);
       init?.signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("aborted")); }, { once: true });
     });
-    return new Response(JSON.stringify({ choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
+    return new Response(JSON.stringify({ message: { content: '{"tool":"MARGIN"}' } }));
   };
   assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' }, transport, connection), { tool: "MARGIN", modelUsed: true });
+});
+
+test("Ollama empty, invalid or tool-call responses fall back without execution", async () => {
+  const connection: ModelConnection = { provider: "OLLAMA", model: "synthetic", endpoint: "http://127.0.0.1:18444/v1/chat/completions", apiKey: "" };
+  const env = { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' };
+  for (const message of [{ content: "", thinking: "reasoning" }, { content: "not-json" }, { content: '{"tool":"MARGIN"}', tool_calls: [{ function: { name: "execute" } }] }, { content: '{"tool":"DROP"}' }]) {
+    const transport: typeof fetch = async () => new Response(JSON.stringify({ message }));
+    assert.deepEqual(await planQuestion("margin", defaultPreferences, env, transport, connection), { tool: "MARGIN", modelUsed: false });
+  }
+});
+
+test("Ollama gateways limited to the compatible API retain support only after a native 404", async () => {
+  const connection: ModelConnection = { provider: "OLLAMA", model: "synthetic", endpoint: "http://127.0.0.1:18444/v1/chat/completions", apiKey: "" };
+  const env = { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' };
+  const calls: string[] = [];
+  const transport: typeof fetch = async url => {
+    calls.push(String(url));
+    if (calls.length === 1) return new Response("missing", { status: 404 });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
+  };
+  assert.deepEqual(await planQuestion("margin", defaultPreferences, env, transport, connection), { tool: "MARGIN", modelUsed: true });
+  assert.deepEqual(calls, ["http://127.0.0.1:18444/api/chat", "http://127.0.0.1:18444/v1/chat/completions"]);
+  let failures = 0;
+  const failed: typeof fetch = async () => { failures++; return new Response("failure", { status: 500 }); };
+  assert.equal((await planQuestion("margin", defaultPreferences, env, failed, connection)).modelUsed, false);
+  assert.equal(failures, 1);
 });
