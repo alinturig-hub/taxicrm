@@ -43,7 +43,7 @@ export default function OwnerAgentProviderSettings({ onSaved }: { onSaved: () =>
     if (!saved || busy) return;
     setBusy(true); setError(""); setNotice("");
     try {
-      const r = await fetch("/api/dashboard/ai/owner-agent/provider", { method: "POST", signal: AbortSignal.timeout(10000), headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, expectedRevision: saved.revision }) });
+      const r = await fetch("/api/dashboard/ai/owner-agent/provider", { method: "POST", signal: AbortSignal.timeout(70000), headers: { "content-type": "application/json" }, body: JSON.stringify({ confirm: true, expectedRevision: saved.revision }) });
       const result = await r.json(); if (!r.ok) throw Error(errorText(result.error));
       if (mounted.current) setNotice("Model test passed. A synthetic help question was used; no booking records were sent.");
     } catch (e) { if (mounted.current) setError(e instanceof Error ? e.message : "Model test failed."); }
