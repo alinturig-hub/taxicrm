@@ -15,7 +15,7 @@ export async function planQuestion(question: string, preferences: Preferences, e
     const apiKey = connection ? connection.apiKey : env.TAXICRM_AGENT_MODEL_TOKEN;
     const anthropic = connection?.provider === "ANTHROPIC";
     const response = await transport(url.toString(), {
-      method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(6000),
+      method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(connection?.provider === "OLLAMA" ? 60000 : 6000),
       headers: { "content-type": "application/json", ...(anthropic ? { "x-api-key": apiKey!, "anthropic-version": "2023-06-01" } : apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
       body: JSON.stringify({ model: connection?.model || env.TAXICRM_AGENT_MODEL, ...(connection?.provider === "OPENAI" ? { max_completion_tokens: 80 } : { temperature: 0, max_tokens: 80 }), stream: false,
         ...(anthropic ? { system: instruction, messages: [{ role: "user", content: question }] } : { messages: [{ role: "system", content: instruction }, { role: "user", content: question }] }),

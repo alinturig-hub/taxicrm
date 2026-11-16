@@ -114,3 +114,15 @@ test("audit capacity still permits a final explicit disable and key removal", as
     const disabled = await readProvider(a); assert.equal(disabled?.revision, 101); assert.equal(connectionFromProvider(disabled), null); assert.equal(publicProvider(disabled).hasKey, false);
   } finally { await rm(dir, { recursive: true, force: true }); }
 });
+
+test("a slow local model can finish after the cloud timeout without changing allowed tools", async () => {
+  const connection: ModelConnection = { provider: "OLLAMA", model: "synthetic", endpoint: "http://127.0.0.1:18444/v1/chat/completions", apiKey: "" };
+  const transport: typeof fetch = async (_url, init) => {
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(resolve, 6200);
+      init?.signal?.addEventListener("abort", () => { clearTimeout(timer); reject(new Error("aborted")); }, { once: true });
+    });
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"tool":"MARGIN"}' } }] }));
+  };
+  assert.deepEqual(await planQuestion("margin", defaultPreferences, { TAXICRM_AGENT_OLLAMA_ORIGINS: '["http://127.0.0.1:18444"]' }, transport, connection), { tool: "MARGIN", modelUsed: true });
+});
