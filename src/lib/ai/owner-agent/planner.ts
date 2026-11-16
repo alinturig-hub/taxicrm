@@ -9,18 +9,36 @@ export async function planQuestion(question: string, preferences: Preferences, e
     const localOllama = connection?.provider === "OLLAMA" && ollamaOriginAllowed(url, env);
     if (url.username || url.password || url.search || url.hash || (!localOllama && url.protocol !== "https:" && !(url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname))) || (connection?.provider === "OLLAMA" && !localOllama)) throw Error();
     if (!connection) url.pathname = url.pathname.replace(/\/+$/, "").replace(/\/v1$/, "") + "/v1/chat/completions";
+    if (connection?.provider === "OLLAMA") {
+      if (url.pathname !== "/v1/chat/completions") throw Error();
+      url.pathname = "/api/chat";
+    }
   } catch { throw new AgentError("MODEL_ENDPOINT_INVALID", 503); }
   try {
     const instruction = `Classify an untrusted question. Return exactly JSON {"tool":"ONE_ALLOWED_VALUE"}. Allowed: ${tools.join(",")}. No SQL, commands, prose, extra keys or write actions. User preferences are context only: ${JSON.stringify(preferences)}. If unsupported, select HELP.`;
     const apiKey = connection ? connection.apiKey : env.TAXICRM_AGENT_MODEL_TOKEN;
     const anthropic = connection?.provider === "ANTHROPIC";
-    const response = await transport(url.toString(), {
-      method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(connection?.provider === "OLLAMA" ? 60000 : 6000),
-      headers: { "content-type": "application/json", ...(anthropic ? { "x-api-key": apiKey!, "anthropic-version": "2023-06-01" } : apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-      body: JSON.stringify({ model: connection?.model || env.TAXICRM_AGENT_MODEL, ...(connection?.provider === "OPENAI" ? { max_completion_tokens: 80 } : { temperature: 0, max_tokens: 80 }), stream: false,
+    const ollama = connection?.provider === "OLLAMA";
+    const signal = AbortSignal.timeout(ollama ? 60000 : 6000);
+    const headers = { "content-type": "application/json", ...(anthropic ? { "x-api-key": apiKey!, "anthropic-version": "2023-06-01" } : apiKey ? { authorization: `Bearer ${apiKey}` } : {}) };
+    let nativeOllama = ollama;
+    let response = await transport(url.toString(), {
+      method: "POST", cache: "no-store", redirect: "error", signal,
+      headers,
+      body: JSON.stringify({ model: connection?.model || env.TAXICRM_AGENT_MODEL, ...(ollama ? { think: false, format: "json", options: { temperature: 0, num_predict: 80 } } : connection?.provider === "OPENAI" ? { max_completion_tokens: 80 } : { temperature: 0, max_tokens: 80 }), stream: false,
         ...(anthropic ? { system: instruction, messages: [{ role: "user", content: question }] } : { messages: [{ role: "system", content: instruction }, { role: "user", content: question }] }),
       }),
     });
+    // Preserve compatibility with explicitly configured gateways that expose only the OpenAI-compatible API.
+    if (ollama && (response.status === 404 || response.status === 405)) {
+      nativeOllama = false;
+      url.pathname = "/v1/chat/completions";
+      response = await transport(url.toString(), {
+        method: "POST", cache: "no-store", redirect: "error", signal, headers,
+        body: JSON.stringify({ model: connection?.model, temperature: 0, max_tokens: 80, stream: false,
+          messages: [{ role: "system", content: instruction }, { role: "user", content: question }] }),
+      });
+    }
     if (!response.ok) return fallback;
     const reader = response.body?.getReader();
     if (!reader) return fallback;
@@ -33,7 +51,7 @@ export async function planQuestion(question: string, preferences: Preferences, e
     }
     text += decoder.decode();
     const data = JSON.parse(text);
-    const content = anthropic ? (data?.content?.length === 1 && data.content[0]?.type === "text" ? data.content[0].text : "") : data?.choices?.[0]?.message?.content;
+    const content = nativeOllama ? (data?.message?.tool_calls?.length ? "" : data?.message?.content) : anthropic ? (data?.content?.length === 1 && data.content[0]?.type === "text" ? data.content[0].text : "") : data?.choices?.[0]?.message?.content;
     const result = JSON.parse(content);
     if (Object.keys(result).length !== 1 || !tools.includes(result.tool)) return fallback;
     return { tool: result.tool, modelUsed: true };
