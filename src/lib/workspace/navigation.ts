@@ -162,6 +162,13 @@ export const navigationGroups: NavigationGroup[] = [
         "customers.view",
       ),
       item(
+        "Email templates",
+        "/dashboard/marketing/email",
+        "automation",
+        "Create and edit reusable email templates.",
+        "configuration.view",
+      ),
+      item(
         "WhatsApp templates",
         "/dashboard/marketing/whatsapp/templates",
         "automation",
