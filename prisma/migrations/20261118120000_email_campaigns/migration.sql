@@ -11,7 +11,7 @@ CREATE TABLE email_campaigns (
 );
 CREATE TABLE email_campaign_recipients (
  id uuid PRIMARY KEY, campaign_id uuid NOT NULL REFERENCES email_campaigns(id) ON DELETE CASCADE,
- address text NOT NULL, consent_evidence text NOT NULL, status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','CLAIMED','ACCEPTED','REJECTED','UNKNOWN','SUPPRESSED')),
+ address text NOT NULL, consent_evidence text NOT NULL, status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','CLAIMED','ACCEPTED','REJECTED','UNKNOWN','SUPPRESSED','DELIVERED','BOUNCED')),
  claimed_at timestamptz, provider_message_id text, UNIQUE(campaign_id, address)
 );
 CREATE TABLE email_suppressions (

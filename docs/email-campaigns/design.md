@@ -21,3 +21,9 @@ Explicitly activate a campaign after reviewing sender, content, audience and sch
 ## Verification
 
 Use an isolated synthetic database and mock provider. Cover CSV quotes/duplicates/limits, permissions, consent and suppression, UTC/DST conversion, duplicate concurrent claims, restarts, cancellation, unknown provider outcomes and signed event replay. Test UI using synthetic contacts. No real messages are sent in development.
+
+## Implementation progress (draft only)
+
+The branch contains signed unsubscribe tokens and an unsubscribe endpoint; GET is read-only and POST records suppression. A signed SendGrid event endpoint validates ECDSA signatures and timestamps, deduplicates event IDs, and records delivery, bounce and suppression events for correlated synthetic recipients. `EMAIL_UNSUBSCRIBE_SECRET` (at least 32 bytes) and `SENDGRID_EVENT_PUBLIC_KEY` must be provisioned privately before these endpoints are used; neither is configured by this branch. The claim primitive only claims due, consent-evidenced, non-suppressed recipients using a durable transaction; it does not send messages.
+
+Do not enable scheduling yet. Still required: an authenticated activation and pause/cancel flow, a sender that appends unsubscribe links and uses recipient correlation IDs, integration with the existing worker, suppression checks immediately before sending, safe recovery of ambiguous outcomes, real PostgreSQL concurrency/restart tests, SendGrid event integration tests, access/grant and migration review, and browser end-to-end verification. Provider acceptance is not delivery. No production migration or send is performed by these changes.
