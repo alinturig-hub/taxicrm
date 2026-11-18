@@ -18,7 +18,7 @@ export async function POST(req:Request) {
  try { if(req.headers.get('origin')!==new URL(process.env.NEXTAUTH_URL||req.url).origin) return result({error:'FORBIDDEN'},403); } catch { return result({error:'FORBIDDEN'},403); }
  try {
   const reader=req.body?.getReader(); if(!reader) return result({error:'INVALID_REQUEST'},400);
-  let size=0, payload='', decoder=new TextDecoder(); for (;;) { const part=await reader.read(); if(part.done) break; size+=part.value.byteLength; if(size>2100000) { await reader.cancel(); return result({error:'TOO_LARGE'},413); } payload+=decoder.decode(part.value,{stream:true}); } payload+=decoder.decode();
+  let size=0, payload=''; const decoder=new TextDecoder(); for (;;) { const part=await reader.read(); if(part.done) break; size+=part.value.byteLength; if(size>2100000) { await reader.cancel(); return result({error:'TOO_LARGE'},413); } payload+=decoder.decode(part.value,{stream:true}); } payload+=decoder.decode();
   const input=JSON.parse(payload); if(!input || typeof input!=='object' || Array.isArray(input)) return result({error:'INVALID_REQUEST'},400);
   const {kind,...data}=input; if(kind==='template') return result(await saveTemplate(sharedPool(),data,actor.user.id),201);
   if(kind==='campaign') { const sender=await publicSettings(); if(!sender.configured || !sender.senderEmail || !sender.senderName) return result({error:'SENDER_NOT_CONFIGURED'},400); return result(await saveCampaign(sharedPool(),data,actor.user.id,{senderEmail:sender.senderEmail,senderName:sender.senderName}),201); }
