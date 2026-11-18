@@ -725,3 +725,13 @@ if(process.env.WHATSAPP_SHARED_ENABLED==='true'&&process.env.WHATSAPP_RECEIPT_FA
  }catch{console.error('WHATSAPP_FAST_RECEIPTS_UNAVAILABLE')}finally{receiptDelay=ok?2000:Math.min(receiptDelay*2,30000);setTimeout(pollReceipts,receiptDelay).unref()}};
  setTimeout(pollReceipts,2000).unref();
 }
+
+// Email campaigns require explicit configuration and per-campaign activation.
+if (process.env.EMAIL_CAMPAIGNS_ENABLED === 'true' && process.env.EMAIL_WORKER_SECRET?.length >= 32) {
+ let emailBusy=false;
+ const pollEmail=async()=>{ if(emailBusy)return; emailBusy=true; try {
+  const response=await fetch(`http://127.0.0.1:${port}/api/internal/email/worker`,{method:'POST',headers:{'x-email-worker-secret':process.env.EMAIL_WORKER_SECRET},signal:AbortSignal.timeout(25000)});
+  if(!response.ok)console.error('EMAIL_CAMPAIGN_WORKER_UNAVAILABLE',response.status);
+ } catch { console.error('EMAIL_CAMPAIGN_WORKER_UNAVAILABLE'); } finally { emailBusy=false; } };
+ setInterval(pollEmail,5000).unref(); setTimeout(pollEmail,15000).unref();
+}

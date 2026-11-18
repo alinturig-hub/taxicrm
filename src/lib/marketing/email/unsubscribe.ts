@@ -17,6 +17,7 @@ export async function unsubscribe(db:Pool,token:string) {
  const row=await c.query('SELECT address FROM email_campaign_recipients WHERE id=$1 FOR UPDATE',[id]);
  if(!row.rows.length) { await c.query('ROLLBACK'); return false; }
  const address=row.rows[0].address;
+ await c.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 728123))',[address]);
  await c.query(`INSERT INTO email_suppressions(address,source,reason) VALUES ($1,'unsubscribe','recipient request') ON CONFLICT(address) DO NOTHING`,[address]);
  await c.query(`UPDATE email_campaign_recipients SET status='SUPPRESSED' WHERE address=$1 AND status='PENDING'`,[address]);
  await c.query('COMMIT'); return true;

@@ -12,7 +12,7 @@ export async function GET(request:Request) {
 }
 export async function POST(request:Request) {
  try {
-  const body=await request.text(); if(body.length>512) return NextResponse.json({error:'Invalid request'},{status:400,headers});
+  const reader=request.body?.getReader(); if(!reader) return NextResponse.json({error:'Invalid request'},{status:400,headers}); let size=0,body=''; const decoder=new TextDecoder(); for(;;){const part=await reader.read();if(part.done)break;size+=part.value.byteLength;if(size>512){await reader.cancel();return NextResponse.json({error:'Invalid request'},{status:400,headers});}body+=decoder.decode(part.value,{stream:true});}body+=decoder.decode();
   const params=new URLSearchParams(body); const token=params.get('token')||new URL(request.url).searchParams.get('token')||'';
   if(!await unsubscribe(sharedPool(),token)) return NextResponse.json({error:'Invalid link'},{status:400,headers});
   return new Response('You have been unsubscribed from marketing emails.',{headers:{...headers,'Content-Type':'text/plain; charset=utf-8'}});
