@@ -285,7 +285,7 @@ export const navigationGroups: NavigationGroup[] = [
         "Communication",
         "/dashboard/configuration/sms",
         "automation",
-        "SMS gateway and freephone alert settings.",
+        "SendGrid, SMS gateway and freephone alert settings.",
         "configuration.view",
         ["ADMIN", "MANAGER"],
       ),
