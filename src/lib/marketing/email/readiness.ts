@@ -1,5 +1,5 @@
 import { createPublicKey } from 'node:crypto';
-export function emailCampaignReadiness(env:NodeJS.ProcessEnv=process.env):boolean {
+export function emailCampaignReadiness(env:Readonly<Record<string,string|undefined>>=process.env):boolean {
  try {
   const publicKey=env.SENDGRID_EVENT_PUBLIC_KEY||'';
   const key=publicKey.includes('BEGIN PUBLIC KEY')?createPublicKey(publicKey):createPublicKey({key:Buffer.from(publicKey,'base64'),format:'der',type:'spki'});
