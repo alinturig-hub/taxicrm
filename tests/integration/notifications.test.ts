@@ -152,6 +152,15 @@ test("queued custom inactivity SMS is cancelled if a booking appears before send
  const run=await prisma.notificationJobRun.create({data:{jobId:job.id,scheduledFor:now,status:'COMPLETED'}});const delivery=await prisma.notificationDelivery.create({data:{jobRunId:run.id,eventType:'NO_BOOKINGS',destination,message:'Synthetic',nextAttemptAt:now}});
  let calls=0;await notificationTick(now,async()=>{calls++;return new Response('{"success":true}');});const saved=await prisma.notificationDelivery.findUniqueOrThrow({where:{id:delivery.id}});assert.equal(calls,0);assert.equal(saved.status,'CANCELLED');await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
 });
+test("a booking between checks rearms a new inactivity episode even after leaving the lookback",async()=>{
+ await saveGateway({endpoint:signed,isEnabled:true});const now=new Date(),line=`${prefix}-overnight-rearm`;
+ await prisma.booking.create({data:{externalId:line,bookingSource:line,bookedAtTime:new Date(now.getTime()-3*3600000),rawPayload:{synthetic:true}}});
+ const job=await prisma.notificationJob.create({data:{name:line,sourceField:'bookingSource',sourceValue:line,defaultRecipient:destination,rules:[{event:'NO_BOOKINGS',enabled:true,windowHours:2,activeStart:'00:00',activeEnd:'00:00',checkIntervalMinutes:60,recipient:'',text:'No bookings'}],sourceConfirmed:true,isEnabled:true,nextRunAt:now}});
+ await prisma.notificationJobRun.create({data:{jobId:job.id,scheduledFor:new Date(now.getTime()-4*3600000),status:'COMPLETED',result:{monitorKey:JSON.stringify(['bookingSource',line,2]),inactivityAlertActive:true,inactivityCounts:{through:new Date(now.getTime()-4*3600000).toISOString()},lastPeriodicAt:now.toISOString()}}});
+ let calls=0;const fake:typeof fetch=async()=>{calls++;return new Response('{"success":true}');};
+ await Promise.all([notificationTick(now,fake),notificationTick(now,fake)]);assert.equal(calls,1);
+ await notificationTick(new Date(now.getTime()+3600000),fake);assert.equal(calls,1);await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
+});
 test("disabled gateway performs no planning or delivery", async () => {
   await prisma.smsGatewayConfiguration.update({where: {id: "default"}, data: {isEnabled: false}});
   const result = await notificationTick(new Date(Date.now()+86400000), async () => {throw new Error("Must not contact provider");});

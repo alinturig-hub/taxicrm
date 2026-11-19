@@ -408,6 +408,7 @@ export async function notificationTick(
           monitorKey?: string;
           inactivityAlertActive?: boolean;
           lastPeriodicAt?: string;
+          inactivityCounts?: { through?: string };
         } | null;
         const monitorKey = JSON.stringify([
           config.sourceField,
@@ -421,6 +422,10 @@ export async function notificationTick(
         const periodicDue =
           (hours === 24 && !schedule) || now.getTime() - lastPeriodic.getTime() >= day;
         const inactivityCounts = await readCounts(config, now, tx, hours);
+        // An overnight booking may already have left the short inactivity window.
+        // Look back to the prior alert so a new quiet episode can still rearm.
+        const previousThrough = prior?.inactivityCounts?.through ? new Date(prior.inactivityCounts.through) : null;
+        const resumedSinceLastAlert = Boolean(schedule && prior?.inactivityAlertActive && inactivityCounts.count === 0 && previousThrough && Number.isFinite(previousThrough.getTime()) && previousThrough < now && (await readCounts(config, now, tx, (now.getTime() - previousThrough.getTime()) / 3600000)).count > 0);
         const counts =
           hours === 24 || !periodicDue
             ? inactivityCounts
@@ -428,17 +433,17 @@ export async function notificationTick(
         const events = planEvents(config, counts, inactivityCounts).filter(
           (e) =>
             e.event === "NO_BOOKINGS"
-              ? !prior?.inactivityAlertActive
+              ? !prior?.inactivityAlertActive || resumedSinceLastAlert
               : periodicDue,
         );
         const inactivityAlertActive =
           inactivityCounts.count > 0
             ? false
             : Boolean(
-                prior?.inactivityAlertActive ||
+                (prior?.inactivityAlertActive && !resumedSinceLastAlert) ||
                   events.some((e) => e.event === "NO_BOOKINGS"),
               );
-        if (inactivityCounts.count > 0)
+        if (inactivityCounts.count > 0 || resumedSinceLastAlert)
           await tx.notificationDelivery.updateMany({
             where: {
               jobRun: { jobId: job.id },
