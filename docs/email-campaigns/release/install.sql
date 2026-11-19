@@ -6,6 +6,8 @@ SET LOCAL search_path=public,pg_catalog;
 DO $$ BEGIN
  IF current_database() <> 'postgres' OR to_regclass('public."Booking"') IS NULL THEN RAISE EXCEPTION 'Unexpected database'; END IF;
  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname='taxicrm_shared_app') THEN RAISE EXCEPTION 'Missing application role'; END IF;
+ IF to_regclass('public._prisma_migrations') IS NULL THEN RAISE EXCEPTION 'Prisma migration history is missing'; END IF;
+ IF EXISTS (SELECT 1 FROM public._prisma_migrations WHERE migration_name='20261118120000_email_campaigns') THEN RAISE EXCEPTION 'Email migration already in Prisma history'; END IF;
  IF to_regclass('public.email_campaigns') IS NOT NULL OR to_regclass('public.email_templates') IS NOT NULL OR to_regclass('public.email_campaign_recipients') IS NOT NULL OR to_regclass('public.email_suppressions') IS NOT NULL OR to_regclass('public.email_campaign_events') IS NOT NULL THEN RAISE EXCEPTION 'Email campaign tables already exist'; END IF;
 END $$;
 -- CRM-owned email marketing records. Does not alter booking or customer tables.
@@ -44,4 +46,5 @@ DO $$ DECLARE item text; BEGIN
   IF has_table_privilege('taxicrm_shared_app',format('public.%I',item),'DELETE') THEN RAISE EXCEPTION 'Unexpected inherited DELETE privilege for %',item; END IF;
  END LOOP;
 END $$;
+INSERT INTO public._prisma_migrations (id,checksum,finished_at,migration_name,applied_steps_count) VALUES (gen_random_uuid()::text,'341e4a936ced8c96eb0e36e1dc46031e866e6e25bd89cd4d86b816247951b307',now(),'20261118120000_email_campaigns',0);
 COMMIT;
