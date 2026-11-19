@@ -21,6 +21,7 @@ export async function POST(request:Request) {
    await client.query('BEGIN');
    const campaign=await client.query('SELECT status,schedule_at FROM email_campaigns WHERE id=$1 FOR UPDATE',[data.id]);
    if(!campaign.rows.length){await client.query('ROLLBACK');return reply({error:'NOT_FOUND'},404);}
+   if(data.action==='activate'&&(await client.query("SELECT 1 FROM email_campaign_events WHERE campaign_id=$1 AND event_type='OWNER_TEST_CLAIMED'",[data.id])).rowCount){await client.query('ROLLBACK');return reply({error:'INVALID_STATE'},409);}
    const current=campaign.rows[0], valid=data.action==='activate'?['DRAFT','PAUSED'].includes(current.status)&&current.schedule_at&&new Date(current.schedule_at).getTime()>Date.now():data.action==='pause'?current.status==='SCHEDULED':['DRAFT','SCHEDULED','PAUSED'].includes(current.status);
    if(!valid){await client.query('ROLLBACK');return reply({error:'INVALID_STATE'},409);}
    const status=data.action==='activate'?'SCHEDULED':data.action==='pause'?'PAUSED':'CANCELLED';
