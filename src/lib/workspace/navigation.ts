@@ -154,6 +154,7 @@ export const navigationGroups: NavigationGroup[] = [
         "Use Need A Cab Plus vouchers in customer campaigns and track redemptions.",
         "customers.view",
       ),
+      item("Email campaigns", "/dashboard/marketing/email", "automation", "Prepare email campaign drafts and review a CSV audience.", "customers.manage"),
       item(
         "WhatsApp campaigns",
         "/dashboard/marketing/whatsapp",
