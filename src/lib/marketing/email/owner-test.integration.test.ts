@@ -1,0 +1,17 @@
+import { test } from 'node:test';import assert from 'node:assert/strict';import { randomUUID } from 'node:crypto';import {readFile} from 'node:fs/promises';import {Pool} from 'pg';import {runOwnerTest} from './owner-test';
+const url=process.env.EMAIL_QA_DATABASE_URL;
+test('owner test is scoped, durable, single attempt, and does not run another scheduled campaign',{skip:!url},async()=>{
+ const u=new URL(url!);if(u.hostname!=='127.0.0.1'||u.username!=='email_qa'||u.pathname!=='/email_qa')throw Error('SYNTHETIC_DB_REQUIRED');
+ const admin=new Pool({connectionString:url});const schema='owner_qa_'+randomUUID().replace(/-/g,'');await admin.query(`CREATE SCHEMA ${schema}`);const pool=new Pool({connectionString:url,max:8,options:`-c search_path=${schema}`});const previous=process.env.EMAIL_UNSUBSCRIBE_SECRET;process.env.EMAIL_UNSUBSCRIBE_SECRET='synthetic-only-secret-for-testing-123456';
+ try{
+  await pool.query(await readFile('prisma/migrations/20261118120000_email_campaigns/migration.sql','utf8'));
+  const other=randomUUID(),otherRecipient=randomUUID();await pool.query(`INSERT INTO email_campaigns(id,name,subject,body,sender_email,sender_name,created_by,status,schedule_at) VALUES($1,'unrelated','hi','body','sender@example.test','Test','qa','SCHEDULED',now()-interval '1 minute')`,[other]);await pool.query(`INSERT INTO email_campaign_recipients(id,campaign_id,address,consent_evidence) VALUES($1,$2,'other@example.test','synthetic')`,[otherRecipient,other]);
+  const config={enabled:true,recipient:'owner@example.test',nonce:'n'.repeat(40),globalEnabled:false},sender={senderEmail:'sender@example.test',senderName:'Test',apiKey:'synthetic'};
+  let calls=0;const fake:typeof fetch=async(_url,init)=>{calls++;const b=JSON.parse(String(init?.body));assert.equal(b.personalizations[0].to[0].email,'owner@example.test');assert.match(b.subject,/test/i);await new Promise(r=>setTimeout(r,40));return new Response(null,{status:202});};
+  const results=await Promise.all([runOwnerTest(pool,config,'owner@example.test','admin',sender,'https://example.test',fake),runOwnerTest(pool,config,'owner@example.test','admin',sender,'https://example.test',fake)]);
+  assert.equal(calls,1);assert.ok(results.some(x=>x.state==='ACCEPTED'));assert.ok(results.some(x=>x.state==='ALREADY_CLAIMED'));assert.equal((await pool.query('SELECT status FROM email_campaign_recipients WHERE id=$1',[otherRecipient])).rows[0].status,'PENDING');
+  assert.equal((await runOwnerTest(pool,config,'owner@example.test','admin',sender,'https://example.test',fake)).state,'ALREADY_CLAIMED');assert.equal(calls,1);
+  await assert.rejects(runOwnerTest(pool,config,'wrong@example.test','admin',sender,'https://example.test',fake));await assert.rejects(runOwnerTest(pool,{...config,globalEnabled:true},'owner@example.test','admin',sender,'https://example.test',fake));
+  const uncertain={...config,nonce:'x'.repeat(40)};assert.equal((await runOwnerTest(pool,uncertain,'owner@example.test','admin',sender,'https://example.test',async()=>{calls++;throw Error('timeout');})).state,'UNKNOWN');assert.equal((await runOwnerTest(pool,uncertain,'owner@example.test','admin',sender,'https://example.test',fake)).state,'ALREADY_CLAIMED');assert.equal(calls,2);
+ }finally{await pool.end();await admin.query(`DROP SCHEMA ${schema} CASCADE`);await admin.end();if(previous===undefined)delete process.env.EMAIL_UNSUBSCRIBE_SECRET;else process.env.EMAIL_UNSUBSCRIBE_SECRET=previous;}
+});
