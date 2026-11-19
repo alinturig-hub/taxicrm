@@ -10,7 +10,9 @@ import {
   readCounts,
   planEvents,
   inactivityHours,
+  activeSchedule,
 } from "@/lib/notifications/operations";
+import { nextActiveCheck } from "@/lib/notifications/freephone-schedule";
 import { smsGatewayPreview } from "@/lib/notifications/sms-gateway-preview";
 import { bookingEvidenceReadiness } from "@/lib/notifications/readiness";
 import { importFreephoneDrafts } from "@/lib/notifications/freephone-drafts";
@@ -224,7 +226,11 @@ export async function POST(request: Request) {
         inactivityHours({
           ...existing,
           rules: existing.rules as typeof config.rules,
-        }) !== inactivityHours(config));
+        }) !== inactivityHours(config) ||
+        JSON.stringify(activeSchedule({ rules: existing.rules as typeof config.rules })) !== JSON.stringify(activeSchedule(config)));
+    const firstEligible = new Date(Date.now() + inactivityHours(config) * 3600000);
+    const schedule = activeSchedule(config);
+    const initialRunAt = schedule ? nextActiveCheck(new Date(firstEligible.getTime() - 1), schedule) : firstEligible;
     const job =
       typeof body.id === "string" && body.id !== "$gateway-test"
         ? await prisma.notificationJob.update({
@@ -233,9 +239,7 @@ export async function POST(request: Request) {
               ...data,
               ...(resetSchedule
                 ? {
-                    nextRunAt: new Date(
-                      Date.now() + inactivityHours(config) * 3600000,
-                    ),
+                    nextRunAt: initialRunAt,
                   }
                 : {}),
             },
@@ -243,9 +247,7 @@ export async function POST(request: Request) {
         : await prisma.notificationJob.create({
             data: {
               ...data,
-              nextRunAt: new Date(
-                Date.now() + inactivityHours(config) * 3600000,
-              ),
+              nextRunAt: initialRunAt,
             },
           });
     if (!job.isEnabled)

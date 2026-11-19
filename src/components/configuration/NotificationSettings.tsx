@@ -108,7 +108,7 @@ const input =
 const button =
   "rounded-lg bg-blue-600 px-4 py-2 text-sm text-white disabled:opacity-50";
 const box = "space-y-4 rounded-2xl border border-slate-800 bg-slate-900 p-5";
-export default function NotificationSettings() {
+export default function NotificationSettings({ mode = "all" }: { mode?: "all" | "gateway" | "workflows" }) {
   const [gateway, setGateway] = useState(defaultGateway);
   const [jobs, setJobs] = useState<Workflow[]>([]);
   const [runs, setRuns] = useState<Run[]>([]);
@@ -188,7 +188,7 @@ export default function NotificationSettings() {
           {notice}
         </p>
       )}
-      <section className={box}>
+      {mode !== "workflows" && <section className={box}>
         <h2 className="text-xl font-semibold text-white">Orion SMS gateway</h2>
         <p className="text-sm text-slate-400">
           Saving settings sends no SMS. Signed URL parameters are encrypted and
@@ -286,7 +286,7 @@ export default function NotificationSettings() {
           </div>
           <p className="my-3 text-sm text-amber-200">
             This queues a real SMS using saved settings. Check its result in the
-            history below; provider acceptance does not prove handset delivery.
+            history in Notifications; provider acceptance does not prove handset delivery.
           </p>
           <button
             disabled={busy}
@@ -311,8 +311,8 @@ export default function NotificationSettings() {
             Send real test SMS
           </button>
         </details>
-      </section>
-      <section className={box}>
+      </section>}
+      {mode !== "gateway" && <section className={box}>
         <div className="flex items-center justify-between">
           <h2 className="text-xl font-semibold text-white">
             Freephone workflows
@@ -329,10 +329,7 @@ export default function NotificationSettings() {
           </button>
         </div>
         <p className="text-sm text-slate-400">
-          Monitor a verified freephone line. The 12-hour option checks
-          continuously, across midnight, and sends one inactivity alert until a
-          new booking is observed. SMS recipients are entered separately. The
-          first check follows a full monitoring window after activation.
+          Monitor a verified freephone line and configure the hours, check frequency and inactivity period. One inactivity alert is sent until a new booking is observed. SMS recipients are entered separately.
         </p>
         <details className="rounded-lg border border-slate-800 p-3">
           <summary className="cursor-pointer text-sm text-slate-200">
@@ -587,25 +584,16 @@ export default function NotificationSettings() {
                     />{" "}
                     Enable event
                   </label>
-                  {rule.event === "NO_BOOKINGS" && (
-                    <label className="block text-sm text-slate-300">
-                      Hours without bookings
-                      <select
-                        className={input}
-                        value={rule.windowHours ?? 24}
-                        onChange={(e) =>
-                          ruleEdit(index, {
-                            windowHours: Number(e.target.value) as 12 | 24,
-                          })
-                        }
-                      >
-                        <option value="12">
-                          12 consecutive hours · frequent checks
-                        </option>
-                        <option value="24">24 hours · daily check</option>
-                      </select>
-                    </label>
-                  )}
+                  {rule.event === "NO_BOOKINGS" && <div className="space-y-3">
+                    <label className="block text-sm text-slate-300">Hours without bookings<input type="number" min="1" max="168" className={input} value={rule.windowHours ?? 24} onChange={e=>ruleEdit(index,{windowHours:Number(e.target.value)})}/></label>
+                    <label className="block text-sm text-slate-300"><input type="checkbox" checked={rule.activeStart!==undefined} onChange={e=>ruleEdit(index,e.target.checked?{activeStart:"06:00",activeEnd:"22:00",checkIntervalMinutes:60}:{activeStart:undefined,activeEnd:undefined,checkIntervalMinutes:undefined})}/> Use a custom active window and check frequency</label>
+                    {rule.activeStart!==undefined && <div className="grid gap-3 sm:grid-cols-3">
+                      <label className="text-sm text-slate-300">Active from · London<input className={input} type="time" value={rule.activeStart} onChange={e=>ruleEdit(index,{activeStart:e.target.value})}/></label>
+                      <label className="text-sm text-slate-300">Active until · London<input className={input} type="time" value={rule.activeEnd??""} onChange={e=>ruleEdit(index,{activeEnd:e.target.value})}/></label>
+                      <label className="text-sm text-slate-300">Check every · minutes<input className={input} type="number" min="5" max="1440" value={rule.checkIntervalMinutes??60} onChange={e=>ruleEdit(index,{checkIntervalMinutes:Number(e.target.value)})}/></label>
+                    </div>}
+                    <p className="text-xs text-slate-400">Checks use London time. The end time is excluded; equal start and end means all day. The first check follows the full inactivity period.</p>
+                  </div>}
                   <textarea
                     className={input}
                     aria-label="Event message"
@@ -644,7 +632,7 @@ export default function NotificationSettings() {
               </details>
             ))}
             <p className="text-xs text-slate-400">
-              Text fields: {"{freephone}, {count}, {period}, {threshold}"}. Each
+              Text fields: {"{{Name}}, {{Location}}, {{Phone}}, {freephone}, {count}, {period}, {threshold}"}. Each
               triggered event sends its own message. Missing or future matching
               dates block alerts. Unidentified feed records remain visible as
               warnings for known phone lines.
@@ -746,8 +734,8 @@ export default function NotificationSettings() {
             )}
           </div>
         )}
-      </section>
-      <section className={box}>
+      </section>}
+      {mode !== "gateway" && <section className={box}>
         <h2 className="text-xl font-semibold text-white">
           Recent checks and SMS history
         </h2>
@@ -785,7 +773,7 @@ export default function NotificationSettings() {
             ))}
           </details>
         ))}
-      </section>
+      </section>}
     </div>
   );
 }

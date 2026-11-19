@@ -176,7 +176,7 @@ test("12 hour window is explicit, validated and independent of daily reports", (
     0,
   );
   assert.throws(() =>
-    validateJob({ ...config, rules: [{ ...config.rules[1], windowHours: 6 }] }),
+    validateJob({ ...config, rules: [{ ...config.rules[1], windowHours: 0 }] }),
   );
   assert.equal(checkInterval(validateJob(config)), 86400000);
 });
@@ -215,4 +215,14 @@ test("workflow forms cannot overwrite server execution IDs, timestamps or schedu
   });
   for (const field of ["id", "nextRunAt", "createdAt", "updatedAt"])
     assert.ok(!Object.hasOwn(saved, field));
+});
+
+test('custom monitoring retains settings and substitutes the monitored line, not the SMS destination', () => {
+ const job=validateJob({...config,name:'Station',sourceField:'telephoneNumber',sourceValue:'+447700900123',rules:[{event:'NO_BOOKINGS',enabled:true,recipient:'',windowHours:2,activeStart:'06:00',activeEnd:'22:00',checkIntervalMinutes:60,text:'{{Name}} {{Location}} {{Phone}}: {period}'}]});
+ assert.equal(inactivityHours(job),2);assert.equal(checkInterval(job),3600000);
+ assert.deepEqual(job.rules[0].activeStart,'06:00');
+ const e=planEvents(job,{count:0,known:1,missingDate:0,missingSource:0,from:'',through:''});
+ assert.equal(e[0].text,'Station Station 07700900123: 2 hours');
+ assert.equal(e[0].recipient,'+447700900000');
+ assert.throws(()=>validateJob({...config,rules:[{...job.rules[0],checkIntervalMinutes:1}]}));
 });
