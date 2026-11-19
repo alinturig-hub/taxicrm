@@ -117,6 +117,41 @@ test("booking recovery cancels an inactivity SMS waiting for provider retry", as
   assert.equal(await prisma.notificationDelivery.count({where: {jobRun: {jobId: job.id}, status: "CANCELLED"}}), 1);
   await prisma.notificationJob.update({where: {id: job.id}, data: {isEnabled: false}});
 });
+test("custom two-hour rule sends once per incident while checks use the configured cadence", async () => {
+  await saveGateway({endpoint: signed, isEnabled: true});
+  const now=new Date(); const line=`${prefix}-custom-line`;
+  await prisma.booking.create({data:{externalId:line,bookingSource:line,bookedAtTime:new Date(now.getTime()-3*3600000),rawPayload:{synthetic:true}}});
+  const job=await prisma.notificationJob.create({data:{name:line,sourceField:"bookingSource",sourceValue:line,defaultRecipient:destination,rules:[{event:"NO_BOOKINGS",enabled:true,windowHours:2,activeStart:"00:00",activeEnd:"00:00",checkIntervalMinutes:60,recipient:"",text:"No bookings in {period}"}],sourceConfirmed:true,isEnabled:true,nextRunAt:now}});
+  let calls=0; const fake:typeof fetch=async()=>{calls++;return new Response('{"success":true}');};
+  await Promise.all([notificationTick(now,fake),notificationTick(now,fake)]);assert.equal(calls,1);
+  const saved=await prisma.notificationJob.findUniqueOrThrow({where:{id:job.id}});assert.ok(saved.nextRunAt>now);
+  await notificationTick(new Date(now.getTime()+7200000),fake);assert.equal(calls,1);
+  await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
+});
+test("custom monitoring does not send outside the active London window",async()=>{
+ await saveGateway({endpoint:signed,isEnabled:true});const now=new Date(),line=`${prefix}-outside`;
+ const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});const p=f.formatToParts(now);const m=(Number(p.find(x=>x.type==='hour')?.value)*60+Number(p.find(x=>x.type==='minute')?.value)+10)%1440;
+ const time=(v:number)=>`${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`;
+ await prisma.booking.create({data:{externalId:line,bookingSource:line,bookedAtTime:new Date(now.getTime()-3*3600000),rawPayload:{synthetic:true}}});
+ const job=await prisma.notificationJob.create({data:{name:line,sourceField:'bookingSource',sourceValue:line,defaultRecipient:destination,rules:[{event:'NO_BOOKINGS',enabled:true,windowHours:2,activeStart:time(m),activeEnd:time((m+1)%1440),checkIntervalMinutes:60,recipient:'',text:'No bookings'}],sourceConfirmed:true,isEnabled:true,nextRunAt:now}});
+ let calls=0;await notificationTick(now,async()=>{calls++;return new Response('{"success":true}');});assert.equal(calls,0);assert.equal(await prisma.notificationJobRun.count({where:{jobId:job.id}}),0);assert.ok((await prisma.notificationJob.findUniqueOrThrow({where:{id:job.id}})).nextRunAt>now);await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
+});
+test("a delayed inactivity SMS is deferred when the active window is closed",async()=>{
+ await saveGateway({endpoint:signed,isEnabled:true});const now=new Date(),line=`${prefix}-queued-outside`;
+ const f=new Intl.DateTimeFormat('en-GB',{timeZone:'Europe/London',hour:'2-digit',minute:'2-digit',hourCycle:'h23'});const p=f.formatToParts(now);const m=(Number(p.find(x=>x.type==='hour')?.value)*60+Number(p.find(x=>x.type==='minute')?.value)+10)%1440;
+ const time=(v:number)=>`${String(Math.floor(v/60)).padStart(2,'0')}:${String(v%60).padStart(2,'0')}`;
+ const job=await prisma.notificationJob.create({data:{name:line,sourceField:'bookingSource',sourceValue:line,defaultRecipient:destination,rules:[{event:'NO_BOOKINGS',enabled:true,windowHours:2,activeStart:time(m),activeEnd:time((m+1)%1440),checkIntervalMinutes:60,recipient:'',text:'No bookings'}],sourceConfirmed:true,isEnabled:true,nextRunAt:new Date(now.getTime()+86400000)}});
+ const run=await prisma.notificationJobRun.create({data:{jobId:job.id,scheduledFor:now,status:'COMPLETED'}});const delivery=await prisma.notificationDelivery.create({data:{jobRunId:run.id,eventType:'NO_BOOKINGS',destination,message:'Synthetic',nextAttemptAt:now}});
+ let calls=0;await notificationTick(now,async()=>{calls++;return new Response('{"success":true}');});const saved=await prisma.notificationDelivery.findUniqueOrThrow({where:{id:delivery.id}});assert.equal(calls,0);assert.equal(saved.status,'PENDING');assert.equal(saved.attemptCount,0);assert.ok(saved.nextAttemptAt>now);
+ await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
+});
+test("queued custom inactivity SMS is cancelled if a booking appears before send",async()=>{
+ await saveGateway({endpoint:signed,isEnabled:true});const now=new Date(),line=`${prefix}-queued-recovered`;
+ await prisma.booking.create({data:{externalId:line,bookingSource:line,bookedAtTime:new Date(now.getTime()-60000),rawPayload:{synthetic:true}}});
+ const job=await prisma.notificationJob.create({data:{name:line,sourceField:'bookingSource',sourceValue:line,defaultRecipient:destination,rules:[{event:'NO_BOOKINGS',enabled:true,windowHours:2,activeStart:'00:00',activeEnd:'00:00',checkIntervalMinutes:60,recipient:'',text:'No bookings'}],sourceConfirmed:true,isEnabled:true,nextRunAt:new Date(now.getTime()+86400000)}});
+ const run=await prisma.notificationJobRun.create({data:{jobId:job.id,scheduledFor:now,status:'COMPLETED'}});const delivery=await prisma.notificationDelivery.create({data:{jobRunId:run.id,eventType:'NO_BOOKINGS',destination,message:'Synthetic',nextAttemptAt:now}});
+ let calls=0;await notificationTick(now,async()=>{calls++;return new Response('{"success":true}');});const saved=await prisma.notificationDelivery.findUniqueOrThrow({where:{id:delivery.id}});assert.equal(calls,0);assert.equal(saved.status,'CANCELLED');await prisma.notificationJob.update({where:{id:job.id},data:{isEnabled:false}});
+});
 test("disabled gateway performs no planning or delivery", async () => {
   await prisma.smsGatewayConfiguration.update({where: {id: "default"}, data: {isEnabled: false}});
   const result = await notificationTick(new Date(Date.now()+86400000), async () => {throw new Error("Must not contact provider");});

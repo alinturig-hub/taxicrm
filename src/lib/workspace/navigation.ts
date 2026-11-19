@@ -74,6 +74,7 @@ export const navigationGroups: NavigationGroup[] = [
         "A focused starting point for daily taxi operations.",
         "bookings.view",
       ),
+      item("Notifications", "/dashboard/operations/notifications", "automation", "Configure freephone monitoring and review SMS alerts.", "configuration.view", ["ADMIN", "MANAGER"]),
       item(
         "Live operations",
         "/dashboard/live",
@@ -286,7 +287,7 @@ export const navigationGroups: NavigationGroup[] = [
         "Communication",
         "/dashboard/configuration/sms",
         "automation",
-        "SendGrid, SMS gateway and freephone alert settings.",
+        "SendGrid and SMS gateway settings.",
         "configuration.view",
         ["ADMIN", "MANAGER"],
       ),

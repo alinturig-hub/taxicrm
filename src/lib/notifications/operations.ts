@@ -11,6 +11,7 @@ import { smsGatewayPreview } from "./sms-gateway-preview";
 import { bookingEvidenceReadiness } from "./readiness";
 import { bookingTimeSql } from "./booking-evidence";
 import { normaliseFreephoneNumber, telephoneSql } from "./phone-audit";
+import { inActiveWindow, nextActiveCheck, type ActiveSchedule } from "./freephone-schedule";
 
 export const sourceFields = [
   "bookingSource",
@@ -28,14 +29,18 @@ export type JobInput = {
   isEnabled: boolean;
 };
 const day = 86400000;
-export function inactivityHours(job: Pick<JobInput, "rules">): 12 | 24 {
+export function inactivityHours(job: Pick<JobInput, "rules">): number {
   return (
     job.rules.find((r) => r.event === "NO_BOOKINGS" && r.enabled)
       ?.windowHours ?? 24
   );
 }
+export function activeSchedule(job: Pick<JobInput, "rules">): ActiveSchedule | null {
+  const r=job.rules.find(x=>x.event==="NO_BOOKINGS" && x.enabled);
+  return r?.activeStart!==undefined && r.activeEnd!==undefined && r.checkIntervalMinutes!==undefined ? {activeStart:r.activeStart,activeEnd:r.activeEnd,checkIntervalMinutes:r.checkIntervalMinutes}:null;
+}
 export function checkInterval(job: Pick<JobInput, "rules">) {
-  return inactivityHours(job) === 12 ? 60000 : day;
+  return activeSchedule(job) ? activeSchedule(job)!.checkIntervalMinutes * 60000 : inactivityHours(job) === 12 ? 60000 : day;
 }
 
 export function validateJob(value: unknown): JobInput {
@@ -98,6 +103,9 @@ export function validateJob(value: unknown): JobInput {
       recipient: r.recipient,
       ...(r.threshold !== undefined ? { threshold: r.threshold } : {}),
       ...(r.windowHours !== undefined ? { windowHours: r.windowHours } : {}),
+      ...(r.activeStart !== undefined ? { activeStart:r.activeStart } : {}),
+      ...(r.activeEnd !== undefined ? { activeEnd:r.activeEnd } : {}),
+      ...(r.checkIntervalMinutes !== undefined ? { checkIntervalMinutes:r.checkIntervalMinutes } : {}),
     })),
   };
 }
@@ -106,7 +114,7 @@ export async function readCounts(
   job: Pick<JobInput, "sourceField" | "sourceValue">,
   through: Date,
   db: Prisma.TransactionClient = prisma,
-  hours: 12 | 24 = 24,
+  hours: number = 24,
 ) {
   if (!sourceFields.includes(job.sourceField))
     throw new Error("Invalid source field.");
@@ -172,6 +180,7 @@ export function planEvents(
     {
       name: job.name,
       defaultRecipient: job.defaultRecipient,
+      sourceValue: job.sourceValue,
       rules: job.rules,
     },
     counts.count,
@@ -182,6 +191,7 @@ export function planEvents(
             {
               name: job.name,
               defaultRecipient: job.defaultRecipient,
+              sourceValue: job.sourceValue,
               rules: job.rules.filter((r) => r.event === "NO_BOOKINGS"),
             },
             inactivityCounts.count,
@@ -378,12 +388,16 @@ export async function notificationTick(
         });
         const config = validateJob({ ...job, rules: job.rules });
         const interval = checkInterval(config);
-        const nextRunAt = new Date(
+        const schedule = activeSchedule(config);
+        const nextRunAt = schedule ? nextActiveCheck(now, schedule) : new Date(
           job.nextRunAt.getTime() +
             (Math.floor((now.getTime() - job.nextRunAt.getTime()) / interval) +
-              1) *
-              interval,
+              1) * interval,
         );
+        if (schedule && !inActiveWindow(now, schedule)) {
+          await tx.notificationJob.update({ where: { id: job.id }, data: { nextRunAt } });
+          return true;
+        }
         const hours = inactivityHours(config);
         const latest = await tx.notificationJobRun.findFirst({
           where: { jobId: job.id },
@@ -405,7 +419,7 @@ export async function notificationTick(
           ? new Date(prior.lastPeriodicAt)
           : job.createdAt;
         const periodicDue =
-          hours === 24 || now.getTime() - lastPeriodic.getTime() >= day;
+          (hours === 24 && !schedule) || now.getTime() - lastPeriodic.getTime() >= day;
         const inactivityCounts = await readCounts(config, now, tx, hours);
         const counts =
           hours === 24 || !periodicDue
@@ -511,6 +525,34 @@ export async function notificationTick(
       });
     });
     if (!delivery) break;
+    if (delivery.eventType !== "GATEWAY_TEST") {
+      const stored = await prisma.notificationJob.findFirst({ where: { runs: { some: { id: delivery.jobRunId } } } });
+      const current = stored ? validateJob({ ...stored, rules: stored.rules }) : null;
+      const schedule = current ? activeSchedule(current) : null;
+      const dispatchTime = new Date();
+      if (schedule && current) {
+        if (!inActiveWindow(dispatchTime, schedule)) {
+          await prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: "PENDING", leaseUntil: null, attemptCount: { decrement: 1 }, nextAttemptAt: nextActiveCheck(dispatchTime, schedule) } });
+          continue;
+        }
+        if (delivery.eventType === "NO_BOOKINGS") {
+          let evidence: Awaited<ReturnType<typeof readCounts>>;
+          try { evidence = await readCounts(current, dispatchTime, prisma, inactivityHours(current)); }
+          catch {
+            await prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: "PENDING", leaseUntil: null, attemptCount: { decrement: 1 }, nextAttemptAt: nextActiveCheck(dispatchTime, schedule), lastError: "Booking evidence unavailable; alert deferred" } });
+            continue;
+          }
+          if (evidence.count > 0) {
+            await prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: "CANCELLED", leaseUntil: null, attemptCount: { decrement: 1 }, lastError: "Bookings resumed before the inactivity alert was sent" } });
+            continue;
+          }
+          if (!bookingEvidenceReadiness(evidence).ready) {
+            await prisma.notificationDelivery.update({ where: { id: delivery.id }, data: { status: "PENDING", leaseUntil: null, attemptCount: { decrement: 1 }, nextAttemptAt: nextActiveCheck(dispatchTime, schedule), lastError: "Booking evidence unavailable; alert deferred" } });
+            continue;
+          }
+        }
+      }
+    }
     const enabled = await prisma.smsGatewayConfiguration.findUnique({
       where: { id: "default" },
     });
