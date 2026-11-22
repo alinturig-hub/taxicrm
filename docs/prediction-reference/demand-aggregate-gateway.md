@@ -1,0 +1,9 @@
+# Fixed aggregate evidence command — proposal
+
+The command is a narrowly scoped alternative to granting a new PostgreSQL login in a database where PUBLIC may execute security-definer trigger functions and create temporary tables. It takes no arguments, accepts no SQL from the caller, and outputs aggregate demand evidence only. It runs an explicit read-only transaction as the existing `cabby_ro` role and does not change database roles, ACLs, schemas, or production application code.
+
+The proposed installation places a root-owned, non-writable copy at `/usr/local/sbin/taxicrm-demand-evidence`, and grants `codex-audit` passwordless sudo for exactly that command with no arguments. This is a narrow privilege escalation: the script calls Docker as root with a hard-coded container and command, and the process inside PostgreSQL's container runs as its `postgres` OS user. It must never accept shell arguments, stdin, environment overrides or a user-writable executable path. Installation is not included or executed by this proposal; root must check the script hash and parent directory ownership, validate a sudoers file with `visudo`, and approve the exact change separately.
+
+The command returns the current role/database and overall canonical booking count, then counts bookings in a bounded six-day interval, those recorded by 24 hours before pickup, and those with a saved snapshot containing a pickup zone by that cutoff. Snapshot contents, customer names, numbers, addresses and identifiers are not printed. Counts are observational: absence of a snapshot does not prove the zone was unknown, and timestamp corrections, deletions, payload shape, feed completeness and historical changes remain limitations. The statement uses a 20-second timeout.
+
+Only this one fixed diagnostic is supported. Any new query requires another reviewed script update. This is not permission for arbitrary SQL, a general shell, sudo, Docker, or customer data export.
