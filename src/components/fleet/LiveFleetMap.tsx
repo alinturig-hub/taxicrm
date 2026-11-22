@@ -137,14 +137,18 @@ type ConnectionStatus =
 
 const PLYMOUTH_CENTER: [number, number] = [50.3755, -4.1427];
 const FALLBACK_POLL_INTERVAL_MS = 5_000;
+const CONNECTED_POLL_INTERVAL_MS = 15_000;
 const RECONNECT_BASE_DELAY_MS = 1_000;
 const RECONNECT_MAX_DELAY_MS = 15_000;
 const LIVE_THRESHOLD_SECONDS = 120;
 
-function statusColour(status: string, isLive: boolean): string {
+function statusColour(status: string, isLive: boolean, operationalStatus: LiveVehicle["operationalStatus"]): string {
   if (!isLive) {
     return "#64748b";
   }
+
+  if (operationalStatus === "POB") return "#ef4444";
+  if (operationalStatus === "DAP" || operationalStatus === "DOW") return "#f59e0b";
 
   switch (status) {
     case "Clear":
@@ -278,7 +282,7 @@ function ConnectionBadge({
         "border-blue-500/30 bg-blue-500/10 text-blue-300",
     },
     LIVE: {
-      label: "Live",
+      label: "Connected",
       className:
         "border-emerald-500/30 bg-emerald-500/10 text-emerald-300",
     },
@@ -403,7 +407,7 @@ function AnimatedVehicleMarker({
       : Date.now(),
   );
   const animationFrameRef = useRef<number | null>(null);
-  const colour = statusColour(vehicle.status, vehicle.isLive);
+  const colour = statusColour(vehicle.status, vehicle.isLive, vehicle.operationalStatus);
   const label =
     vehicle.driver?.callsign ||
     vehicle.callsign ||
@@ -594,8 +598,11 @@ export default function LiveFleetMap() {
   const fallbackIntervalRef = useRef<number | null>(null);
   const reconnectAttemptRef = useRef(0);
   const componentActiveRef = useRef(true);
+  const fleetRequestInFlightRef = useRef(false);
 
   const loadFleet = useCallback(async () => {
+    if (fleetRequestInFlightRef.current) return;
+    fleetRequestInFlightRef.current = true;
     try {
       const response = await fetch("/api/fleet/live", {
         cache: "no-store",
@@ -623,6 +630,7 @@ export default function LiveFleetMap() {
         setError("Live fleet data could not be loaded.");
       }
     } finally {
+      fleetRequestInFlightRef.current = false;
       if (componentActiveRef.current) {
         setLoading(false);
       }
@@ -636,7 +644,7 @@ export default function LiveFleetMap() {
     }
   }, []);
 
-  const startFallbackPolling = useCallback(() => {
+  const startFallbackPolling = useCallback((intervalMs = FALLBACK_POLL_INTERVAL_MS) => {
     if (fallbackIntervalRef.current !== null) {
       return;
     }
@@ -645,7 +653,7 @@ export default function LiveFleetMap() {
 
     fallbackIntervalRef.current = window.setInterval(() => {
       void loadFleet();
-    }, FALLBACK_POLL_INTERVAL_MS);
+    }, intervalMs);
   }, [loadFleet]);
 
   const applyVehicleUpdate = useCallback(
@@ -775,6 +783,9 @@ export default function LiveFleetMap() {
       reconnectAttemptRef.current = 0;
       setConnectionStatus("LIVE");
       stopFallbackPolling();
+      // The socket can stay connected while updates are published by another
+      // process. Reconcile with the canonical API even without socket events.
+      startFallbackPolling(CONNECTED_POLL_INTERVAL_MS);
     });
 
     socket.addEventListener("message", (event) => {
@@ -805,6 +816,7 @@ export default function LiveFleetMap() {
     socket.addEventListener("error", () => {
       if (componentActiveRef.current) {
         setConnectionStatus("OFFLINE");
+        stopFallbackPolling();
         startFallbackPolling();
       }
     });
@@ -817,6 +829,7 @@ export default function LiveFleetMap() {
       }
 
       setConnectionStatus("RECONNECTING");
+      stopFallbackPolling();
       startFallbackPolling();
 
       reconnectAttemptRef.current += 1;
@@ -903,7 +916,7 @@ export default function LiveFleetMap() {
       .toLowerCase();
 
     return vehiclesWithCurrentAge.filter((vehicle) => {
-        if (!vehicle.isLive) {
+        if (!vehicle.isLive && statusFilter !== "STALE") {
           return false;
         }
 
@@ -911,6 +924,7 @@ export default function LiveFleetMap() {
         statusFilter === "ALL" ||
         (statusFilter === "LIVE" && vehicle.isLive) ||
         (statusFilter === "STALE" && !vehicle.isLive) ||
+        (statusFilter === "POB" && vehicle.operationalStatus === "POB") ||
         vehicle.status === statusFilter;
 
       if (!matchesStatus) {
@@ -969,8 +983,7 @@ export default function LiveFleetMap() {
           </p>
 
           <p className="mt-1 text-xs text-slate-500">
-            WebSocket realtime updates with five-second HTTP
-            fallback
+            WebSocket updates with periodic refresh; five-second refresh while reconnecting
           </p>
         </div>
 
@@ -988,10 +1001,15 @@ export default function LiveFleetMap() {
         </div>
       </div>
 
-      {error && connectionStatus !== "LIVE" && (
+      {error && (
         <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          {error} Existing map data remains visible while the
-          connection retries.
+          {error} Existing positions may be out of date; the refresh will retry.
+        </div>
+      )}
+
+      {summary.total > 0 && summary.live === 0 && (
+        <div role="status" className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          No recent vehicle positions. The connection may be open, but the map has not received a position in the last two minutes. Select “Stale only” to view last known locations; they may no longer be accurate.
         </div>
       )}
 
@@ -1019,6 +1037,10 @@ export default function LiveFleetMap() {
         ))}
       </div>
 
+      {summary.stale > 0 && (
+        <p className="text-xs text-slate-400">Available, busy and not working include last known statuses, including vehicles with stale positions.</p>
+      )}
+
       <div className="flex flex-col gap-3 rounded-2xl border border-slate-800 bg-slate-900 p-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-col gap-3 sm:flex-row">
           <input
@@ -1041,6 +1063,7 @@ export default function LiveFleetMap() {
             <option value="ALL">All vehicles</option>
             <option value="LIVE">Live only</option>
             <option value="STALE">Stale only</option>
+            <option value="POB">Passenger on board · All</option>
             <option value="Clear">Available</option>
             <option value="BusyMeterOff">
               On the way
@@ -1075,6 +1098,10 @@ export default function LiveFleetMap() {
           ).toLocaleTimeString("en-GB")}
         </div>
       </div>
+
+      <p className="text-xs text-slate-400">
+        Map status: green = available · amber = on the way or arrived · red = passenger on board · grey = last known position
+      </p>
 
       <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
         <MapContainer
