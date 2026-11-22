@@ -30,6 +30,13 @@ DO $$ BEGIN
    AND a.grantee=0 AND a.privilege_type IN ('SELECT','INSERT','UPDATE','DELETE','TRUNCATE')
  ) THEN RAISE EXCEPTION 'PUBLIC has relation privileges that require review'; END IF;
  IF EXISTS (
+  SELECT 1 FROM pg_class c JOIN pg_namespace n ON n.oid=c.relnamespace,
+   LATERAL aclexplode(COALESCE(c.relacl, acldefault('S', c.relowner))) a
+  WHERE n.nspname NOT IN ('pg_catalog','information_schema')
+   AND n.nspname NOT LIKE 'pg_toast%' AND c.relkind='S'
+   AND a.grantee=0 AND a.privilege_type IN ('USAGE','UPDATE')
+ ) THEN RAISE EXCEPTION 'PUBLIC can modify sequence state'; END IF;
+ IF EXISTS (
   SELECT 1 FROM pg_namespace n,
    LATERAL aclexplode(COALESCE(n.nspacl, acldefault('n', n.nspowner))) a
   WHERE n.nspname NOT IN ('pg_catalog','information_schema')
