@@ -139,7 +139,6 @@ const PLYMOUTH_CENTER: [number, number] = [50.3707, -4.1422];
 const CITY_CENTRE_ZOOM = 14;
 const MIN_FLEET_ZOOM = 11;
 const MAX_FLEET_ZOOM = 19;
-const WHEEL_ZOOM_DELAY_MS = 75;
 const FALLBACK_POLL_INTERVAL_MS = 5_000;
 const CONNECTED_POLL_INTERVAL_MS = 15_000;
 const RECONNECT_BASE_DELAY_MS = 1_000;
@@ -388,28 +387,40 @@ function FleetWheelZoom() {
 
   useEffect(() => {
     const container = map.getContainer();
-    let pendingDirection = 0;
-    let timer: number | undefined;
+    const pendingSteps: number[] = [];
+    let frame: number | undefined;
+    let targetZoom: number | undefined;
     let zooming = false;
 
-    function scheduleZoom() {
-      if (timer !== undefined || zooming || pendingDirection === 0) return;
-      timer = window.setTimeout(() => {
-        timer = undefined;
-        if (zooming) return;
-        const zoom = map.getZoom();
-        const next = Math.min(MAX_FLEET_ZOOM, Math.max(MIN_FLEET_ZOOM, zoom + pendingDirection));
-        pendingDirection = 0;
-        if (next !== zoom) map.setZoom(next, { animate: true });
-      }, WHEEL_ZOOM_DELAY_MS);
+    function boundedZoom(zoom: number, step: number) {
+      return Math.min(map.getMaxZoom(), Math.max(map.getMinZoom(), zoom + step));
+    }
+
+    function scheduleStep() {
+      if (frame !== undefined || zooming || targetZoom !== undefined || !pendingSteps.length) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = undefined;
+        if (zooming || targetZoom !== undefined) return;
+        const current = map.getZoom();
+        while (pendingSteps.length) {
+          const next = boundedZoom(current, pendingSteps.shift()!);
+          if (next === current) continue;
+          targetZoom = next;
+          map.setZoom(next, { animate: true });
+          break;
+        }
+      });
     }
 
     function onWheel(event: WheelEvent) {
       const delta = L.DomEvent.getWheelDelta(event);
       if (!delta) return;
       event.preventDefault();
-      pendingDirection = Math.sign(delta);
-      scheduleZoom();
+      const step = Math.sign(delta);
+      const projectedZoom = pendingSteps.reduce(boundedZoom, targetZoom ?? map.getZoom());
+      if (boundedZoom(projectedZoom, step) === projectedZoom) return;
+      pendingSteps.push(step);
+      scheduleStep();
     }
 
     function onZoomStart() {
@@ -418,14 +429,15 @@ function FleetWheelZoom() {
 
     function onZoomEnd() {
       zooming = false;
-      scheduleZoom();
+      targetZoom = undefined;
+      scheduleStep();
     }
 
     container.addEventListener("wheel", onWheel, { passive: false });
     map.on("zoomstart", onZoomStart);
     map.on("zoomend", onZoomEnd);
     return () => {
-      if (timer !== undefined) window.clearTimeout(timer);
+      if (frame !== undefined) window.cancelAnimationFrame(frame);
       container.removeEventListener("wheel", onWheel);
       map.off("zoomstart", onZoomStart);
       map.off("zoomend", onZoomEnd);
