@@ -139,6 +139,7 @@ const PLYMOUTH_CENTER: [number, number] = [50.3707, -4.1422];
 const CITY_CENTRE_ZOOM = 14;
 const MIN_FLEET_ZOOM = 11;
 const MAX_FLEET_ZOOM = 19;
+const FLEET_REQUEST_TIMEOUT_MS = 8_000;
 const FALLBACK_POLL_INTERVAL_MS = 5_000;
 const CONNECTED_POLL_INTERVAL_MS = 15_000;
 const RECONNECT_BASE_DELAY_MS = 1_000;
@@ -725,15 +726,22 @@ export default function LiveFleetMap() {
   const loadFleet = useCallback(async () => {
     if (fleetRequestInFlightRef.current) return;
     fleetRequestInFlightRef.current = true;
+    const signal = AbortSignal.timeout(FLEET_REQUEST_TIMEOUT_MS);
     try {
       const response = await fetch("/api/fleet/live", {
         cache: "no-store",
+        signal,
       });
 
       if (!response.ok) {
-        throw new Error(
-          `Request failed with status ${response.status}`,
-        );
+        if (componentActiveRef.current) {
+          setError(response.status === 401
+            ? "Your session has expired. Sign in again to refresh vehicle positions."
+            : response.status === 403
+              ? "Your account does not have access to refresh vehicle positions."
+              : `Vehicle position refresh failed (HTTP ${response.status}).`);
+        }
+        return;
       }
 
       const payload =
@@ -749,7 +757,9 @@ export default function LiveFleetMap() {
       console.error(requestError);
 
       if (componentActiveRef.current) {
-        setError("Live fleet data could not be loaded.");
+        setError(signal.aborted
+          ? "Vehicle position refresh timed out."
+          : "Vehicle position refresh failed. Check your connection and try again.");
       }
     } finally {
       fleetRequestInFlightRef.current = false;
@@ -862,7 +872,6 @@ export default function LiveFleetMap() {
       });
 
       setLastRealtimeUpdate(message.sentAt);
-      setError(null);
     },
     [],
   );
@@ -1079,6 +1088,11 @@ export default function LiveFleetMap() {
   ]);
 
   const mapFitRequestKey = `${statusFilter}:${search.trim().toLowerCase()}`;
+  const retryButton = (
+    <button type="button" onClick={() => void loadFleet()} className="rounded-lg border border-current px-3 py-1.5 font-semibold">
+      Retry now
+    </button>
+  );
 
   if (loading) {
     return (
@@ -1090,8 +1104,9 @@ export default function LiveFleetMap() {
 
   if (!data) {
     return (
-      <div className="rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-6 text-red-200">
-        {error || "Live fleet data is unavailable."}
+      <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-red-500/30 bg-red-500/10 px-5 py-6 text-red-200">
+        <span role="status">{error || "Live fleet data is unavailable."}</span>
+        {retryButton}
       </div>
     );
   }
@@ -1124,8 +1139,9 @@ export default function LiveFleetMap() {
       </div>
 
       {error && (
-        <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-          {error} Existing positions may be out of date; the refresh will retry.
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+          <span role="status">{error} The map keeps the last positions received.</span>
+          {retryButton}
         </div>
       )}
 
