@@ -135,7 +135,8 @@ type ConnectionStatus =
   | "RECONNECTING"
   | "OFFLINE";
 
-const PLYMOUTH_CENTER: [number, number] = [50.3755, -4.1427];
+const PLYMOUTH_CENTER: [number, number] = [50.3707, -4.1422];
+const CITY_CENTRE_ZOOM = 14;
 const FALLBACK_POLL_INTERVAL_MS = 5_000;
 const CONNECTED_POLL_INTERVAL_MS = 15_000;
 const RECONNECT_BASE_DELAY_MS = 1_000;
@@ -335,7 +336,7 @@ function FitFleetBounds({
   fitRequestKey: string;
 }) {
   const map = useMap();
-  const previousFitRequestKey = useRef<string | null>(null);
+  const previousFitRequestKey = useRef(fitRequestKey);
 
   useEffect(() => {
     if (previousFitRequestKey.current === fitRequestKey) {
@@ -344,10 +345,7 @@ function FitFleetBounds({
 
     previousFitRequestKey.current = fitRequestKey;
 
-    if (vehicles.length === 0) {
-      map.setView(PLYMOUTH_CENTER, 12);
-      return;
-    }
+    if (vehicles.length === 0) return;
 
     const bounds = L.latLngBounds(
       vehicles.map(
@@ -364,6 +362,20 @@ function FitFleetBounds({
       maxZoom: 15,
     });
   }, [fitRequestKey, map, vehicles]);
+
+  return null;
+}
+
+function ResizeFleetMap() {
+  const map = useMap();
+
+  useEffect(() => {
+    const observer = new ResizeObserver(() => {
+      map.invalidateSize({ animate: false });
+    });
+    observer.observe(map.getContainer());
+    return () => observer.disconnect();
+  }, [map]);
 
   return null;
 }
@@ -592,6 +604,49 @@ export default function LiveFleetMap() {
   const [lastRealtimeUpdate, setLastRealtimeUpdate] =
     useState<string | null>(null);
   const [clock, setClock] = useState(() => Date.now());
+  const mapFrameRef = useRef<HTMLDivElement>(null);
+  const [nativeFullscreen, setNativeFullscreen] = useState(false);
+  const [expanded, setExpanded] = useState(false);
+  const fullscreen = nativeFullscreen || expanded;
+
+  useEffect(() => {
+    const syncFullscreen = () => {
+      setNativeFullscreen(document.fullscreenElement === mapFrameRef.current);
+    };
+    document.addEventListener("fullscreenchange", syncFullscreen);
+    return () => document.removeEventListener("fullscreenchange", syncFullscreen);
+  }, []);
+
+  useEffect(() => {
+    if (!expanded) return;
+    const exitExpanded = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setExpanded(false);
+    };
+    window.addEventListener("keydown", exitExpanded);
+    return () => window.removeEventListener("keydown", exitExpanded);
+  }, [expanded]);
+
+  async function toggleFullscreen() {
+    const frame = mapFrameRef.current;
+    if (!frame) return;
+    if (expanded) {
+      setExpanded(false);
+      return;
+    }
+    if (document.fullscreenElement === frame) {
+      await document.exitFullscreen();
+      return;
+    }
+    try {
+      if (!frame.requestFullscreen) {
+        setExpanded(true);
+        return;
+      }
+      await frame.requestFullscreen();
+    } catch {
+      setExpanded(true);
+    }
+  }
 
   const websocketRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -1103,13 +1158,30 @@ export default function LiveFleetMap() {
         Map status: green = available · amber = on the way or arrived · red = passenger on board · grey = last known position
       </p>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-900">
+      <div
+        ref={mapFrameRef}
+        className={`isolate overflow-hidden bg-slate-900 ${
+          expanded
+            ? "fixed inset-0 z-[1000] !m-0"
+            : `relative ${nativeFullscreen ? "h-full w-full" : "h-[680px] rounded-2xl border border-slate-800"}`
+        }`}
+      >
+        <button
+          type="button"
+          aria-pressed={fullscreen}
+          onClick={() => void toggleFullscreen()}
+          className="absolute right-3 top-3 z-[1000] rounded-lg border border-slate-600 bg-slate-900 px-3 py-2 text-sm font-semibold text-white shadow-md hover:bg-slate-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-400"
+        >
+          {fullscreen ? "Exit fullscreen" : "Fullscreen"}
+        </button>
         <MapContainer
           center={PLYMOUTH_CENTER}
-          zoom={12}
-          scrollWheelZoom
-          className="h-[680px] w-full"
+          zoom={CITY_CENTRE_ZOOM}
+          scrollWheelZoom="center"
+          zoomAnimation={false}
+          className="h-full w-full"
         >
+          <ResizeFleetMap />
           <TileLayer
             attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
             url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
