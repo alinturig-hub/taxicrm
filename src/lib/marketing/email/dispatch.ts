@@ -1,8 +1,9 @@
 import type { Pool } from 'pg';
 import { claimNextRecipient } from './dispatch-claim';
 import { createUnsubscribeToken } from './unsubscribe';
+import { selectSendgridSender, type SendgridSender } from '@/lib/communications/sendgrid/store';
 
-type Sender={senderEmail:string;senderName:string;apiKey:string};
+type Sender = SendgridSender & { apiKey: string; additionalSenders?: SendgridSender[] };
 /** An interrupted or ambiguous claim must never be automatically retried. */
 export async function expireClaims(pool:Pool) {
  return pool.query(`UPDATE email_campaign_recipients SET status='UNKNOWN' WHERE status='CLAIMED' AND claimed_at < now() - interval '5 minutes'`);
@@ -27,11 +28,12 @@ export async function dispatchOne(pool:Pool,sender:Sender,baseUrl:string,transpo
   await db.query('SELECT pg_advisory_xact_lock(hashtextextended($1, 728123))',[row.address]);
   const suppressed=await db.query('SELECT 1 FROM email_suppressions WHERE address=$1',[row.address]);
   if(suppressed.rowCount) { await db.query(`UPDATE email_campaign_recipients SET status='SUPPRESSED' WHERE id=$1`,[row.id]);await db.query('COMMIT');return {state:'SUPPRESSED'}; }
-  if(state.sender_email!==sender.senderEmail||state.sender_name!==sender.senderName) {await db.query(`UPDATE email_campaign_recipients SET status='REJECTED' WHERE id=$1`,[row.id]);await db.query('COMMIT');return {state:'SENDER_CHANGED'};}
+  const selectedSender = campaignId ? sender : selectSendgridSender(sender, state.sender_email);
+  if (!selectedSender || state.sender_email !== selectedSender.senderEmail || state.sender_name !== selectedSender.senderName) {await db.query(`UPDATE email_campaign_recipients SET status='REJECTED' WHERE id=$1`,[row.id]);await db.query('COMMIT');return {state:'SENDER_CHANGED'};}
   const link=new URL('/api/marketing/email/unsubscribe',url);link.searchParams.set('token',createUnsubscribeToken(row.id));
   let result:'ACCEPTED'|'REJECTED'|'UNKNOWN'='UNKNOWN';let messageId:string|null=null;
   try {
-   called=true;const response=await transport('https://api.sendgrid.com/v3/mail/send',{method:'POST',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{authorization:`Bearer ${sender.apiKey}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:row.address}],custom_args:{taxicrm_recipient_id:row.id}}],from:{email:sender.senderEmail,name:sender.senderName},subject:row.subject,content:[{type:'text/plain',value:`${row.body}\n\nUnsubscribe: ${link.toString()}`}],headers:{'List-Unsubscribe':`<${link.toString()}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}})});
+   called=true;const response=await transport('https://api.sendgrid.com/v3/mail/send',{method:'POST',redirect:'error',cache:'no-store',signal:AbortSignal.timeout(15000),headers:{authorization:`Bearer ${sender.apiKey}`,'content-type':'application/json'},body:JSON.stringify({personalizations:[{to:[{email:row.address}],custom_args:{taxicrm_recipient_id:row.id}}],from:{email:selectedSender.senderEmail,name:selectedSender.senderName},subject:row.subject,content:[{type:'text/plain',value:`${row.body}\n\nUnsubscribe: ${link.toString()}`}],headers:{'List-Unsubscribe':`<${link.toString()}>`,'List-Unsubscribe-Post':'List-Unsubscribe=One-Click'}})});
    result=response.status===202?'ACCEPTED':[400,401,403,404,413,422].includes(response.status)?'REJECTED':'UNKNOWN';
    const value=response.headers.get('x-message-id'); if(value && /^[A-Za-z0-9._-]{1,255}$/.test(value))messageId=value;
   } catch { result='UNKNOWN'; }

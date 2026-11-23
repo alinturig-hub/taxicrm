@@ -2,7 +2,7 @@ import { constants } from "node:fs";
 import { open, readdir, rename, unlink } from "node:fs/promises";
 import { join, isAbsolute } from "node:path";
 import { createHash, randomUUID } from "node:crypto";
-import { currentSendingConfig, SendgridSettingsError } from "./store";
+import { currentSendingConfig, selectSendgridSender, SendgridSettingsError } from "./store";
 
 type Claim = { version: 1; digest: string; status: "STARTED" | "ACCEPTED" | "REJECTED" | "UNKNOWN" };
 const fail = (code: string): never => { throw new SendgridSettingsError(code); };
@@ -11,11 +11,13 @@ async function syncDir(dir: string) { const h = await open(dir, constants.O_RDON
 export async function sendTest(input: unknown, transport: typeof fetch = fetch) {
   if (!input || typeof input !== "object" || Array.isArray(input)) return fail("INVALID_REQUEST");
   const x = input as Record<string, unknown>;
-  if (Object.keys(x).sort().join(",") !== "confirm,expectedRevision,recipient,requestId" || x.confirm !== true || !Number.isSafeInteger(x.expectedRevision) || Number(x.expectedRevision) < 1 || typeof x.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x.requestId) || typeof x.recipient !== "string" || x.recipient.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(x.recipient)) return fail("INVALID_REQUEST");
+  if (!["confirm,expectedRevision,recipient,requestId", "confirm,expectedRevision,recipient,requestId,senderEmail"].includes(Object.keys(x).sort().join(",")) || x.confirm !== true || !Number.isSafeInteger(x.expectedRevision) || Number(x.expectedRevision) < 1 || typeof x.requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(x.requestId) || typeof x.recipient !== "string" || x.recipient.length > 254 || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(x.recipient)) return fail("INVALID_REQUEST");
   const dir = process.env.SENDGRID_CONFIG_DIR;
   if (!dir || !isAbsolute(dir)) return fail("STORAGE_NOT_CONFIGURED");
   const config = await currentSendingConfig(Number(x.expectedRevision));
-  const digest = createHash("sha256").update(JSON.stringify([Number(x.expectedRevision), x.recipient])).digest("hex");
+  const sender = selectSendgridSender(config, x.senderEmail);
+  if (!sender) return fail("SENDER_NOT_CONFIGURED");
+  const digest = createHash("sha256").update(JSON.stringify([Number(x.expectedRevision), x.recipient, ...(x.senderEmail === undefined ? [] : [sender.senderEmail])])).digest("hex");
   const claimPath = join(dir, `test-${x.requestId.toLowerCase()}.json`);
   const existing = async () => {
     let file;
@@ -41,7 +43,7 @@ export async function sendTest(input: unknown, transport: typeof fetch = fetch) 
     const response = await transport("https://api.sendgrid.com/v3/mail/send", {
       method: "POST", cache: "no-store", redirect: "error", signal: AbortSignal.timeout(15000),
       headers: { authorization: `Bearer ${config.apiKey}`, "content-type": "application/json" },
-      body: JSON.stringify({ personalizations: [{ to: [{ email: x.recipient }] }], from: { email: config.senderEmail, name: config.senderName }, subject: "TaxiCRM SendGrid test", content: [{ type: "text/plain", value: "This is a test email from TaxiCRM." }] }),
+      body: JSON.stringify({ personalizations: [{ to: [{ email: x.recipient }] }], from: { email: sender.senderEmail, name: sender.senderName }, subject: "TaxiCRM SendGrid test", content: [{ type: "text/plain", value: "This is a test email from TaxiCRM." }] }),
     });
     state = response.status === 202 ? "ACCEPTED" : [400, 401, 403, 404, 413, 422].includes(response.status) ? "REJECTED" : "UNKNOWN";
   } catch { state = "UNKNOWN"; }

@@ -24,6 +24,22 @@ test('PostgreSQL concurrent claims make at most one attempt per recipient; unkno
   assert.equal((await dispatchOne(pool,sender,'https://example.test',fakeAccepted)).state,'ACCEPTED');
   assert.equal((await dispatchOne(pool,sender,'https://example.test',fakeAccepted)).state,'EMPTY');assert.equal(calls,2);
   assert.equal((await pool.query('SELECT status FROM email_campaign_recipients WHERE id=$1',[suppressed])).rows[0].status,'PENDING');
+  const retained = randomUUID(), removed = randomUUID();
+  await pool.query(
+    `INSERT INTO email_campaign_recipients(id,campaign_id,address,consent_evidence)
+      VALUES($1,$3,'retained@example.test','synthetic'),($2,$3,'removed@example.test','synthetic')`,
+    [retained, removed, cid],
+  );
+  const newDefault = { senderEmail: 'new@example.test', senderName: 'New default', apiKey: sender.apiKey };
+  const retainedSender = { ...newDefault, additionalSenders: [{ senderEmail: sender.senderEmail, senderName: sender.senderName }] };
+  const verifyFrom: typeof fetch = async (_url, init) => {
+    calls++;
+    assert.deepEqual(JSON.parse(String(init?.body)).from, { email: sender.senderEmail, name: sender.senderName });
+    return new Response(null, { status: 202 });
+  };
+  assert.equal((await dispatchOne(pool, retainedSender, 'https://example.test', verifyFrom)).state, 'ACCEPTED');
+  assert.equal((await dispatchOne(pool, newDefault, 'https://example.test', verifyFrom)).state, 'SENDER_CHANGED');
+  assert.equal(calls, 3);
   await pool.query(`UPDATE email_campaign_recipients SET status='CLAIMED',claimed_at=now()-interval '6 minutes' WHERE id=$1`,[rid]);await expireClaims(pool);
   assert.equal((await pool.query('SELECT status FROM email_campaign_recipients WHERE id=$1',[rid])).rows[0].status,'UNKNOWN');
  }finally{await pool.end();await owner.query(`DROP SCHEMA ${schema} CASCADE`);await owner.end();if(old===undefined)delete process.env.EMAIL_UNSUBSCRIBE_SECRET;else process.env.EMAIL_UNSUBSCRIBE_SECRET=old;}

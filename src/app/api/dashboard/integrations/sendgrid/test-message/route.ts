@@ -19,6 +19,6 @@ export async function POST(request: Request) {
     return result(await sendTest(input));
   } catch (e) {
     const code = e instanceof SendgridSettingsError ? e.code : "TEST_STATUS_UNKNOWN";
-    return result({ error: code }, code === "INVALID_REQUEST" ? 400 : code === "REVISION_CONFLICT" || code === "TEST_REQUEST_CONFLICT" ? 409 : 503);
+    return result({ error: code }, code === "INVALID_REQUEST" || code === "SENDER_NOT_CONFIGURED" ? 400 : code === "REVISION_CONFLICT" || code === "TEST_REQUEST_CONFLICT" ? 409 : 503);
   }
 }

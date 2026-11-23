@@ -79,3 +79,44 @@ test("parallel saves cannot both replace the same revision", async () => {
     const final = await publicSettings(); assert.equal(final.revision, 1); assert.equal(final.configured, true);
   } finally { if (oldDir === undefined) delete process.env.SENDGRID_CONFIG_DIR; else process.env.SENDGRID_CONFIG_DIR = oldDir; if (oldKey === undefined) delete process.env.INTEGRATION_ENCRYPTION_KEY; else process.env.INTEGRATION_ENCRYPTION_KEY = oldKey; await rm(root, { recursive: true, force: true }); }
 });
+
+test("additional senders share the saved key and must be explicitly configured", async () => {
+  const root = await mkdtemp(join(tmpdir(), "sendgrid-senders-"));
+  const oldDir = process.env.SENDGRID_CONFIG_DIR;
+  const oldKey = process.env.INTEGRATION_ENCRYPTION_KEY;
+  process.env.SENDGRID_CONFIG_DIR = join(root, "private");
+  process.env.INTEGRATION_ENCRYPTION_KEY = "ab".repeat(32);
+  try {
+    const primary = { senderEmail: "owner@example.test", senderName: "Owner" };
+    const secondary = { senderEmail: "offers@example.test", senderName: "Offers" };
+    await saveSettings({ ...primary, apiKey: key, expectedRevision: 0 }, "admin");
+    const update = { ...primary, apiKey: "", expectedRevision: 1 };
+    await assert.rejects(
+      saveSettings({ ...update, additionalSenders: [{ ...primary, senderEmail: primary.senderEmail.toUpperCase() }] }, "admin"),
+      /INVALID_SETTINGS/,
+    );
+    const saved = await saveSettings({ ...update, additionalSenders: [secondary] }, "admin");
+    assert.deepEqual((await publicSettings()).additionalSenders, [secondary]);
+    assert.equal(saved.senderEmail, primary.senderEmail);
+    assert.equal(await currentKey(2), key);
+
+    let calls = 0;
+    const transport: typeof fetch = async (_url, init) => {
+      calls++;
+      assert.deepEqual(JSON.parse(String(init?.body)).from, { email: secondary.senderEmail, name: secondary.senderName });
+      return new Response(null, { status: 202 });
+    };
+    const input = { confirm: true, expectedRevision: 2, recipient: "test@example.test", requestId: randomUUID() };
+    await assert.rejects(sendTest({ ...input, senderEmail: "unknown@example.test" }, transport), /SENDER_NOT_CONFIGURED/);
+    assert.equal(calls, 0);
+    assert.deepEqual(await sendTest({ ...input, senderEmail: secondary.senderEmail.toUpperCase() }, transport), { state: "ACCEPTED", replay: false });
+    await assert.rejects(sendTest({ ...input, senderEmail: primary.senderEmail }, transport), /TEST_REQUEST_CONFLICT/);
+    assert.equal(calls, 1);
+  } finally {
+    if (oldDir === undefined) delete process.env.SENDGRID_CONFIG_DIR;
+    else process.env.SENDGRID_CONFIG_DIR = oldDir;
+    if (oldKey === undefined) delete process.env.INTEGRATION_ENCRYPTION_KEY;
+    else process.env.INTEGRATION_ENCRYPTION_KEY = oldKey;
+    await rm(root, { recursive: true, force: true });
+  }
+});

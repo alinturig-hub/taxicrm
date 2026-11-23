@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { authOptions } from '@/lib/auth';
 import { requireAdministrationPermission } from '@/lib/administration-access';
 import { sharedPool } from '@/lib/integrations/whatsapp/shared';
-import { publicSettings } from '@/lib/communications/sendgrid/store';
+import { publicSettings, selectSendgridSender } from '@/lib/communications/sendgrid/store';
 import { saveCampaign, saveTemplate, DraftError } from '@/lib/marketing/email/drafts';
 export const dynamic='force-dynamic'; export const runtime='nodejs';
 const result=(data:unknown,status=200)=>NextResponse.json(data,{status,headers:{'Cache-Control':'private, no-store'}});
@@ -21,7 +21,11 @@ export async function POST(req:Request) {
   let size=0, payload=''; const decoder=new TextDecoder(); for (;;) { const part=await reader.read(); if(part.done) break; size+=part.value.byteLength; if(size>2100000) { await reader.cancel(); return result({error:'TOO_LARGE'},413); } payload+=decoder.decode(part.value,{stream:true}); } payload+=decoder.decode();
   const input=JSON.parse(payload); if(!input || typeof input!=='object' || Array.isArray(input)) return result({error:'INVALID_REQUEST'},400);
   const {kind,...data}=input; if(kind==='template') return result(await saveTemplate(sharedPool(),data,actor.user.id),201);
-  if(kind==='campaign') { const sender=await publicSettings(); if(!sender.configured || !sender.senderEmail || !sender.senderName) return result({error:'SENDER_NOT_CONFIGURED'},400); return result(await saveCampaign(sharedPool(),data,actor.user.id,{senderEmail:sender.senderEmail,senderName:sender.senderName}),201); }
+  if (kind === 'campaign') {
+   const sender = selectSendgridSender(await publicSettings(), data.senderEmail);
+   if (!sender) return result({error:'SENDER_NOT_CONFIGURED'},400);
+   return result(await saveCampaign(sharedPool(), data, actor.user.id, sender),201);
+  }
   return result({error:'INVALID_REQUEST'},400);
  } catch(e) { if(e instanceof DraftError || e instanceof SyntaxError || (e instanceof Error && /CSV/.test(e.message))) return result({error:'INVALID_REQUEST'},400); return result({error:'UNAVAILABLE'},503); }
 }

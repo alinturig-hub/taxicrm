@@ -20,7 +20,7 @@ function sameOrigin(request: Request) {
 async function body(request: Request) {
   const reader = request.body?.getReader(); if (!reader) throw new SendgridSettingsError("INVALID_REQUEST");
   let size = 0, text = ""; const decoder = new TextDecoder();
-  while (true) { const part = await reader.read(); if (part.done) break; size += part.value.byteLength; if (size > 4096) { await reader.cancel(); throw new SendgridSettingsError("INVALID_REQUEST"); } text += decoder.decode(part.value, { stream: true }); }
+  while (true) { const part = await reader.read(); if (part.done) break; size += part.value.byteLength; if (size > 12288) { await reader.cancel(); throw new SendgridSettingsError("INVALID_REQUEST"); } text += decoder.decode(part.value, { stream: true }); }
   try { return JSON.parse(text + decoder.decode()) as unknown; } catch { throw new SendgridSettingsError("INVALID_REQUEST"); }
 }
 function failed(e: unknown) {
