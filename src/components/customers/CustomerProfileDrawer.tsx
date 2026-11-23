@@ -1182,6 +1182,10 @@ function Overview({
   return (
     <div className="space-y-6">
       {retentionProgress && <RetentionProgressCard progress={retentionProgress} />}
+      <BookingPatterns
+        behaviour={profile.behaviour}
+        sharedBookingPoint={classification.identityType === "SHARED_BOOKING_POINT"}
+      />
       {outcomePatterns && <CustomerOutcomePatterns patterns={outcomePatterns} />}
       <CustomerOutcomeHistory key={customerId} customerId={customerId} />
       {observations && <section className="rounded-2xl border border-app-border p-5"><h3 className="font-semibold">Observed completed-trip activity</h3><p className="mt-2 text-sm text-app-muted">{observations.completedWithPickup} completed pickups · Last 30 days: {observations.recent30Days} · Previous 30 days: {observations.previous30Days}</p><p className="mt-2 text-sm text-app-muted">Median positive interval: {observations.medianIntervalHours === null ? "Insufficient data" : `${observations.medianIntervalHours.toFixed(1)} hours`} · Since last completed pickup: {observations.daysSinceLastCompletedPickup === null ? "Unknown" : `${observations.daysSinceLastCompletedPickup.toFixed(1)} days`}</p><p className="mt-2 text-xs text-app-muted">{observations.status === "INSUFFICIENT_HISTORY" ? "Insufficient history for a stable pattern." : "Descriptive history available."} {observations.method}</p><p className="mt-2 text-xs text-app-muted">Excluded: {observations.missingPickup} missing/invalid pickup times, {observations.futurePickup} future pickups, {observations.duplicateReferences} repeated source references. This booking contact may represent multiple passengers.</p></section>}
@@ -3726,6 +3730,48 @@ function Opportunities({
         </div>
       </Section>
     </div>
+  );
+}
+
+function BookingPatterns({
+  behaviour,
+  sharedBookingPoint,
+}: {
+  behaviour: NonNullable<ProfileResponse["profile"]>["behaviour"];
+  sharedBookingPoint: boolean;
+}) {
+  const entries = [
+    { label: "Most frequent day", value: behaviour.days[0] },
+    { label: "Most frequent hour", value: behaviour.hours[0] },
+    { label: "Most frequent booking channel", value: behaviour.bookingChannels[0] },
+  ];
+
+  return (
+    <section aria-label="Observed booking patterns" className="rounded-2xl border border-app-border bg-surface p-5 text-app-primary">
+      <h3 className="font-semibold">Observed booking patterns</h3>
+      <p className="mt-2 text-sm text-app-muted">
+        Days and hours use London time and are ranked separately using scheduled
+        pickup time where available, or booking time otherwise.
+        {sharedBookingPoint && " This contact represents a shared booking point."}
+      </p>
+      {entries.some(({ value }) => value) ? (
+        <dl className="mt-4 grid gap-3 sm:grid-cols-3">
+          {entries.map(({ label, value }) => (
+            <div key={label} className="rounded-xl border border-app-border p-3">
+              <dt className="text-sm text-app-muted">{label}</dt>
+              <dd className="mt-1 font-semibold">{value?.label ?? "Unavailable"}</dd>
+              {value && (
+                <dd className="text-sm text-app-muted">
+                  {value.count.toLocaleString("en-GB")} {value.count === 1 ? "booking" : "bookings"} · {value.percentage}%
+                </dd>
+              )}
+            </div>
+          ))}
+        </dl>
+      ) : (
+        <p className="mt-3 text-sm text-app-muted">No recorded timing or channel data yet.</p>
+      )}
+    </section>
   );
 }
 
