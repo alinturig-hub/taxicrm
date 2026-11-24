@@ -16,7 +16,7 @@ export function normaliseFreephoneNumber(value: string) {
 export function telephoneSql() {
   const originalPhone = Prisma.sql`CASE WHEN jsonb_typeof("rawPayload"->'TelephoneNumber') IN ('string', 'number') AND ("rawPayload"->>'TelephoneNumber') ~ '^[+0-9[:space:]().-]+$' THEN "rawPayload"->>'TelephoneNumber' ELSE NULL END`;
   const digits = Prisma.sql`regexp_replace(coalesce(nullif(btrim("telephoneNumber"), ''), ${originalPhone}, ''), '[^0-9]', '', 'g')`;
-  return Prisma.sql`CASE WHEN ${digits} LIKE '0044%' THEN '0' || substring(${digits} FROM 5) WHEN ${digits} LIKE '44%' THEN '0' || substring(${digits} FROM 3) ELSE ${digits} END`;
+  return Prisma.sql`regexp_replace(${digits}, '^(0044|44)', '0')`;
 }
 export async function auditFreephoneNumbers(values: unknown, now = new Date()) {
   if (

@@ -331,10 +331,10 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
         <p className="text-sm text-slate-400">
           Monitor a verified freephone line and configure the hours, check frequency and inactivity period. One inactivity alert is sent until a new booking is observed. SMS recipients are entered separately.
         </p>
-        <details className="rounded-lg border border-slate-800 p-3">
-          <summary className="cursor-pointer text-sm text-slate-200">
+        <section aria-labelledby="freephone-booking-lookup" className="rounded-lg border border-slate-800 p-3">
+          <h3 id="freephone-booking-lookup" className="mb-2 text-sm font-medium text-slate-200">
             Find bookings by freephone line number
-          </summary>
+          </h3>
           <textarea
             aria-label="Freephone line numbers"
             className={input}
@@ -415,7 +415,7 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
               </p>
             </div>
           )}
-        </details>
+        </section>
         <details className="rounded-lg border border-slate-800 p-3">
           <summary className="cursor-pointer text-sm text-slate-200">
             Add monitored lines as disabled drafts

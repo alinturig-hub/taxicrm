@@ -138,13 +138,21 @@ export async function readCounts(
       futureDates: bigint;
     }[]
   >(Prisma.sql`
-    SELECT count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${from.toISOString()}::timestamptz AND ${time} <= ${through.toISOString()}::timestamptz) AS count,
-      count(*) FILTER (WHERE ${field} = ${value}) AS known,
-      count(*) FILTER (WHERE ${field} = ${value} AND ${time} IS NULL) AS "missingDate",
-      count(*) FILTER (WHERE (${field} IS NULL OR btrim(${field}) = '') AND ${time} > ${from.toISOString()}::timestamptz AND ${time} <= ${through.toISOString()}::timestamptz) AS "missingSource",
-      count(*) FILTER (WHERE ${field} = ${value} AND "bookedAtTime" IS NULL AND ${time} IS NOT NULL) AS "payloadDateUsed",
-      count(*) FILTER (WHERE ${field} = ${value} AND ${time} > ${through.toISOString()}::timestamptz) AS "futureDates"
-    FROM "Booking" WHERE provider = 'AUTOCAB'`);
+    WITH evidence AS MATERIALIZED (
+      SELECT ${field} = ${value} AS matches,
+        ${time} AS booked_at,
+        "bookedAtTime" IS NULL AS uses_payload
+      FROM "Booking"
+      WHERE provider = 'AUTOCAB'
+        AND (${field} = ${value} OR nullif(btrim(${field}), '') IS NULL)
+    )
+    SELECT count(*) FILTER (WHERE matches IS TRUE AND booked_at > ${from.toISOString()}::timestamptz AND booked_at <= ${through.toISOString()}::timestamptz) AS count,
+      count(*) FILTER (WHERE matches IS TRUE) AS known,
+      count(*) FILTER (WHERE matches IS TRUE AND booked_at IS NULL) AS "missingDate",
+      count(*) FILTER (WHERE matches IS NOT TRUE AND booked_at > ${from.toISOString()}::timestamptz AND booked_at <= ${through.toISOString()}::timestamptz) AS "missingSource",
+      count(*) FILTER (WHERE matches IS TRUE AND uses_payload AND booked_at IS NOT NULL) AS "payloadDateUsed",
+      count(*) FILTER (WHERE matches IS TRUE AND booked_at > ${through.toISOString()}::timestamptz) AS "futureDates"
+    FROM evidence`);
   const r = rows[0];
   return {
     sourceScope:
