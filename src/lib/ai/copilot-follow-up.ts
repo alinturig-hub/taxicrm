@@ -14,3 +14,10 @@ export function followUpPeriod(question: string): AnalyticsPeriod | null {
   ];
   return periods.find(([pattern]) => pattern.test(normalized))?.[1] ?? null;
 }
+
+export function freephoneNoShowFollowUp(question: string) {
+  const match = question.trim().match(
+    /^(?:(?:perfect|perdect|thanks)[, ]+)?(?:and\s+)?(?:(?:how|hao) many\s+)?(?:no[ -]shows?|no[ -]fares?)(?:\s+(?:did we have|we had))?\s+(today|yesterday|this week|last week|this month|last month)[?.!]*$/i,
+  );
+  return match ? match[1].toLowerCase() as import("./copilot-booking-scope").FreephonePeriod : null;
+}

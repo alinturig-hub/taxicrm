@@ -21,7 +21,7 @@ export function freephoneClarification(summary: string) {
   };
 }
 
-export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week") {
+export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week", noShows = false) {
   const today = startOfLondonDay(now);
   const week = startOfLondonWeek(now);
   const month = startOfLondonMonth(now);
@@ -61,12 +61,16 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
 
     const field = source === "telephoneNumber" ? telephoneSql() : Prisma.raw(`"${source}"`);
     const value = source === "telephoneNumber" ? normaliseFreephoneNumber(line.sourceValue) : line.sourceValue;
-    const time = bookingTimeSql();
+    // Prisma stores timezone-less outcome timestamps in UTC.
+    if (noShows) await tx.$executeRaw`SET LOCAL TIME ZONE 'UTC'`;
+    const time = noShows ? Prisma.sql`"noFareAt"::timestamptz` : bookingTimeSql();
+    const outcome = noShows ? Prisma.sql`AND ("noFareAt" IS NOT NULL OR status = 'NO_FARE')` : Prisma.empty;
+    const unit = noShows ? "no-show" : "booking";
     const [row] = await tx.$queryRaw<{ total: bigint; undated: bigint }[]>`
       WITH matched AS MATERIALIZED (
         SELECT ${time} AS booked_at
         FROM "Booking"
-        WHERE provider = 'AUTOCAB' AND ${field} = ${value}
+        WHERE provider = 'AUTOCAB' AND ${field} = ${value} ${outcome}
       )
       SELECT count(*) FILTER (WHERE booked_at >= ${start.toISOString()}::timestamptz
         AND booked_at ${upperBound} ${end.toISOString()}::timestamptz) AS total,
@@ -78,12 +82,13 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
     return {
       verified: undated === 0,
       answer: {
-        headline: `${total.toLocaleString("en-GB")} ${total === 1 ? "booking" : "bookings"} from ${line.name}`,
+        headline: `${total.toLocaleString("en-GB")} ${unit}${total === 1 ? "" : "s"} from ${line.name}`,
         summary: `${periodFormat.format(start)} to ${periodFormat.format(end)} (Europe/London).`,
-        metrics: [{ label: "Bookings", value: total }],
+        metrics: [{ label: noShows ? "No-shows (no fare)" : "Bookings", value: total }],
         evidence: [
           "Counts unique Autocab bookings matching the booking source configured for this Freephone line.",
-          ...(undated ? [`${undated.toLocaleString("en-GB")} matching bookings have no verified creation timestamp and could not be assigned to the period.`] : []),
+          ...(noShows ? ["No-shows use the recorded Autocab no-fare outcome time."] : []),
+          ...(undated ? [`${undated.toLocaleString("en-GB")} matching bookings have no verified ${noShows ? "no-fare outcome" : "creation"} timestamp and could not be assigned to the period.`] : []),
         ],
         sources,
       },

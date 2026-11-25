@@ -40,14 +40,14 @@ Invalid,xyz`,
     assert.deepEqual((await csvImport.json()).created, ["07700900047"]);
     const draft = await prisma.notificationJob.findFirstOrThrow({where: {name: prefix + "-draft"}});
     assert.equal(draft.isEnabled, false); assert.equal(draft.defaultRecipient, "");
-    const ask = (question: string) => fetch("http://127.0.0.1:3001/api/dashboard/ai/copilot", {
+    const ask = (question: string, previousQuestion?: string) => fetch("http://127.0.0.1:3001/api/dashboard/ai/copilot", {
       method: "POST",
       headers: { "content-type": "application/json", cookie: `next-auth.session-token=${token}` },
-      body: JSON.stringify({ question }),
+      body: JSON.stringify({ question, previousQuestion }),
     });
     await prisma.booking.create({ data: {
       externalId: prefix + "-copilot", bookingSource: "other-source", telephoneNumber: "+447700900045",
-      bookedAtTime: new Date(), rawPayload: { synthetic: true },
+      bookedAtTime: new Date(), noFareAt: new Date(), status: "NO_FARE", rawPayload: { synthetic: true },
     } });
     const response = await ask(`How many bookings from ${draft.name} Freephone did we have this week?`);
     assert.equal(response.status, 200);
@@ -56,6 +56,15 @@ Invalid,xyz`,
     assert.equal(scoped.answer.metrics[0].value, 1);
     assert.ok(scoped.answer.headline.includes(draft.name));
     assert.match(scoped.answer.summary, /Europe\/London/);
+    const followUp = "perdect and hao many no show we had today?";
+    const noShows = await (await ask(followUp, `How many bookings from ${draft.name} Freephone did we have this week?`)).json();
+    assert.equal(noShows.answerType, "VERIFIED");
+    assert.equal(noShows.contextUsed, true);
+    assert.deepEqual(noShows.answer.metrics, [{ label: "No-shows (no fare)", value: 1 }]);
+    assert.ok(noShows.answer.headline.includes(draft.name));
+    const withoutLine = await (await ask(followUp)).json();
+    assert.equal(withoutLine.answerType, "UNVERIFIED");
+    assert.deepEqual(withoutLine.answer.metrics, []);
     const unresolved = await (await ask("How many bookings from Unknown Freephone did we have this week?")).json();
     assert.equal(unresolved.answerType, "UNVERIFIED");
     assert.deepEqual(unresolved.answer.metrics, []);

@@ -7,7 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { followUpPeriod } from "@/lib/ai/copilot-follow-up";
+import { followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
 
 type Metric = {
   label: string;
@@ -165,7 +165,11 @@ export default function AICopilotWorkspace() {
     try {
       const last = messages[messages.length - 1];
       const prior = messages[messages.length - 2];
-      const previousQuestion = followUpPeriod(normalized) && last?.role === "COPILOT" && prior?.role === "USER" && last.answerType === "VERIFIED" ? prior.text : undefined;
+      const scopedReply = last?.role === "COPILOT" &&
+        last.method === "FREEPHONE_BOOKING_EVIDENCE_V1" && last.answer.metrics.length > 0;
+      const useContext = (scopedReply && (freephoneNoShowFollowUp(normalized) || followUpPeriod(normalized))) ||
+        (last?.role === "COPILOT" && last.answerType === "VERIFIED" && followUpPeriod(normalized));
+      const previousQuestion = useContext && prior?.role === "USER" ? prior.text : undefined;
       const response = await fetch(
         "/api/dashboard/ai/copilot",
         {
@@ -499,7 +503,7 @@ export default function AICopilotWorkspace() {
           </div>
 
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            This conversation is kept in this tab only. Short period follow-ups can reuse the previous verified report; other questions are processed separately. The agent cannot yet change data, execute actions or contact customers.
+            This conversation is kept in this tab only. Short period follow-ups can reuse the previous report. A no-show follow-up can reuse the previous Freephone line. The agent cannot yet change data, execute actions or contact customers.
           </p>
         </form>
       </section>

@@ -25,7 +25,7 @@ import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
-import { followUpPeriod } from "@/lib/ai/copilot-follow-up";
+import { followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
 import { bookingScope, type FreephonePeriod } from "@/lib/ai/copilot-booking-scope";
 import { planFreephoneScope } from "@/lib/ai/copilot-freephone-planner";
 import { freephoneBookings, freephoneClarification } from "@/lib/ai/copilot-freephone";
@@ -1126,9 +1126,14 @@ export async function POST(
     const previousQuestion = typeof body.previousQuestion === "string"
       ? body.previousQuestion.trim().slice(0, 500)
       : "";
-    const previousIntent = period ? classify(previousQuestion) : null;
-    const previousScope = period ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
-    const followUpScope = period && previousScope?.type === "freephone"
+    const noShowPeriod = freephoneNoShowFollowUp(question);
+    const previousIntent = period || noShowPeriod ? classify(previousQuestion) : null;
+    const previousScope = period || noShowPeriod ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
+    const followUpScope = noShowPeriod
+      ? previousScope?.type === "freephone"
+        ? { ...previousScope, period: noShowPeriod }
+        : { type: "clarify" } as const
+      : period && previousScope?.type === "freephone"
       ? { ...previousScope, period: period.toLowerCase().replace("_", " ") as FreephonePeriod }
       : previousScope;
     const scope = intent === "RESTRICTED"
@@ -1141,8 +1146,9 @@ export async function POST(
     const previousPlan = period && previousIntent === "ANALYTICS"
       ? planAnalyticsQuestion(previousQuestion)
       : null;
-    const contextUsed = !!(!scope && period && previousPlan && previousPlan.metric !== "PERIOD_COMPARISON");
-    if (contextUsed && period && previousPlan) {
+    const contextUsed = scope?.type === "freephone" && !!followUpScope ||
+      !!(!scope && period && previousPlan && previousPlan.metric !== "PERIOD_COMPARISON");
+    if (!scope && contextUsed && period && previousPlan) {
       analyticsPlan = { ...previousPlan, period };
       intent = "ANALYTICS";
     }
@@ -1239,13 +1245,13 @@ export async function POST(
       return NextResponse.json({ success: false, error: "FREEPHONE_BOOKINGS_PERMISSION_REQUIRED" }, { status: 403 });
     }
 
-    const interpretedScope = scope?.type === "freephone" && !period
+    const interpretedScope = scope?.type === "freephone" && !period && !noShowPeriod
       ? await planFreephoneScope(question, scope)
       : null;
     if (interpretedScope) semanticPlannerUsed = true;
 
     const scopedAnswer = scope?.type === "freephone"
-      ? await freephoneBookings((interpretedScope ?? scope).line, now, (interpretedScope ?? scope).period)
+      ? await freephoneBookings((interpretedScope ?? scope).line, now, (interpretedScope ?? scope).period, !!noShowPeriod)
         .catch(() => ({
           verified: false,
           answer: freephoneClarification("TaxiCRM could not read the booking count for the requested line and period. Please try again."),
@@ -1253,7 +1259,7 @@ export async function POST(
       : scope
         ? {
           verified: false,
-          answer: freephoneClarification("Please specify the configured Freephone line and ask for a booking count for today, yesterday, this week, last week, this month or last month. I cannot verify the requested filters as written."),
+          answer: freephoneClarification(noShowPeriod ? "Which configured Freephone line should I use for the no-show count?" : "Please specify the configured Freephone line and ask for a booking count for today, yesterday, this week, last week, this month or last month. I cannot verify the requested filters as written."),
         }
         : null;
 
