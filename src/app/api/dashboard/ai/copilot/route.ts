@@ -25,10 +25,10 @@ import { authOptions } from "@/lib/auth";
 import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
-import { followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
+import { companyNoShowPeriod, followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
 import { bookingScope, type FreephonePeriod } from "@/lib/ai/copilot-booking-scope";
 import { planFreephoneScope } from "@/lib/ai/copilot-freephone-planner";
-import { freephoneBookings, freephoneClarification } from "@/lib/ai/copilot-freephone";
+import { companyNoShows, freephoneBookings, freephoneClarification } from "@/lib/ai/copilot-freephone";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -39,6 +39,7 @@ const DAY_MS =
 
 type Intent =
   | "FREEPHONE_BOOKINGS"
+  | "COMPANY_NO_SHOWS"
   | "GENERAL_GUIDANCE"
   | "RESTRICTED"
   | "ANALYTICS"
@@ -1126,6 +1127,7 @@ export async function POST(
     const previousQuestion = typeof body.previousQuestion === "string"
       ? body.previousQuestion.trim().slice(0, 500)
       : "";
+    const companyPeriod = intent === "RESTRICTED" ? null : companyNoShowPeriod(question);
     const noShowPeriod = freephoneNoShowFollowUp(question);
     const previousIntent = period || noShowPeriod ? classify(previousQuestion) : null;
     const previousScope = period || noShowPeriod ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
@@ -1139,7 +1141,10 @@ export async function POST(
     const scope = intent === "RESTRICTED"
       ? null
       : bookingScope(question, intent === "ANALYTICS") ?? followUpScope;
-    if (scope) {
+    if (companyPeriod) {
+      intent = "COMPANY_NO_SHOWS";
+      analyticsPlan = null;
+    } else if (scope) {
       intent = "FREEPHONE_BOOKINGS";
       analyticsPlan = null;
     }
@@ -1245,12 +1250,18 @@ export async function POST(
       return NextResponse.json({ success: false, error: "FREEPHONE_BOOKINGS_PERMISSION_REQUIRED" }, { status: 403 });
     }
 
+    if (companyPeriod && !access.isSuperAdmin && !access.permissions.includes(ADMINISTRATION_PERMISSIONS.BOOKINGS_VIEW)) {
+      return NextResponse.json({ success: false, error: "BOOKINGS_PERMISSION_REQUIRED" }, { status: 403 });
+    }
+
     const interpretedScope = scope?.type === "freephone" && !period && !noShowPeriod
       ? await planFreephoneScope(question, scope)
       : null;
     if (interpretedScope) semanticPlannerUsed = true;
 
-    const scopedAnswer = scope?.type === "freephone"
+    const scopedAnswer = companyPeriod
+      ? await companyNoShows(now, companyPeriod)
+      : scope?.type === "freephone"
       ? await freephoneBookings((interpretedScope ?? scope).line, now, (interpretedScope ?? scope).period, !!noShowPeriod)
         .catch(() => ({
           verified: false,
@@ -1309,7 +1320,7 @@ export async function POST(
 
     const refinement =
       scopedAnswer
-        ? { answer: scopedAnswer.answer, externalModelUsed: false, method: "FREEPHONE_BOOKING_EVIDENCE_V1" }
+        ? { answer: scopedAnswer.answer, externalModelUsed: false, method: companyPeriod ? "COMPANY_NO_SHOW_EVIDENCE_V1" : "FREEPHONE_BOOKING_EVIDENCE_V1" }
         : intent ===
         "GENERAL_GUIDANCE"
         ? await answerGeneralCopilotQuestion(

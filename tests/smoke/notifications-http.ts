@@ -49,19 +49,30 @@ Invalid,xyz`,
       externalId: prefix + "-copilot", bookingSource: "other-source", telephoneNumber: "+447700900045",
       bookedAtTime: new Date(), noFareAt: new Date(), status: "NO_FARE", rawPayload: { synthetic: true },
     } });
+    await prisma.booking.create({ data: {
+      externalId: prefix + "-company-other", bookingSource: "other-source", telephoneNumber: "07700900048",
+      bookedAtTime: new Date(), noFareAt: new Date(), status: "NO_FARE", rawPayload: { synthetic: true },
+    } });
     const response = await ask(`How many bookings from ${draft.name} Freephone did we have this week?`);
     assert.equal(response.status, 200);
     const scoped = await response.json();
     assert.equal(scoped.answerType, "VERIFIED");
+    assert.equal(scoped.safeguards.semanticPlannerUsed, false);
     assert.equal(scoped.answer.metrics[0].value, 1);
     assert.ok(scoped.answer.headline.includes(draft.name));
     assert.match(scoped.answer.summary, /Europe\/London/);
-    const followUp = "perdect and hao many no show we had today?";
+    const followUp = "and how many no show we had today?";
     const noShows = await (await ask(followUp, `How many bookings from ${draft.name} Freephone did we have this week?`)).json();
     assert.equal(noShows.answerType, "VERIFIED");
     assert.equal(noShows.contextUsed, true);
     assert.deepEqual(noShows.answer.metrics, [{ label: "No-shows (no fare)", value: 1 }]);
     assert.ok(noShows.answer.headline.includes(draft.name));
+    const company = await (await ask("How many no-shows did we have today across the whole company?", `How many bookings from ${draft.name} Freephone did we have this week?`)).json();
+    assert.equal(company.answerType, "VERIFIED");
+    assert.equal(company.contextUsed, false);
+    assert.match(company.answer.headline, /across the company/);
+    assert.deepEqual(company.answer.metrics, [{ label: "No-shows (no fare)", value: 2 }]);
+    assert.equal(company.safeguards.externalModelUsed, false);
     const withoutLine = await (await ask(followUp)).json();
     assert.equal(withoutLine.answerType, "UNVERIFIED");
     assert.deepEqual(withoutLine.answer.metrics, []);

@@ -21,7 +21,7 @@ export function freephoneClarification(summary: string) {
   };
 }
 
-export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week", noShows = false) {
+function londonWindow(now: Date, period: FreephonePeriod) {
   const today = startOfLondonDay(now);
   const week = startOfLondonWeek(now);
   const month = startOfLondonMonth(now);
@@ -33,7 +33,28 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
     "this month": [month, now],
     "last month": [addLondonMonths(month, -1), month],
   };
-  const [start, end] = windows[period];
+  return windows[period];
+}
+
+export async function companyNoShows(now: Date, period: FreephonePeriod) {
+  const [start, end] = londonWindow(now, period);
+  const total = await prisma.booking.count({
+    where: { noFareAt: { gte: start, ...(end === now ? { lte: end } : { lt: end }) } },
+  });
+  return {
+    verified: true,
+    answer: {
+      headline: `${total.toLocaleString("en-GB")} ${total === 1 ? "no-show" : "no-shows"} across the company`,
+      summary: `${periodFormat.format(start)} to ${periodFormat.format(end)} (Europe/London).`,
+      metrics: [{ label: "No-shows (no fare)", value: total }],
+      evidence: ["Uses the recorded no-fare outcome timestamp, as in TaxiCRM company analytics."],
+      sources: [{ label: "Bookings", href: "/dashboard/bookings" }],
+    },
+  };
+}
+
+export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week", noShows = false) {
+  const [start, end] = londonWindow(now, period);
   const upperBound = end === now ? Prisma.sql`<=` : Prisma.sql`<`;
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SET TRANSACTION READ ONLY`;
