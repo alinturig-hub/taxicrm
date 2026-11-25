@@ -7,6 +7,7 @@ import {
   useRef,
   useState,
 } from "react";
+import type { FreephoneConversation } from "@/lib/ai/copilot-booking-scope";
 import { followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
 
 type Metric = {
@@ -29,7 +30,12 @@ type CopilotAnswer = {
   suggestions?: string[];
 };
 
-type CopilotResponse = {
+type FreephoneInteraction = {
+  freephoneContext?: FreephoneConversation | null;
+  lineOptions?: { id: string; label: string }[];
+};
+
+type CopilotResponse = FreephoneInteraction & {
   success: true;
   generatedAt: string;
   intent: string;
@@ -55,7 +61,7 @@ type Message =
       role: "USER";
       text: string;
     }
-  | {
+  | (FreephoneInteraction & {
       id: string;
       role: "COPILOT";
       answer: CopilotAnswer;
@@ -67,7 +73,7 @@ type Message =
         | "RESTRICTED";
       method: string;
       contextUsed?: boolean;
-    };
+    });
 
 const SUGGESTIONS = [
   "What is today revenue?",
@@ -135,6 +141,7 @@ export default function AICopilotWorkspace() {
 
   async function ask(
     rawQuestion: string,
+    selectedLineId?: string,
   ) {
     const normalized =
       rawQuestion.trim();
@@ -181,6 +188,8 @@ export default function AICopilotWorkspace() {
           body: JSON.stringify({
             question: normalized,
             previousQuestion,
+            freephoneContext: last?.role === "COPILOT" ? last.freephoneContext : undefined,
+            selectedLineId,
           }),
         },
       );
@@ -216,6 +225,8 @@ export default function AICopilotWorkspace() {
             method:
               result.method,
             contextUsed: result.contextUsed,
+            freephoneContext: result.freephoneContext,
+            lineOptions: result.lineOptions,
           },
         ],
       );
@@ -367,6 +378,31 @@ export default function AICopilotWorkspace() {
                       }
                     </p>
 
+                    {message.id === messages[messages.length - 1]?.id && message.freephoneContext && (
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {message.lineOptions?.map(({ id, label }) => (
+                          <button type="button" key={id} disabled={loading}
+                            className="rounded-lg border border-blue-500/40 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/10 disabled:opacity-40"
+                            onClick={() => void ask(`Use ${label}`, id)}>
+                            {label}
+                          </button>
+                        ))}
+                        {message.freephoneContext.lineId && (
+                          <>
+                            {message.freephoneContext.period !== "yesterday" && <button type="button" disabled={loading}
+                              className="rounded-lg border border-blue-500/40 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/10 disabled:opacity-40"
+                              onClick={() => void ask("And yesterday?")}>Yesterday</button>}
+                            {message.freephoneContext.period !== "last month" && <button type="button" disabled={loading}
+                              className="rounded-lg border border-blue-500/40 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/10 disabled:opacity-40"
+                              onClick={() => void ask("Compare with last month")}>Compare with last month</button>}
+                            {message.freephoneContext.metric === "bookings" && <button type="button" disabled={loading}
+                              className="rounded-lg border border-blue-500/40 px-3 py-2 text-sm text-blue-200 hover:bg-blue-500/10 disabled:opacity-40"
+                              onClick={() => void ask("And how many no-shows today?")}>No-shows today</button>}
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     {message.answer
                       .metrics.length >
                     0 ? (
@@ -443,7 +479,7 @@ export default function AICopilotWorkspace() {
                     </div>
 
                     <p className="mt-4 text-xs text-slate-600">
-                      {message.contextUsed ? "Uses the previous question for the reporting period · " : ""}
+                      {message.contextUsed ? "Uses context from the previous answer · " : ""}
                       {
                         message.method
                       }{" "}
@@ -503,7 +539,7 @@ export default function AICopilotWorkspace() {
           </div>
 
           <p className="mt-3 text-xs leading-5 text-slate-600">
-            This conversation is kept in this tab only. Short period follow-ups can reuse the previous report. A no-show follow-up can reuse the previous Freephone line. The agent cannot yet change data, execute actions or contact customers.
+            This conversation is kept in this tab only. Freephone follow-ups can reuse the line and metric, and you can choose a matching line directly in chat. The agent cannot yet change data, execute actions or contact customers.
           </p>
         </form>
       </section>

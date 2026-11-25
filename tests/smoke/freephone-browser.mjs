@@ -146,6 +146,16 @@ Invalid,bad`),
   await page.getByRole("button", { name: "Import valid lines" }).click();
   await page.getByRole("status").filter({ hasText: "1 lines added" }).waitFor();
   assert.equal((await prisma.notificationJob.findFirstOrThrow({ where: { name: `${prefix} Annex` } })).isEnabled, false);
+  await page.goto(origin + "/dashboard/ai/copilot");
+  const chat = page.getByRole("textbox", { name: "Message TaxiCRM Agent" });
+  await chat.fill(`How many bookings from ${prefix} Freephone did we have this week?`);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("button", { name, exact: true }).click();
+  await page.getByRole("heading", { name: `1 booking from ${name}`, exact: true }).waitFor();
+  await page.getByRole("button", { name: "No-shows today", exact: true }).click();
+  await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).waitFor();
+  await page.getByRole("button", { name: "Yesterday", exact: true }).click();
+  await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).nth(1).waitFor();
   assert.deepEqual(errors, []);
   console.log(
     "PASS: persisted disabled freephone draft, manual recipient, read-only canonical evidence preview, explicit source/event activation, 12-hour grace and unchanged booking data. No messages queued or external calls.",

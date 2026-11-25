@@ -40,3 +40,20 @@ export function matchingFreephoneLines<T extends { name: string }>(lines: T[], n
   const exact = lines.filter((line) => normalizeLine(line.name) === wanted);
   return exact.length ? exact : lines.filter((line) => ` ${normalizeLine(line.name)} `.includes(` ${wanted} `));
 }
+
+export type FreephoneConversation = {
+  line: string;
+  period: FreephonePeriod;
+  metric: "bookings" | "no-shows";
+  lineId?: string;
+};
+
+export function parseFreephoneConversation(input: unknown): FreephoneConversation | null {
+  if (!input || typeof input !== "object") return null;
+  const { line, period, metric, lineId } = input as Record<string, unknown>;
+  if (typeof line !== "string" || !line.trim() || line.length > 120 ||
+      !freephonePeriods.some((value) => value === period) ||
+      (metric !== "bookings" && metric !== "no-shows") ||
+      (lineId !== undefined && (typeof lineId !== "string" || !lineId || lineId.length > 120))) return null;
+  return { line, period: period as FreephonePeriod, metric, ...(lineId ? { lineId } : {}) };
+}

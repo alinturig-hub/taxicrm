@@ -40,10 +40,10 @@ Invalid,xyz`,
     assert.deepEqual((await csvImport.json()).created, ["07700900047"]);
     const draft = await prisma.notificationJob.findFirstOrThrow({where: {name: prefix + "-draft"}});
     assert.equal(draft.isEnabled, false); assert.equal(draft.defaultRecipient, "");
-    const ask = (question: string, previousQuestion?: string) => fetch("http://127.0.0.1:3001/api/dashboard/ai/copilot", {
+    const ask = (question: string, previousQuestion?: string, interaction?: { freephoneContext: unknown; selectedLineId?: string }) => fetch("http://127.0.0.1:3001/api/dashboard/ai/copilot", {
       method: "POST",
       headers: { "content-type": "application/json", cookie: `next-auth.session-token=${token}` },
-      body: JSON.stringify({ question, previousQuestion }),
+      body: JSON.stringify({ question, previousQuestion, ...interaction }),
     });
     await prisma.booking.create({ data: {
       externalId: prefix + "-copilot", bookingSource: "other-source", telephoneNumber: "+447700900045",
@@ -67,6 +67,43 @@ Invalid,xyz`,
     assert.equal(noShows.contextUsed, true);
     assert.deepEqual(noShows.answer.metrics, [{ label: "No-shows (no fare)", value: 1 }]);
     assert.ok(noShows.answer.headline.includes(draft.name));
+    const contextual = await (await ask("And how many no-shows today?", undefined, { freephoneContext: scoped.freephoneContext })).json();
+    assert.equal(contextual.freephoneContext.metric, "no-shows");
+    assert.equal(contextual.answer.metrics[0].value, 1);
+    const yesterday = await (await ask("Dar ieri?", undefined, { freephoneContext: contextual.freephoneContext })).json();
+    assert.equal(yesterday.contextUsed, true);
+    assert.equal(yesterday.freephoneContext.metric, "no-shows");
+    assert.equal(yesterday.freephoneContext.period, "yesterday");
+    assert.deepEqual(yesterday.answer.metrics, [{ label: "No-shows (no fare)", value: 0 }]);
+
+    const comparison = await (await ask("Compare with last month", undefined, { freephoneContext: contextual.freephoneContext })).json();
+    assert.equal(comparison.contextUsed, true);
+    assert.deepEqual(comparison.answer.metrics, [
+      { label: "No-shows (no fare) · today", value: 1 },
+      { label: "No-shows (no fare) · last month", value: 0 },
+    ]);
+
+    const secondLine = await prisma.notificationJob.create({
+      data: { name: prefix + "-draft Annex", sourceField: "telephoneNumber", sourceValue: "07700900048", defaultRecipient: "", rules: [], nextRunAt: new Date() },
+    });
+    await prisma.notificationJob.update({ where: { id: draft.id }, data: { name: prefix + "-draft Main" } });
+    const ambiguous = await (await ask(`How many bookings from ${draft.name} Freephone did we have this week?`)).json();
+    assert.equal(ambiguous.answerType, "UNVERIFIED");
+    assert.equal(ambiguous.lineOptions.length, 2);
+    const selection = await (await ask("Use Annex", undefined, {
+      freephoneContext: ambiguous.freephoneContext,
+      selectedLineId: secondLine.id,
+    })).json();
+    assert.equal(selection.answerType, "VERIFIED");
+    assert.equal(selection.freephoneContext.lineId, secondLine.id);
+    assert.equal(selection.answer.metrics[0].value, 1);
+    assert.match(selection.answer.headline, /Annex/);
+    const invalidSelection = await (await ask("Use unknown option", undefined, {
+      freephoneContext: ambiguous.freephoneContext,
+      selectedLineId: "unknown",
+    })).json();
+    assert.equal(invalidSelection.answerType, "UNVERIFIED");
+    assert.deepEqual(invalidSelection.answer.metrics, []);
     const company = await (await ask("How many no-shows did we have today across the whole company?", `How many bookings from ${draft.name} Freephone did we have this week?`)).json();
     assert.equal(company.answerType, "VERIFIED");
     assert.equal(company.contextUsed, false);

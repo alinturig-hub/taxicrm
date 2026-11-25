@@ -26,7 +26,7 @@ import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 import { companyNoShowPeriod, followUpPeriod, freephoneNoShowFollowUp } from "@/lib/ai/copilot-follow-up";
-import { bookingScope, type FreephonePeriod } from "@/lib/ai/copilot-booking-scope";
+import { bookingScope, parseFreephoneConversation, type FreephoneConversation, type FreephonePeriod } from "@/lib/ai/copilot-booking-scope";
 import { planFreephoneScope } from "@/lib/ai/copilot-freephone-planner";
 import { companyNoShows, freephoneBookings, freephoneClarification } from "@/lib/ai/copilot-freephone";
 
@@ -1104,6 +1104,8 @@ export async function POST(
       )) as {
         question?: unknown;
         previousQuestion?: unknown;
+        freephoneContext?: unknown;
+        selectedLineId?: unknown;
       };
 
     const question =
@@ -1129,18 +1131,33 @@ export async function POST(
       : "";
     const companyPeriod = intent === "RESTRICTED" ? null : companyNoShowPeriod(question);
     const noShowPeriod = freephoneNoShowFollowUp(question);
+    const rememberedScope = parseFreephoneConversation(body.freephoneContext);
+    const comparisonPeriod = rememberedScope?.lineId && intent !== "RESTRICTED"
+      ? followUpPeriod(question.match(/^(?:compare (?:it )?with|compară cu|compara cu)\s+(.+)$/i)?.[1] ?? "")
+      : null;
+    const selectedLineId = typeof body.selectedLineId === "string" && body.selectedLineId.length <= 120
+      ? body.selectedLineId
+      : null;
+    const selectedScope = selectedLineId && rememberedScope && !rememberedScope.lineId
+      ? { ...rememberedScope, lineId: selectedLineId }
+      : null;
     const previousIntent = period || noShowPeriod ? classify(previousQuestion) : null;
     const previousScope = period || noShowPeriod ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
-    const followUpScope = noShowPeriod
-      ? previousScope?.type === "freephone"
-        ? { ...previousScope, period: noShowPeriod }
-        : { type: "clarify" } as const
-      : period && previousScope?.type === "freephone"
-      ? { ...previousScope, period: period.toLowerCase().replace("_", " ") as FreephonePeriod }
-      : previousScope;
-    const scope = intent === "RESTRICTED"
+    const followUpPeriodValue = noShowPeriod ?? (period?.toLowerCase().replace("_", " ") as FreephonePeriod | undefined);
+    const continuedScope = rememberedScope && followUpPeriodValue ? {
+      ...rememberedScope,
+      period: followUpPeriodValue,
+      metric: noShowPeriod ? "no-shows" as const : rememberedScope.metric,
+    } : null;
+    const legacyScope = followUpPeriodValue && previousScope?.type === "freephone"
+      ? { ...previousScope, period: followUpPeriodValue }
+      : noShowPeriod ? { type: "clarify" } as const : previousScope;
+    const contextualScope = selectedScope ?? continuedScope ?? (comparisonPeriod ? rememberedScope : null);
+    const scope = intent === "RESTRICTED" || companyPeriod
       ? null
-      : bookingScope(question, intent === "ANALYTICS") ?? followUpScope;
+      : contextualScope ? { ...contextualScope, type: "freephone" as const }
+      : bookingScope(question, intent === "ANALYTICS") ?? legacyScope;
+    const usedFreephoneContext = !companyPeriod && intent !== "RESTRICTED" && !!contextualScope;
     if (companyPeriod) {
       intent = "COMPANY_NO_SHOWS";
       analyticsPlan = null;
@@ -1151,7 +1168,7 @@ export async function POST(
     const previousPlan = period && previousIntent === "ANALYTICS"
       ? planAnalyticsQuestion(previousQuestion)
       : null;
-    const contextUsed = scope?.type === "freephone" && !!followUpScope ||
+    const contextUsed = usedFreephoneContext || scope?.type === "freephone" && !!legacyScope ||
       !!(!scope && period && previousPlan && previousPlan.metric !== "PERIOD_COMPARISON");
     if (!scope && contextUsed && period && previousPlan) {
       analyticsPlan = { ...previousPlan, period };
@@ -1254,25 +1271,55 @@ export async function POST(
       return NextResponse.json({ success: false, error: "BOOKINGS_PERMISSION_REQUIRED" }, { status: 403 });
     }
 
-    const interpretedScope = scope?.type === "freephone" && !period && !noShowPeriod
+    const interpretedScope = scope?.type === "freephone" && !usedFreephoneContext && !period && !noShowPeriod
       ? await planFreephoneScope(question, scope)
       : null;
     if (interpretedScope) semanticPlannerUsed = true;
 
+    const freephoneContext: FreephoneConversation | null = scope?.type === "freephone" ? {
+      line: scope.line,
+      period: scope.period,
+      metric: usedFreephoneContext && contextualScope ? contextualScope.metric : noShowPeriod ? "no-shows" : "bookings",
+      ...(usedFreephoneContext && contextualScope?.lineId ? { lineId: contextualScope.lineId } : {}),
+    } : null;
+
+    const freephoneResult = freephoneContext
+      ? await (async () => {
+        const line = interpretedScope?.line ?? freephoneContext.line;
+        const noShows = freephoneContext.metric === "no-shows";
+        const current = await freephoneBookings(line, now, freephoneContext.period, noShows, freephoneContext.lineId);
+        if (!comparisonPeriod || !current.resolvedLineId) return current;
+
+        const otherPeriod = comparisonPeriod.toLowerCase().replace("_", " ") as FreephonePeriod;
+        const other = await freephoneBookings(line, now, otherPeriod, noShows, current.resolvedLineId);
+        if (!other.resolvedLineId) return other;
+        return {
+          ...current,
+          verified: current.verified && other.verified,
+          answer: {
+            ...current.answer,
+            headline: `${current.answer.headline} · comparison with ${otherPeriod}`,
+            summary: `${freephoneContext.period}: ${current.answer.summary}\n${otherPeriod}: ${other.answer.summary}`,
+            metrics: [
+              { ...current.answer.metrics[0], label: `${current.answer.metrics[0].label} · ${freephoneContext.period}` },
+              { ...other.answer.metrics[0], label: `${other.answer.metrics[0].label} · ${otherPeriod}` },
+            ],
+            evidence: Array.from(new Set([...current.answer.evidence, ...other.answer.evidence])),
+          },
+        };
+      })().catch(() => ({
+        verified: false,
+        answer: freephoneClarification("TaxiCRM could not read the booking count for the requested line and period. Please try again."),
+      }))
+      : null;
     const scopedAnswer = companyPeriod
       ? await companyNoShows(now, companyPeriod)
-      : scope?.type === "freephone"
-      ? await freephoneBookings((interpretedScope ?? scope).line, now, (interpretedScope ?? scope).period, !!noShowPeriod)
-        .catch(() => ({
-          verified: false,
-          answer: freephoneClarification("TaxiCRM could not read the booking count for the requested line and period. Please try again."),
-        }))
-      : scope
+      : freephoneResult ?? (scope
         ? {
           verified: false,
           answer: freephoneClarification(noShowPeriod ? "Which configured Freephone line should I use for the no-show count?" : "Please specify the configured Freephone line and ask for a booking count for today, yesterday, this week, last week, this month or last month. I cannot verify the requested filters as written."),
         }
-        : null;
+        : null);
 
     if (["DEMAND", "WARNING", "ACCURACY"].includes(intent)) {
       const predictionBlock = await moduleApiBlock("predictions");
@@ -1364,6 +1411,10 @@ export async function POST(
       answer:
         refinement.answer,
       contextUsed,
+      freephoneContext: freephoneContext && freephoneResult && "resolvedLineId" in freephoneResult && freephoneResult.resolvedLineId
+        ? { ...freephoneContext, lineId: freephoneResult.resolvedLineId }
+        : freephoneContext && freephoneResult && "lineOptions" in freephoneResult && freephoneResult.lineOptions ? freephoneContext : null,
+      lineOptions: freephoneResult && "lineOptions" in freephoneResult ? freephoneResult.lineOptions : undefined,
       safeguards: {
         externalModelUsed:
           refinement.externalModelUsed,

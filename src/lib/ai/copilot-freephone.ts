@@ -53,7 +53,7 @@ export async function companyNoShows(now: Date, period: FreephonePeriod) {
   };
 }
 
-export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week", noShows = false) {
+export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week", noShows = false, lineId?: string) {
   const [start, end] = londonWindow(now, period);
   const upperBound = end === now ? Prisma.sql`<=` : Prisma.sql`<`;
   return prisma.$transaction(async (tx) => {
@@ -61,10 +61,11 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
     await tx.$executeRaw`SET LOCAL statement_timeout = '10s'`;
     const lines = await tx.notificationJob.findMany({
       where: { id: { not: "$gateway-test" } },
-      select: { name: true, sourceField: true, sourceValue: true, sourceConfirmed: true },
+      select: { id: true, name: true, sourceField: true, sourceValue: true, sourceConfirmed: true },
       orderBy: { name: "asc" },
     });
-    const matches = matchingFreephoneLines(lines, lineName);
+    const candidates = matchingFreephoneLines(lines, lineName);
+    const matches = lineId ? candidates.filter(({ id }) => id === lineId) : candidates;
     const [line] = matches;
     if (!line) return {
       verified: false,
@@ -73,6 +74,12 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
     if (matches.length > 1) return {
       verified: false,
       answer: freephoneClarification(`Which configured Freephone line do you mean? ${matches.map(({ name }) => name).join(" · ")}`),
+      lineOptions: matches.map(({ id, name, sourceValue }, index) => ({
+        id,
+        label: matches.some((other) => other.id !== id && other.name === name)
+          ? `${name} · ••••${sourceValue.slice(-4)} · ${index + 1}`
+          : name,
+      })),
     };
     const source = sourceFields.find((field) => field === line.sourceField);
     if (!source || (source !== "telephoneNumber" && !line.sourceConfirmed)) return {
@@ -102,6 +109,7 @@ export async function freephoneBookings(lineName: string, now: Date, period: Fre
     const undated = Number(row.undated);
     return {
       verified: undated === 0,
+      resolvedLineId: line.id,
       answer: {
         headline: `${total.toLocaleString("en-GB")} ${unit}${total === 1 ? "" : "s"} from ${line.name}`,
         summary: `${periodFormat.format(start)} to ${periodFormat.format(end)} (Europe/London).`,
