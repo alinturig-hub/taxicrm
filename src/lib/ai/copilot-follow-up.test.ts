@@ -24,3 +24,10 @@ test("company-wide scope must be explicit and cannot silently drop filters", () 
   assert.equal(companyNoShowPeriod("And how many no-shows today?"), null);
   assert.equal(companyNoShowPeriod("How many no-shows today company-wide excluding cash?"), null);
 });
+
+
+test("recognises Romanian no-show follow-ups while preserving explicit filters", () => {
+  assert.equal(freephoneNoShowFollowUp("și câte no-show am avut azi?"), "today");
+  assert.equal(freephoneNoShowFollowUp("si cate no show am avut ieri?"), "yesterday");
+  assert.equal(freephoneNoShowFollowUp("și câte no-show am avut azi fără card?"), null);
+});

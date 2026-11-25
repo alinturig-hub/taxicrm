@@ -1,3 +1,4 @@
+import type { FreephonePeriod } from "./copilot-booking-scope";
 import type { AnalyticsPeriod } from "./analytics-query-engine";
 
 // Only accept an unambiguous, standalone period follow-up. Longer or
@@ -24,5 +25,11 @@ export function freephoneNoShowFollowUp(question: string) {
   const match = question.trim().match(
     /^(?:(?:perfect|perdect|thanks)[, ]+)?(?:and\s+)?(?:(?:how|hao) many\s+)?(?:no[ -]shows?|no[ -]fares?)(?:\s+(?:did we have|we had))?\s+(today|yesterday|this week|last week|this month|last month)[?.!]*$/i,
   );
-  return match ? match[1].toLowerCase() as import("./copilot-booking-scope").FreephonePeriod : null;
+  if (match) return match[1].toLowerCase() as FreephonePeriod;
+
+  const romanian = question.trim().match(
+    /^(?:(?:și|si|iar|dar)\s+)?c[âa]te\s+no[ -](?:shows?|fares?)(?:\s+am avut)?\s+(.+)$/i,
+  );
+  const period = romanian ? followUpPeriod(romanian[1]) : null;
+  return period ? period.toLowerCase().replace("_", " ") as FreephonePeriod : null;
 }

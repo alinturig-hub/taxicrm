@@ -152,7 +152,8 @@ Invalid,bad`),
   await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.getByRole("button", { name, exact: true }).click();
   await page.getByRole("heading", { name: `1 booking from ${name}`, exact: true }).waitFor();
-  await page.getByRole("button", { name: "No-shows today", exact: true }).click();
+  await chat.fill("și câte no-show am avut azi?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
   await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).waitFor();
   await page.getByRole("button", { name: "Yesterday", exact: true }).click();
   await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).nth(1).waitFor();
