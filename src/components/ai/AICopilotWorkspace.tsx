@@ -35,6 +35,7 @@ type CopilotResponse = {
   intent: string;
   answerType:
     | "VERIFIED"
+    | "UNVERIFIED"
     | "GENERAL_GUIDANCE"
     | "RESTRICTED";
   method: string;
@@ -61,6 +62,7 @@ type Message =
       generatedAt: string;
       answerType:
         | "VERIFIED"
+        | "UNVERIFIED"
         | "GENERAL_GUIDANCE"
         | "RESTRICTED";
       method: string;
@@ -328,7 +330,7 @@ export default function AICopilotWorkspace() {
                     <p
                       className={`text-xs font-semibold uppercase tracking-[0.16em] ${
                         message.answerType ===
-                        "RESTRICTED"
+                        "RESTRICTED" || message.answerType === "UNVERIFIED"
                           ? "text-amber-400"
                           : message.answerType ===
                               "GENERAL_GUIDANCE"
@@ -343,7 +345,9 @@ export default function AICopilotWorkspace() {
                           : message.answerType ===
                               "GENERAL_GUIDANCE"
                             ? "General guidance"
-                            : "Verified answer"
+                            : message.answerType === "VERIFIED"
+                              ? "Verified answer"
+                              : "Unverified answer"
                       }
                     </p>
                     <h2 className="mt-3 text-xl font-bold text-white">

@@ -196,3 +196,64 @@ test("mapped UTC times keep the same 12-hour boundary in a Europe/London databas
     });
   }
 });
+
+test("Copilot applies the configured Freephone line and London week or returns clarification without a company total", async () => {
+  const { bookingScope } = await import("../../src/lib/ai/copilot-booking-scope");
+  const { freephoneBookings } = await import("../../src/lib/ai/copilot-freephone");
+  const prefix = `copilot-freephone-${randomUUID()}`;
+  const now = new Date("2026-07-22T08:00:00Z");
+  const phone = "07700900075";
+  const setup = {
+    sourceField: "telephoneNumber",
+    sourceValue: "+447700900075",
+    sourceConfirmed: true,
+    defaultRecipient: "",
+    rules: [],
+    nextRunAt: now,
+  };
+
+  try {
+    await prisma.notificationJob.create({ data: { ...setup, name: `${prefix} Derriford Main Entrance` } });
+    const question = `How many bookings from ${prefix} Derriford Freephone did we have this week?`;
+    const scope = bookingScope(question);
+    assert.ok(scope?.type === "freephone");
+    assert.deepEqual(bookingScope("how many booking from derriford freephone we had this week"), {
+      type: "freephone", line: "derriford",
+    });
+    assert.deepEqual(bookingScope(question.replace("this week", "this week excluding card bookings")), { type: "clarify" });
+    assert.equal(bookingScope("How many bookings did we have this week?"), null);
+
+    const bookings = [
+      [phone, "2026-07-19T22:59:59Z"],
+      ["00447700900075", "2026-07-19T23:00:00Z"],
+      ["+447700900075", "2026-07-22T08:00:00Z"],
+      [phone, "2026-07-22T08:00:01Z"],
+      ["07700900076", "2026-07-22T07:00:00Z"],
+    ];
+    await prisma.booking.createMany({
+      data: bookings.map(([telephoneNumber, bookedAt], index) => ({
+        externalId: `${prefix}-${index}`, telephoneNumber, bookedAtTime: new Date(bookedAt),
+        rawPayload: { synthetic: true },
+      })),
+    });
+
+    const result = await freephoneBookings(scope.line, now);
+    assert.equal(result.verified, true);
+    assert.equal(result.answer.metrics[0]?.value, 2);
+    assert.match(result.answer.headline, /Derriford Main Entrance/);
+    assert.match(result.answer.summary, /20 Jul 2026, 00:00.*22 Jul 2026, 09:00/);
+
+    const missing = await freephoneBookings(`${prefix} Unknown`, now);
+    assert.equal(missing.verified, false);
+    assert.deepEqual(missing.answer.metrics, []);
+
+    await prisma.notificationJob.create({ data: { ...setup, name: `${prefix} Derriford Ward` } });
+    const ambiguous = await freephoneBookings(scope.line, now);
+    assert.equal(ambiguous.verified, false);
+    assert.deepEqual(ambiguous.answer.metrics, []);
+    assert.match(ambiguous.answer.summary, /Main Entrance.*Ward/);
+  } finally {
+    await prisma.booking.deleteMany({ where: { externalId: { startsWith: prefix } } });
+    await prisma.notificationJob.deleteMany({ where: { name: { startsWith: prefix } } });
+  }
+});
