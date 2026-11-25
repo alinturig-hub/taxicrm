@@ -15,7 +15,7 @@ import {
 import { nextActiveCheck } from "@/lib/notifications/freephone-schedule";
 import { smsGatewayPreview } from "@/lib/notifications/sms-gateway-preview";
 import { bookingEvidenceReadiness } from "@/lib/notifications/readiness";
-import { importFreephoneDrafts } from "@/lib/notifications/freephone-drafts";
+import { importFreephoneDrafts, previewFreephoneCsv } from "@/lib/notifications/freephone-drafts";
 import { auditFreephoneNumbers } from "@/lib/notifications/phone-audit";
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
@@ -37,7 +37,6 @@ export async function GET() {
     prisma.notificationJob.findMany({
       where: { id: { not: "$gateway-test" } },
       orderBy: { createdAt: "desc" },
-      take: 100,
     }),
     prisma.notificationJobRun.findMany({
       orderBy: { startedAt: "desc" },
@@ -83,6 +82,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     if (body.action === "import")
       return NextResponse.json(await importFreephoneDrafts(body.entries));
+    if (body.action === "preview-import" && typeof body.csv === "string")
+      return NextResponse.json({ rows: await previewFreephoneCsv(body.csv) });
     if (body.action === "lookup")
       return NextResponse.json(await auditFreephoneNumbers(body.phones));
     if (body.action === "test") {
@@ -175,7 +176,28 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ success: true, queued: true });
     }
-    const config = validateJob(body.workflow);
+    const toggle = body.action === "toggle";
+    const existing = typeof body.id === "string" && body.id !== "$gateway-test"
+      ? await prisma.notificationJob.findUniqueOrThrow({ where: { id: body.id } })
+      : null;
+    if (toggle && (!existing || typeof body.enabled !== "boolean"))
+      throw new Error("Invalid notification toggle.");
+    if (toggle && existing && existing.isEnabled === body.enabled)
+      return NextResponse.json({ success: true, id: existing.id });
+    if (toggle && existing && body.enabled === false) {
+      await prisma.$transaction(async (tx) => {
+        await tx.notificationJob.update({
+          where: { id: existing.id, updatedAt: existing.updatedAt },
+          data: { isEnabled: false },
+        });
+        await tx.notificationDelivery.updateMany({
+          where: { jobRun: { jobId: existing.id }, status: { in: ["PENDING", "RETRY"] } },
+          data: { status: "CANCELLED", lastError: "Workflow disabled by administrator" },
+        });
+      });
+      return NextResponse.json({ success: true, id: existing.id });
+    }
+    const config = validateJob(toggle ? { ...existing, isEnabled: body.enabled } : body.workflow);
     if (body.action === "preview") {
       const counts = await readCounts(config, new Date());
       const previewHours =
@@ -191,7 +213,7 @@ export async function POST(request: Request) {
         events: planEvents(config, counts, inactivityCounts),
       });
     }
-    if (body.action !== "save") throw new Error("Unknown action.");
+    if (body.action !== "save" && !toggle) throw new Error("Unknown action.");
     if (config.isEnabled) {
       const counts = await readCounts(
         config,
@@ -212,12 +234,6 @@ export async function POST(request: Request) {
         );
     }
     const data = { ...config, rules: JSON.parse(JSON.stringify(config.rules)) };
-    const existing =
-      typeof body.id === "string" && body.id !== "$gateway-test"
-        ? await prisma.notificationJob.findUniqueOrThrow({
-            where: { id: body.id },
-          })
-        : null;
     const resetSchedule =
       existing &&
       ((!existing.isEnabled && config.isEnabled) ||
@@ -231,41 +247,34 @@ export async function POST(request: Request) {
     const firstEligible = new Date(Date.now() + inactivityHours(config) * 3600000);
     const schedule = activeSchedule(config);
     const initialRunAt = schedule ? nextActiveCheck(new Date(firstEligible.getTime() - 1), schedule) : firstEligible;
-    const job =
-      typeof body.id === "string" && body.id !== "$gateway-test"
-        ? await prisma.notificationJob.update({
-            where: { id: body.id },
-            data: {
-              ...data,
-              ...(resetSchedule
-                ? {
-                    nextRunAt: initialRunAt,
-                  }
-                : {}),
-            },
-          })
-        : await prisma.notificationJob.create({
-            data: {
-              ...data,
-              nextRunAt: initialRunAt,
-            },
-          });
-    if (!job.isEnabled)
-      await prisma.notificationDelivery.updateMany({
-        where: {
-          jobRun: { jobId: job.id },
-          status: { in: ["PENDING", "RETRY"] },
-        },
-        data: {
-          status: "CANCELLED",
-          lastError: "Workflow disabled by administrator",
-        },
-      });
+    const job = await prisma.$transaction(async (tx) => {
+      const saved = existing
+        ? await tx.notificationJob.update({
+          where: { id: existing.id, ...(toggle ? { updatedAt: existing.updatedAt } : {}) },
+          data: {
+            ...(toggle ? { isEnabled: config.isEnabled } : data),
+            ...(resetSchedule ? { nextRunAt: initialRunAt } : {}),
+          },
+        })
+        : await tx.notificationJob.create({ data: { ...data, nextRunAt: initialRunAt } });
+      if (!saved.isEnabled)
+        await tx.notificationDelivery.updateMany({
+          where: {
+            jobRun: { jobId: saved.id },
+            status: { in: ["PENDING", "RETRY"] },
+          },
+          data: { status: "CANCELLED", lastError: "Workflow disabled by administrator" },
+        });
+      return saved;
+    });
     return NextResponse.json({ success: true, id: job.id });
   } catch (error) {
     const message =
       error instanceof Error &&
       [
+        "CSV",
+        "Malformed CSV",
+        "Unclosed CSV",
         "Supply",
         "Confirm",
         "This source",

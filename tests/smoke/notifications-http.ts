@@ -25,8 +25,40 @@ async function main() {
     assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-audit", {method: "POST"})).status, 401);
     const imported = await request("POST", {action: "import", entries: [{name: prefix + "-draft", phone: "07700900045", isEnabled: true}]});
     assert.equal(imported.status, 200); assert.equal((await imported.json()).created.length, 1);
+    const csv = await request("POST", {
+      action: "preview-import",
+      csv: `Location Name,Phone Number
+Old,+447700900045
+"${prefix}, new",07700900047
+Again,00447700900047
+Invalid,xyz`,
+    });
+    assert.equal(csv.status, 200);
+    const { rows } = await csv.json();
+    assert.deepEqual(rows.map((row: { status: string }) => row.status), ["Duplicate", "Ready", "Duplicate", "Invalid location or number"]);
+    const csvImport = await request("POST", { action: "import", entries: rows.filter((row: { status: string }) => row.status === "Ready") });
+    assert.deepEqual((await csvImport.json()).created, ["07700900047"]);
     const draft = await prisma.notificationJob.findFirstOrThrow({where: {name: prefix + "-draft"}});
     assert.equal(draft.isEnabled, false); assert.equal(draft.defaultRecipient, "");
+    const ask = (question: string) => fetch("http://127.0.0.1:3001/api/dashboard/ai/copilot", {
+      method: "POST",
+      headers: { "content-type": "application/json", cookie: `next-auth.session-token=${token}` },
+      body: JSON.stringify({ question }),
+    });
+    await prisma.booking.create({ data: {
+      externalId: prefix + "-copilot", bookingSource: "other-source", telephoneNumber: "+447700900045",
+      bookedAtTime: new Date(), rawPayload: { synthetic: true },
+    } });
+    const response = await ask(`How many bookings from ${draft.name} Freephone did we have this week?`);
+    assert.equal(response.status, 200);
+    const scoped = await response.json();
+    assert.equal(scoped.answerType, "VERIFIED");
+    assert.equal(scoped.answer.metrics[0].value, 1);
+    assert.ok(scoped.answer.headline.includes(draft.name));
+    assert.match(scoped.answer.summary, /Europe\/London/);
+    const unresolved = await (await ask("How many bookings from Unknown Freephone did we have this week?")).json();
+    assert.equal(unresolved.answerType, "UNVERIFIED");
+    assert.deepEqual(unresolved.answer.metrics, []);
     assert.equal((await fetch("http://127.0.0.1:3001/api/internal/freephone-setup", {method: "POST"})).status, 401);
     const workflow = {name: prefix, sourceField: "bookingSource", sourceValue: prefix, defaultRecipient: "+447700900000", sourceConfirmed: true, isEnabled: true, rules: [{event: "NO_BOOKINGS", enabled: true, windowHours: 12, text: "Synthetic zero", recipient: ""}]};
     const preview = await request("POST", {action: "preview", workflow});
@@ -39,7 +71,13 @@ async function main() {
     const protectedSchedule = (await prisma.notificationJob.findUniqueOrThrow({where:{id}})).nextRunAt.getTime();
     assert.equal((await request("POST", {action:"save",id,workflow:{...workflow,id:"$gateway-test",nextRunAt:"1999-01-01T00:00:00Z"}})).status,200);
     assert.equal((await prisma.notificationJob.findUniqueOrThrow({where:{id}})).nextRunAt.getTime(),protectedSchedule);
-    assert.equal((await request("POST", {action: "save", id, workflow: {...workflow, isEnabled: false}})).status, 200);
+    assert.equal((await request("POST", { action: "toggle", id, enabled: false })).status, 200);
+    const disabled = await prisma.notificationJob.findUniqueOrThrow({ where: { id } });
+    assert.equal(disabled.isEnabled, false);
+    assert.equal(disabled.defaultRecipient, workflow.defaultRecipient);
+    assert.equal(disabled.nextRunAt.getTime(), protectedSchedule);
+    assert.equal((await request("POST", { action: "toggle", id, enabled: true })).status, 200);
+    assert.equal((await prisma.notificationJob.findUniqueOrThrow({ where: { id } })).isEnabled, true);
     await prisma.booking.create({data: {externalId: prefix + "-missing", bookingSource: prefix, rawPayload: {BookedAtTime: "2026-10-12T12:00:00", synthetic: true}}});
     const blocked = await request("POST", {action: "preview", workflow});
     assert.equal(blocked.status, 200); assert.equal((await blocked.json()).readiness.ready, false);

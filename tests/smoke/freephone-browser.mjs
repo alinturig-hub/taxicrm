@@ -70,19 +70,11 @@ try {
   const page = await context.newPage();
   const errors = [];
   page.on("pageerror", (error) => errors.push(error.message));
-  await page.goto(origin + "/dashboard/configuration/sms");
-  await page
-    .locator("summary")
-    .filter({ hasText: "Add monitored lines as disabled drafts" })
-    .click();
-  await page
-    .getByLabel("One line per row: name | phone")
-    .fill(`${name} | ${phone}`);
-  await page.getByRole("button", { name: "Save disabled drafts" }).click();
-  await page
-    .getByRole("status")
-    .filter({ hasText: "1 disabled drafts added" })
-    .waitFor();
+  await page.goto(origin + "/dashboard/operations/notifications");
+  await page.getByLabel("Location Name", { exact: true }).fill(name);
+  await page.getByLabel("Phone Number", { exact: true }).fill(phone);
+  await page.getByRole("button", { name: "Add line", exact: true }).click();
+  await page.getByRole("status").filter({ hasText: "Line added with notifications disabled" }).waitFor();
   let job = await prisma.notificationJob.findFirstOrThrow({ where: { name } });
   assert.equal(job.isEnabled, false);
   assert.equal(job.defaultRecipient, "");
@@ -132,6 +124,28 @@ try {
       .bookedAtTime,
     null,
   );
+  const toggle = page.getByRole("checkbox", { name: `Notifications for ${name}` });
+  await toggle.click();
+  await page.getByRole("status").filter({ hasText: "Notifications disabled." }).waitFor();
+  assert.equal(await toggle.isChecked(), false);
+  await toggle.click();
+  await page.getByRole("status").filter({ hasText: "Notifications enabled." }).waitFor();
+  assert.equal((await prisma.notificationJob.findUniqueOrThrow({ where: { id: job.id } })).defaultRecipient, "+447700900000");
+  assert.equal(await toggle.isChecked(), true);
+  await page.getByLabel("Import CSV").setInputFiles({
+    name: "freephone.csv", mimeType: "text/csv",
+    buffer: Buffer.from(`Location Name,Phone Number
+${prefix} Annex,07700900049
+Repeat,+447700900046
+Invalid,bad`),
+  });
+  const importPreview = page.getByRole("list", { name: "CSV import preview" });
+  await importPreview.getByText(/Annex.*Ready/).waitFor();
+  await importPreview.getByText(/Repeat.*Duplicate/).waitFor();
+  await importPreview.getByText(/Invalid location or number/).waitFor();
+  await page.getByRole("button", { name: "Import valid lines" }).click();
+  await page.getByRole("status").filter({ hasText: "1 lines added" }).waitFor();
+  assert.equal((await prisma.notificationJob.findFirstOrThrow({ where: { name: `${prefix} Annex` } })).isEnabled, false);
   assert.deepEqual(errors, []);
   console.log(
     "PASS: persisted disabled freephone draft, manual recipient, read-only canonical evidence preview, explicit source/event activation, 12-hour grace and unchanged booking data. No messages queued or external calls.",

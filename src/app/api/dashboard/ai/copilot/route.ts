@@ -26,7 +26,8 @@ import { getLiveOperations } from "@/lib/operations/live-operations";
 import { prisma } from "@/lib/prisma";
 import { BOOKING_PREDICTION_MODEL_VERSION } from "@/lib/customers/booking-prediction-model";
 import { followUpPeriod } from "@/lib/ai/copilot-follow-up";
-import { bookingScope } from "@/lib/ai/copilot-booking-scope";
+import { bookingScope, type FreephonePeriod } from "@/lib/ai/copilot-booking-scope";
+import { planFreephoneScope } from "@/lib/ai/copilot-freephone-planner";
 import { freephoneBookings, freephoneClarification } from "@/lib/ai/copilot-freephone";
 
 export const runtime = "nodejs";
@@ -1127,9 +1128,12 @@ export async function POST(
       : "";
     const previousIntent = period ? classify(previousQuestion) : null;
     const previousScope = period ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
+    const followUpScope = period && previousScope?.type === "freephone"
+      ? { ...previousScope, period: period.toLowerCase().replace("_", " ") as FreephonePeriod }
+      : previousScope;
     const scope = intent === "RESTRICTED"
       ? null
-      : bookingScope(question, intent === "ANALYTICS") ?? (previousScope && (period !== "THIS_WEEK" ? { type: "clarify" } as const : previousScope));
+      : bookingScope(question, intent === "ANALYTICS") ?? followUpScope;
     if (scope) {
       intent = "FREEPHONE_BOOKINGS";
       analyticsPlan = null;
@@ -1235,12 +1239,21 @@ export async function POST(
       return NextResponse.json({ success: false, error: "FREEPHONE_BOOKINGS_PERMISSION_REQUIRED" }, { status: 403 });
     }
 
+    const interpretedScope = scope?.type === "freephone" && !period
+      ? await planFreephoneScope(question, scope)
+      : null;
+    if (interpretedScope) semanticPlannerUsed = true;
+
     const scopedAnswer = scope?.type === "freephone"
-      ? await freephoneBookings(scope.line, now)
+      ? await freephoneBookings((interpretedScope ?? scope).line, now, (interpretedScope ?? scope).period)
+        .catch(() => ({
+          verified: false,
+          answer: freephoneClarification("TaxiCRM could not read the booking count for the requested line and period. Please try again."),
+        }))
       : scope
         ? {
           verified: false,
-          answer: freephoneClarification("Please specify the configured Freephone line and ask for this week’s booking count. I cannot verify the requested filters as written."),
+          answer: freephoneClarification("Please specify the configured Freephone line and ask for a booking count for today, yesterday, this week, last week, this month or last month. I cannot verify the requested filters as written."),
         }
         : null;
 

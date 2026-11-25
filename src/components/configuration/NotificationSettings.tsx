@@ -120,7 +120,9 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
   const [notice, setNotice] = useState("");
   const [busy, setBusy] = useState(false);
   const [testId, setTestId] = useState("");
-  const [draftLines, setDraftLines] = useState("");
+  const [lineName, setLineName] = useState("");
+  const [linePhone, setLinePhone] = useState("");
+  const [csvRows, setCsvRows] = useState<{ name: string; phone: string; status: string }[]>([]);
   const [lookupNumbers, setLookupNumbers] = useState("");
   const [lookupResult, setLookupResult] = useState<AuditResult | null>(null);
   async function request(method = "GET", body?: unknown) {
@@ -416,85 +418,81 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
             </div>
           )}
         </section>
-        <details className="rounded-lg border border-slate-800 p-3">
-          <summary className="cursor-pointer text-sm text-slate-200">
-            Add monitored lines as disabled drafts
-          </summary>
-          <label className="mt-3 block text-sm text-slate-300">
-            One line per row: name | phone
-            <textarea
-              className={input}
-              rows={3}
-              value={draftLines}
-              onChange={(e) => setDraftLines(e.target.value)}
-              placeholder="Hospital Freephone | 077…"
-            />
-          </label>
-          <p className="my-2 text-xs text-slate-400">
-            Up to 25 lines. Existing workflows are preserved. No recipients,
-            active events or SMS are created.
-          </p>
-          <button
-            disabled={busy}
-            className={button}
-            onClick={() =>
+        <section aria-labelledby="freephone-lines" className="space-y-3 rounded-lg border border-slate-800 p-3">
+          <h3 id="freephone-lines" className="text-sm font-medium text-slate-200">Freephone lines</h3>
+          <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
+            event.preventDefault();
+            void action(async () => {
+              const result = await request("POST", { action: "import", entries: [{ name: lineName, phone: linePhone }] });
+              setLineName("");
+              setLinePhone("");
+              await reload();
+              setNotice(result.created.length ? "Line added with notifications disabled." : "This line already exists. Its settings were preserved.");
+            });
+          }}>
+            <label className="flex-1 text-sm">Location Name
+              <input className={input} required maxLength={120} value={lineName} onChange={(event) => setLineName(event.target.value)} />
+            </label>
+            <label className="flex-1 text-sm">Phone Number
+              <input className={input} required type="tel" value={linePhone} onChange={(event) => setLinePhone(event.target.value)} />
+            </label>
+            <button className={button} disabled={busy}>Add line</button>
+          </form>
+          <label className="block text-sm">Import CSV
+            <input className={input} type="file" accept=".csv,text/csv" disabled={busy} onChange={(event) => {
+              const file = event.currentTarget.files?.[0];
+              event.currentTarget.value = "";
+              setCsvRows([]);
+              if (!file) return;
               void action(async () => {
-                const entries = draftLines
-                  .split("\n")
-                  .map((line) => line.trim())
-                  .filter(Boolean)
-                  .map((line) => {
-                    const parts = line.split("|");
-                    if (parts.length !== 2)
-                      throw new Error("Use name | phone for each line.");
-                    return { name: parts[0].trim(), phone: parts[1].trim() };
-                  });
-                const result = await request("POST", {
-                  action: "import",
-                  entries,
-                });
-                setDraftLines("");
-                await reload();
-                setNotice(
-                  `${result.created.length} disabled drafts added; ${result.skipped.length} existing lines preserved. Enter the SMS recipient and verify booking evidence before activation.`,
-                );
-              })
-            }
-          >
-            Save disabled drafts
-          </button>
-        </details>
+                if (file.size > 64_000) throw new Error("CSV exceeds its size limit.");
+                const result = await request("POST", { action: "preview-import", csv: await file.text() });
+                setCsvRows(result.rows);
+                if (!result.rows.length) setNotice("The CSV contains no lines.");
+              });
+            }} />
+          </label>
+          <p className="text-xs text-slate-400">CSV columns: Location Name, Phone Number. New lines start with notifications disabled.</p>
+          {csvRows.length > 0 && (
+            <div className="space-y-2">
+              <ul aria-label="CSV import preview" className="space-y-1 text-sm">
+                {csvRows.map((row, index) => <li key={index}>{row.name || "Missing location"} · {row.phone || "Missing number"} · {row.status}</li>)}
+              </ul>
+              <button className={button} disabled={busy || !csvRows.some((row) => row.status === "Ready")} onClick={() =>
+                void action(async () => {
+                  const entries = csvRows.filter((row) => row.status === "Ready").map(({ name, phone }) => ({ name, phone }));
+                  const result = await request("POST", { action: "import", entries });
+                  setCsvRows([]);
+                  await reload();
+                  setNotice(`${result.created.length} lines added with notifications disabled. ${result.skipped.length} existing lines preserved.`);
+                })
+              }>Import valid lines</button>
+            </div>
+          )}
+        </section>
         {jobs.map((job) => (
-          <div
-            key={job.id}
-            className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 p-3 text-sm text-slate-300"
-          >
-            <span>
-              {job.name} · {job.isEnabled ? "Enabled" : "Disabled"} ·{" "}
-              {job.defaultRecipient ||
-                (job.rules.some((r) => r.recipient)
-                  ? "Event recipients"
-                  : "Recipient not set")}
-              {job.nextRunAt && job.isEnabled && (
-                <>
-                  {" "}
-                  · Next:{" "}
-                  {new Date(job.nextRunAt).toLocaleString("en-GB", {
-                    timeZone: "Europe/London",
-                  })}{" "}
-                  London
-                </>
-              )}
-            </span>
-            <button
-              className={button}
-              onClick={() => {
-                setWorkflow(job);
-                setPreview(null);
-              }}
-            >
-              Edit
-            </button>
+          <div key={job.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-800 p-3 text-sm text-slate-300">
+            <div>
+              <strong>{job.name}</strong>
+              <div>{job.sourceField === "telephoneNumber" ? job.sourceValue : `${job.sourceField}: ${job.sourceValue}`}</div>
+              {job.nextRunAt && job.isEnabled && <div>Next: {new Date(job.nextRunAt).toLocaleString("en-GB", { timeZone: "Europe/London" })} London</div>}
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="flex items-center gap-2">
+                <input type="checkbox" aria-label={`Notifications for ${job.name}`} checked={job.isEnabled} disabled={busy}
+                  onChange={(event) => {
+                    const enabled = event.currentTarget.checked;
+                    void action(async () => {
+                      await request("POST", { action: "toggle", id: job.id, enabled });
+                      await reload();
+                      setWorkflow((current) => current?.id === job.id ? null : current);
+                      setNotice(enabled ? "Notifications enabled." : "Notifications disabled.");
+                    });
+                  }} />
+                Notifications {job.isEnabled ? "enabled" : "disabled"}
+              </label>
+              <button className={button} onClick={() => { setWorkflow(job); setPreview(null); }}>Edit</button>
+            </div>
           </div>
         ))}
         {!jobs.length && (

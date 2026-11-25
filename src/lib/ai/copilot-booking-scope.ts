@@ -1,3 +1,6 @@
+const freephonePeriods = ["today", "yesterday", "this week", "last week", "this month", "last month"] as const;
+export type FreephonePeriod = typeof freephonePeriods[number];
+
 const freephone = /\bfree[ -]?phone\b/i;
 
 export function bookingScope(question: string, checkOtherBookingFilters = true) {
@@ -9,7 +12,7 @@ export function bookingScope(question: string, checkOtherBookingFilters = true) 
   }
 
   const match = question.trim().match(
-    /^(?:how many\s+)?bookings?\s+(?:from|for|via|on)\s+(.+?)(?:\s+did\s+we\s+have|\s+we\s+had)?\s+(?:this|current) week(?:\s+so far)?[?.!]*$/i,
+    /^(?:how many\s+)?bookings?\s+(?:did\s+we\s+have\s+)?(?:from|for|via|on)\s+(.+?)(?:\s+did\s+we\s+have|\s+we\s+had)?\s+(today|yesterday|(?:this|last|current) (?:week|month))(?:\s+so far)?[?.!]*$/i,
   );
   const name = match?.[1].trim();
   if (!name || !freephone.test(name)) return { type: "clarify" } as const;
@@ -19,10 +22,11 @@ export function bookingScope(question: string, checkOtherBookingFilters = true) 
     return { type: "clarify" } as const;
   }
 
-  return { type: "freephone", line } as const;
+  const period = freephonePeriods.find((value) => value === match?.[2].toLowerCase().replace("current", "this"));
+  return period ? { type: "freephone", line, period } as const : { type: "clarify" } as const;
 }
 
-function normalizeLine(name: string) {
+export function normalizeLine(name: string) {
   return name.normalize("NFKD").toLowerCase()
     .replace(/[\u0300-\u036f]/g, "")
     .replace(/\bfree[ -]?phone\b/g, " ")

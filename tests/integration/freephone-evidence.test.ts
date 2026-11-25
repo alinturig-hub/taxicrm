@@ -206,7 +206,7 @@ test("Copilot applies the configured Freephone line and London week or returns c
   const setup = {
     sourceField: "telephoneNumber",
     sourceValue: "+447700900075",
-    sourceConfirmed: true,
+    sourceConfirmed: false,
     defaultRecipient: "",
     rules: [],
     nextRunAt: now,
@@ -218,7 +218,7 @@ test("Copilot applies the configured Freephone line and London week or returns c
     const scope = bookingScope(question);
     assert.ok(scope?.type === "freephone");
     assert.deepEqual(bookingScope("how many booking from derriford freephone we had this week"), {
-      type: "freephone", line: "derriford",
+      type: "freephone", line: "derriford", period: "this week",
     });
     assert.deepEqual(bookingScope(question.replace("this week", "this week excluding card bookings")), { type: "clarify" });
     assert.equal(bookingScope("How many bookings did we have this week?"), null);

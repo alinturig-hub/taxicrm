@@ -3,8 +3,8 @@ import { bookingTimeSql } from "@/lib/notifications/booking-evidence";
 import { sourceFields } from "@/lib/notifications/operations";
 import { normaliseFreephoneNumber, telephoneSql } from "@/lib/notifications/phone-audit";
 import { prisma } from "@/lib/prisma";
-import { startOfLondonWeek } from "@/lib/time/london-calendar";
-import { matchingFreephoneLines } from "./copilot-booking-scope";
+import { addLondonDays, addLondonMonths, startOfLondonDay, startOfLondonMonth, startOfLondonWeek } from "@/lib/time/london-calendar";
+import { matchingFreephoneLines, type FreephonePeriod } from "./copilot-booking-scope";
 
 const sources = [{ label: "Operations → Notifications", href: "/dashboard/operations/notifications" }];
 const periodFormat = new Intl.DateTimeFormat("en-GB", {
@@ -21,8 +21,20 @@ export function freephoneClarification(summary: string) {
   };
 }
 
-export async function freephoneBookings(lineName: string, now: Date) {
-  const start = startOfLondonWeek(now);
+export async function freephoneBookings(lineName: string, now: Date, period: FreephonePeriod = "this week") {
+  const today = startOfLondonDay(now);
+  const week = startOfLondonWeek(now);
+  const month = startOfLondonMonth(now);
+  const windows = {
+    today: [today, now],
+    yesterday: [addLondonDays(today, -1), today],
+    "this week": [week, now],
+    "last week": [addLondonDays(week, -7), week],
+    "this month": [month, now],
+    "last month": [addLondonMonths(month, -1), month],
+  };
+  const [start, end] = windows[period];
+  const upperBound = end === now ? Prisma.sql`<=` : Prisma.sql`<`;
   return prisma.$transaction(async (tx) => {
     await tx.$executeRaw`SET TRANSACTION READ ONLY`;
     await tx.$executeRaw`SET LOCAL statement_timeout = '10s'`;
@@ -42,7 +54,7 @@ export async function freephoneBookings(lineName: string, now: Date) {
       answer: freephoneClarification(`Which configured Freephone line do you mean? ${matches.map(({ name }) => name).join(" · ")}`),
     };
     const source = sourceFields.find((field) => field === line.sourceField);
-    if (!source || !line.sourceConfirmed) return {
+    if (!source || (source !== "telephoneNumber" && !line.sourceConfirmed)) return {
       verified: false,
       answer: freephoneClarification(`${line.name} needs a confirmed booking source in Operations → Notifications.`),
     };
@@ -57,7 +69,7 @@ export async function freephoneBookings(lineName: string, now: Date) {
         WHERE provider = 'AUTOCAB' AND ${field} = ${value}
       )
       SELECT count(*) FILTER (WHERE booked_at >= ${start.toISOString()}::timestamptz
-        AND booked_at <= ${now.toISOString()}::timestamptz) AS total,
+        AND booked_at ${upperBound} ${end.toISOString()}::timestamptz) AS total,
         count(*) FILTER (WHERE booked_at IS NULL) AS undated
       FROM matched
     `;
@@ -67,10 +79,10 @@ export async function freephoneBookings(lineName: string, now: Date) {
       verified: undated === 0,
       answer: {
         headline: `${total.toLocaleString("en-GB")} ${total === 1 ? "booking" : "bookings"} from ${line.name}`,
-        summary: `${periodFormat.format(start)} to ${periodFormat.format(now)} (Europe/London).`,
+        summary: `${periodFormat.format(start)} to ${periodFormat.format(end)} (Europe/London).`,
         metrics: [{ label: "Bookings", value: total }],
         evidence: [
-          "Counts unique Autocab bookings matching the confirmed source configured for this Freephone line.",
+          "Counts unique Autocab bookings matching the booking source configured for this Freephone line.",
           ...(undated ? [`${undated.toLocaleString("en-GB")} matching bookings have no verified creation timestamp and could not be assigned to the period.`] : []),
         ],
         sources,
