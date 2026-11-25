@@ -118,6 +118,13 @@ Invalid,xyz`,
     assert.match(company.answer.headline, /across the company/);
     assert.deepEqual(company.answer.metrics, [{ label: "No-shows (no fare)", value: 2 }]);
     assert.equal(company.safeguards.externalModelUsed, false);
+    const afterRevenue = await (await ask("how many no show we had today", "What is today's revenue?")).json();
+    assert.equal(afterRevenue.answerType, "VERIFIED");
+    assert.match(afterRevenue.answer.headline, /across the company/);
+    assert.match(afterRevenue.answer.summary, /00:00.*Europe\/London/);
+    assert.deepEqual(afterRevenue.answer.metrics, [{ label: "No-shows (no fare)", value: 2 }]);
+    const standalone = await (await ask("how many no show we had today")).json();
+    assert.deepEqual(standalone.answer.metrics, afterRevenue.answer.metrics);
     const withoutLine = await (await ask(followUp)).json();
     assert.equal(withoutLine.answerType, "UNVERIFIED");
     assert.deepEqual(withoutLine.answer.metrics, []);

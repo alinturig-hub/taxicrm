@@ -157,6 +157,12 @@ Invalid,bad`),
   await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).waitFor();
   await page.getByRole("button", { name: "Yesterday", exact: true }).click();
   await page.getByRole("heading", { name: `0 no-shows from ${name}`, exact: true }).nth(1).waitFor();
+  await chat.fill("What is today's revenue?");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("link", { name: "Open Executive Dashboard" }).waitFor();
+  await chat.fill("how many no show we had today");
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await page.getByRole("heading", { name: "0 no-shows across the company", exact: true }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
     "PASS: persisted disabled freephone draft, manual recipient, read-only canonical evidence preview, explicit source/event activation, 12-hour grace and unchanged booking data. No messages queued or external calls.",

@@ -1129,7 +1129,6 @@ export async function POST(
     const previousQuestion = typeof body.previousQuestion === "string"
       ? body.previousQuestion.trim().slice(0, 500)
       : "";
-    const companyPeriod = intent === "RESTRICTED" ? null : companyNoShowPeriod(question);
     const noShowPeriod = freephoneNoShowFollowUp(question);
     const rememberedScope = parseFreephoneConversation(body.freephoneContext);
     const comparisonPeriod = rememberedScope?.lineId && intent !== "RESTRICTED"
@@ -1143,6 +1142,9 @@ export async function POST(
       : null;
     const previousIntent = period || noShowPeriod ? classify(previousQuestion) : null;
     const previousScope = period || noShowPeriod ? bookingScope(previousQuestion, previousIntent === "ANALYTICS") : null;
+    const explicitContinuation = /^(?:(?:perfect|perdect|thanks)[, ]+)?(?:and|și|si|iar|dar)\s+/i.test(question);
+    const companyPeriod = intent === "RESTRICTED" ? null : companyNoShowPeriod(question) ??
+      (!rememberedScope && !previousScope && !explicitContinuation ? noShowPeriod : null);
     const followUpPeriodValue = noShowPeriod ?? (period?.toLowerCase().replace("_", " ") as FreephonePeriod | undefined);
     const continuedScope = rememberedScope && followUpPeriodValue ? {
       ...rememberedScope,
