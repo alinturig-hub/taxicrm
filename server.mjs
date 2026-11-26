@@ -1,7 +1,7 @@
 import { createServer } from "node:http";
 import { spawn } from "node:child_process";
 import next from "next";
-import { assertJobSucceeded, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
+import { assertJobSucceeded, automationScheduleMinutes, historicalBackfillEnabled } from "./src/lib/scheduler-result.mjs";
 import { applySmsSchema } from "./scripts/sms-schema-bootstrap.mjs";
 
 import { applyWebhookProviderSchema } from "./scripts/webhook-provider-bootstrap.mjs";
@@ -27,19 +27,19 @@ const CUSTOMER_INTELLIGENCE_INTERVAL_MS =
 const PROFILE_SNAPSHOTS_START_DELAY_MS =
   15 * 60 * 1000;
 const PROFILE_SNAPSHOTS_INTERVAL_MS =
-  6 * 60 * 60 * 1000;
+  automationScheduleMinutes.CUSTOMER_PROFILE_SNAPSHOTS * 60 * 1000;
 const DEMAND_FORECAST_START_DELAY_MS =
   10 * 60 * 1000;
 const DEMAND_FORECAST_INTERVAL_MS =
-  12 * 60 * 60 * 1000;
+  automationScheduleMinutes.BOOKING_DEMAND_FORECAST * 60 * 1000;
 const PREDICTION_MAINT_START_DELAY_MS =
   20 * 60 * 1000;
 const PREDICTION_MAINT_INTERVAL_MS =
-  6 * 60 * 60 * 1000;
+  automationScheduleMinutes.CUSTOMER_BOOKING_PREDICTIONS * 60 * 1000;
 const GEOAPIFY_BACKFILL_START_DELAY_MS =
   25 * 60 * 1000;
 const GEOAPIFY_BACKFILL_INTERVAL_MS =
-  6 * 60 * 60 * 1000;
+  automationScheduleMinutes.HISTORICAL_GEOAPIFY_BACKFILL * 60 * 1000;
 const BATCH_DRAIN_DELAY_MS =
   5 * 1000;
 const MAX_DRAIN_BATCHES =

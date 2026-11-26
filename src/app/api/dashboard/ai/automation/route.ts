@@ -8,6 +8,7 @@ import {
 } from "@/lib/administration-access";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { automationScheduleMinutes, historicalBackfillEnabled } from "@/lib/scheduler-result.mjs";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -71,25 +72,12 @@ export async function GET() {
         },
       });
 
-    const jobKeys =
-      rules.map(
-        (rule) => rule.jobKey,
-      );
-
-    const jobRuns =
-      await prisma.customerIntelligenceJobRun.findMany({
-        where: {
-          jobKey: {
-            in: jobKeys,
-          },
-        },
-        orderBy: {
-          startedAt: "desc",
-        },
-        take: 100,
+    const latestRuns = await Promise.all(rules.map(({ jobKey }) =>
+      prisma.customerIntelligenceJobRun.findFirst({
+        where: { jobKey },
+        orderBy: [{ startedAt: "desc" }, { id: "desc" }],
         select: {
           id: true,
-          jobKey: true,
           status: true,
           source: true,
           startedAt: true,
@@ -101,7 +89,9 @@ export async function GET() {
           failed: true,
           hasMore: true,
         },
-      });
+      }),
+    ));
+    const scheduleMinutes: Readonly<Record<string, number | undefined>> = automationScheduleMinutes;
 
     const canManage =
       access.isSuperAdmin ||
@@ -129,7 +119,7 @@ export async function GET() {
           false,
       },
       rules: rules.map(
-        (rule) => ({
+        (rule, index) => ({
           id: rule.id,
           key: rule.key,
           name: rule.name,
@@ -152,12 +142,12 @@ export async function GET() {
             rule.lastExecutedAt,
           simulations:
             rule.executions,
-          latestJobRun:
-            jobRuns.find(
-              (run) =>
-                run.jobKey ===
-                rule.jobKey,
-            ) ?? null,
+          latestJobRun: latestRuns[index],
+          scheduler: scheduleMinutes[rule.jobKey] === undefined ? null : {
+            intervalMinutes: scheduleMinutes[rule.jobKey],
+            configured: Boolean(process.env.CRON_SECRET) &&
+              (rule.jobKey !== "HISTORICAL_GEOAPIFY_BACKFILL" || historicalBackfillEnabled()),
+          },
         }),
       ),
       privacy: {

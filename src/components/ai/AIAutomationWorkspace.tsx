@@ -45,7 +45,7 @@ type AutomationRule = {
   status: string;
   mode: string;
   requiresApproval: boolean;
-  expectedIntervalMin: number;
+  scheduler: { intervalMinutes: number; configured: boolean } | null;
   defaultBatchSize: number;
   configuration: unknown;
   lastSimulatedAt: string | null;
@@ -467,19 +467,13 @@ export default function AIAutomationWorkspace() {
         </article>
         <article className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
           <p className="text-xs uppercase tracking-[0.16em] text-slate-500">
-            Enabled rules
+            Server schedules configured
           </p>
           <p className="mt-2 text-2xl font-bold text-white">
-            {
-              data.rules.filter(
-                (rule) =>
-                  rule.status !==
-                  "DISABLED",
-              ).length
-            }
+            {data.rules.filter((rule) => rule.scheduler?.configured).length}
           </p>
           <p className="mt-1 text-xs text-slate-500">
-            Expected to remain zero
+            Based on runtime settings
           </p>
         </article>
         <article className="rounded-xl border border-slate-700 bg-slate-900/60 p-4">
@@ -534,7 +528,7 @@ export default function AIAutomationWorkspace() {
                 <div className="max-w-3xl">
                   <div className="flex flex-wrap gap-2">
                     <Badge tone="slate">
-                      {rule.status}
+                      Rule: {rule.status}
                     </Badge>
                     <Badge tone="blue">
                       {rule.mode}
@@ -553,12 +547,7 @@ export default function AIAutomationWorkspace() {
                     {rule.description}
                   </p>
                   <p className="mt-3 text-xs text-slate-500">
-                    Existing schedule:{" "}
-                    {formatInterval(
-                      rule.expectedIntervalMin,
-                    )}{" "}
-                    · simulation batch{" "}
-                    {rule.defaultBatchSize}
+                    Simulation batch {rule.defaultBatchSize}
                   </p>
                 </div>
 
@@ -585,7 +574,12 @@ export default function AIAutomationWorkspace() {
               <div className="mt-5 grid gap-4 lg:grid-cols-2">
                 <div className="rounded-xl border border-slate-700 bg-slate-950/35 p-4">
                   <p className="text-xs font-semibold uppercase tracking-[0.16em] text-slate-500">
-                    Existing cron health
+                    Server job
+                  </p>
+                  <p className="mt-2 text-sm text-slate-400">
+                    {rule.scheduler?.configured
+                      ? `Configured cadence: ${formatInterval(rule.scheduler.intervalMinutes)}`
+                      : rule.scheduler ? "Scheduler disabled by runtime configuration" : "No server schedule defined"}
                   </p>
                   {rule.latestJobRun ? (
                     <>
@@ -613,7 +607,7 @@ export default function AIAutomationWorkspace() {
                         </span>
                       </div>
                       <p className="mt-3 text-xs text-slate-500">
-                        Last run{" "}
+                        Last recorded run · {rule.latestJobRun.source} ·{" "}
                         {formatDateTime(
                           rule.latestJobRun
                             .startedAt,
@@ -622,7 +616,7 @@ export default function AIAutomationWorkspace() {
                     </>
                   ) : (
                     <p className="mt-3 text-sm text-slate-400">
-                      No recorded cron execution.
+                      No recorded job run.
                     </p>
                   )}
                 </div>
