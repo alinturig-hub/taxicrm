@@ -3,14 +3,9 @@ import { useEffect, useState } from "react";
 import { type FreephoneRule } from "@/lib/notifications/freephone-workflow-preview";
 type AuditResult = {
   rows: {
-    phone: string;
     total: number;
     last12h: number;
-    last24h: number;
-    missingSource: number;
     readiness: { ready: boolean; blockers: string[]; warnings: string[] };
-    missingDate: number;
-    payloadDateUsed: number;
   }[];
 };
 type EvidencePreview = {
@@ -123,8 +118,7 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
   const [lineName, setLineName] = useState("");
   const [linePhone, setLinePhone] = useState("");
   const [csvRows, setCsvRows] = useState<{ name: string; phone: string; status: string }[]>([]);
-  const [lookupNumbers, setLookupNumbers] = useState("");
-  const [lookupResult, setLookupResult] = useState<AuditResult | null>(null);
+  const [association, setAssociation] = useState<{ id: string; sourceValue: string; row: AuditResult["rows"][number] } | null>(null);
   async function request(method = "GET", body?: unknown) {
     const response = await fetch("/api/dashboard/configuration/sms", {
       method,
@@ -333,91 +327,6 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
         <p className="text-sm text-slate-400">
           Monitor a verified freephone line and configure the hours, check frequency and inactivity period. One inactivity alert is sent until a new booking is observed. SMS recipients are entered separately.
         </p>
-        <section aria-labelledby="freephone-booking-lookup" className="rounded-lg border border-slate-800 p-3">
-          <h3 id="freephone-booking-lookup" className="mb-2 text-sm font-medium text-slate-200">
-            Find bookings by freephone line number
-          </h3>
-          <textarea
-            aria-label="Freephone line numbers"
-            className={input}
-            rows={2}
-            placeholder="One number per line, or separated by commas; up to 25"
-            value={lookupNumbers}
-            onChange={(e) => {
-              setLookupNumbers(e.target.value);
-              setLookupResult(null);
-            }}
-          />
-          <button
-            disabled={busy}
-            className={button}
-            onClick={() =>
-              void action(async () => {
-                setLookupResult(
-                  await request("POST", {
-                    action: "lookup",
-                    phones: lookupNumbers
-                      .split(/[\n,;]+/)
-                      .map((p) => p.trim())
-                      .filter(Boolean),
-                  }),
-                );
-              })
-            }
-          >
-            Find bookings
-          </button>
-          <p className="mt-2 text-xs text-slate-400">
-            Read-only search of TelephoneNumber. UK national, +44 and 0044
-            formats match the same line. No SMS is sent.
-          </p>
-          {lookupResult !== null && (
-            <div className="mt-3 overflow-auto">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead>
-                  <tr className="border-b border-slate-700 text-xs text-slate-400">
-                    <th className="p-2">Monitored line</th>
-                    <th className="p-2">Booking history</th>
-                    <th className="p-2">Last 12h</th>
-                    <th className="p-2">Missing dates</th>
-                    <th className="p-2">Evidence status</th>
-                    <th className="p-2">Original timestamps used</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {lookupResult.rows.map((row) => (
-                    <tr key={row.phone} className="border-b border-slate-800">
-                      <td className="p-2 font-mono">{row.phone}</td>
-                      <td className="p-2">{row.total}</td>
-                      <td className="p-2">{row.last12h}</td>
-                      <td
-                        className={
-                          "p-2 " + (row.missingDate ? "text-amber-300" : "")
-                        }
-                      >
-                        {row.missingDate}
-                      </td>
-                      <td
-                        className="p-2"
-                        title={[
-                          ...(row.readiness?.blockers ?? []),
-                          ...(row.readiness?.warnings ?? []),
-                        ].join(" ")}
-                      >
-                        {row.readiness?.ready ? "Ready" : "Blocked"}
-                      </td>
-                      <td className="p-2">{row.payloadDateUsed}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <p className="mt-2 text-xs text-slate-400">
-                Only verified original booking timestamps are used. Booking
-                records and payloads are not changed.
-              </p>
-            </div>
-          )}
-        </section>
         <section aria-labelledby="freephone-lines" className="space-y-3 rounded-lg border border-slate-800 p-3">
           <h3 id="freephone-lines" className="text-sm font-medium text-slate-200">Freephone lines</h3>
           <form className="flex flex-wrap items-end gap-3" onSubmit={(event) => {
@@ -491,8 +400,29 @@ export default function NotificationSettings({ mode = "all" }: { mode?: "all" | 
                   }} />
                 Notifications {job.isEnabled ? "enabled" : "disabled"}
               </label>
+              {job.id && job.sourceField === "telephoneNumber" && (
+                <button className={button} disabled={busy} onClick={() => {
+                  const id = job.id!;
+                  setAssociation(null);
+                  void action(async () => {
+                    const result: AuditResult = await request("POST", { action: "lookup", phones: [job.sourceValue] });
+                    const row = result.rows[0];
+                    if (!row) throw new Error("No diagnostic result returned for this line.");
+                    setAssociation({ id, sourceValue: job.sourceValue, row });
+                  });
+                }}>Check booking association</button>
+              )}
               <button className={button} onClick={() => { setWorkflow(job); setPreview(null); }}>Edit</button>
             </div>
+            {association && association.id === job.id && association.sourceValue === job.sourceValue && (
+              <div role="status" className="w-full border-t border-slate-800 pt-2 text-sm text-slate-300">
+                <p>{association.row.total} matching {association.row.total === 1 ? "booking" : "bookings"} · {association.row.last12h} in the last 12 hours</p>
+                <p>{association.row.readiness.ready ? "Booking association verified" : "Booking evidence needs review"}</p>
+                {[...association.row.readiness.blockers, ...association.row.readiness.warnings].map((message) =>
+                  <p key={message} className="text-slate-400">{message}</p>
+                )}
+              </div>
+            )}
           </div>
         ))}
         {!jobs.length && (

@@ -80,6 +80,10 @@ try {
   assert.equal(job.defaultRecipient, "");
   await page.reload();
   await page.getByText(name, { exact: false }).waitFor();
+  assert.equal(await page.getByRole("button", { name: "Find bookings", exact: true }).count(), 0);
+  await page.getByRole("button", { name: "Check booking association", exact: true }).click();
+  await page.getByText("Booking association verified", { exact: true }).waitFor();
+  await page.getByText(/1 matching booking/).waitFor();
   await page.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByRole("button", { name: "Preview current count" }).click();
   await page.getByText("Booking evidence ready", { exact: true }).waitFor();
